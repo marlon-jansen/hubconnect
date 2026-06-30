@@ -1,0 +1,1897 @@
+/* =========================================================================
+   Ruilhub — UI laag
+   ========================================================================= */
+(function () {
+  "use strict";
+
+  var S = window.Store;
+  var PORTAL = "HubConnect";
+  var APP = "RuilHub";
+  var state = {
+    module: null,
+    view: "shifts", board: "shifts", filter: "open", q: "",
+    beheerTab: "team", teamQ: "",
+    statSort: "shiftsOvergenomen",
+    logQ: "", logType: "all"
+  };
+  var authScreen = "landing";
+
+  /* ---------- helpers ---------- */
+  function el(id) { return document.getElementById(id); }
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function initials(u) { return ((u.voornaam[0] || "") + (u.achternaam[0] || "")).toUpperCase(); }
+  function fullName(u) { return u ? esc(u.voornaam + " " + u.achternaam) : "Onbekend"; }
+  function fmtDate(iso) {
+    if (!iso) return "";
+    var p = iso.split("-"); if (p.length !== 3) return iso;
+    var d = new Date(iso + "T00:00:00");
+    var days = ["zo", "ma", "di", "wo", "do", "vr", "za"];
+    var mon = ["jan", "feb", "mrt", "apr", "mei", "jun", "jul", "aug", "sep", "okt", "nov", "dec"];
+    return days[d.getDay()] + " " + parseInt(p[2], 10) + " " + mon[d.getMonth()] + " " + p[0];
+  }
+  function fmtDateTime(iso) {
+    var d = new Date(iso);
+    return ("0" + d.getDate()).slice(-2) + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + d.getFullYear() +
+      " " + ("0" + d.getHours()).slice(-2) + ":" + ("0" + d.getMinutes()).slice(-2);
+  }
+
+  function ymd(d) { return d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2); }
+  function mondayOf(d) { d = new Date(d); var dow = (d.getDay() + 6) % 7; d.setDate(d.getDate() - dow); d.setHours(0, 0, 0, 0); return d; }
+  function isoWeek(d) {
+    d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    var dn = (d.getUTCDay() + 6) % 7; d.setUTCDate(d.getUTCDate() - dn + 3);
+    var first = new Date(Date.UTC(d.getUTCFullYear(), 0, 4));
+    return 1 + Math.round(((d - first) / 86400000 - 3 + ((first.getUTCDay() + 6) % 7)) / 7);
+  }
+
+  /* ---------- iconen ---------- */
+  var P = {
+    calendar: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
+    clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+    sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+    moon: '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>',
+    droplet: '<path d="M12 2.5s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/>',
+    van: '<path d="M3 7h11v9H3z"/><path d="M14 10h4l3 3v3h-7z"/><circle cx="7" cy="18" r="1.6"/><circle cx="17" cy="18" r="1.6"/>',
+    bolt: '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
+    tag: '<path d="M20.6 13.4 12 22l-9-9V4a1 1 0 0 1 1-1h9z"/><circle cx="7.5" cy="7.5" r="1.5"/>',
+    user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+    users: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 5a3.5 3.5 0 0 1 0 7M22 20a6 6 0 0 0-5-5.9"/>',
+    userPlus: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M19 8v6M22 11h-6"/>',
+    userCog: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 11 0"/><circle cx="18.5" cy="16.5" r="2.2"/><path d="M18.5 13.4v1M18.5 18.6v1M21.2 15l-.9.5M16.7 17.5l-.9.5M21.2 18l-.9-.5M16.7 15.5l-.9-.5"/>',
+    swap: '<path d="M7 4 3 8l4 4"/><path d="M3 8h13a4 4 0 0 1 0 8h-1"/><path d="M17 20l4-4-4-4"/><path d="M21 16H8"/>',
+    check: '<path d="M20 6 9 17l-5-5"/>',
+    checkCircle: '<circle cx="12" cy="12" r="9"/><path d="M8.5 12.5l2.5 2.5 4.5-5"/>',
+    x: '<path d="M18 6 6 18M6 6l12 12"/>',
+    xCircle: '<circle cx="12" cy="12" r="9"/><path d="M15 9l-6 6M9 9l6 6"/>',
+    clipboard: '<rect x="6" y="4" width="12" height="17" rx="2"/><path d="M9 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1"/><path d="M9 11h6M9 15h6"/>',
+    list: '<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>',
+    history: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 8v4l3 2"/>',
+    chart: '<path d="M3 3v18h18"/><rect x="7" y="11" width="3" height="6"/><rect x="12" y="7" width="3" height="10"/><rect x="17" y="13" width="3" height="4"/>',
+    settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8 2 2 0 1 1-2.8 2.8 1.6 1.6 0 0 0-2.7 1.1 2 2 0 1 1-4 0 1.6 1.6 0 0 0-2.7-1.1 2 2 0 1 1-2.8-2.8A1.6 1.6 0 0 0 2.6 15a2 2 0 1 1 0-4 1.6 1.6 0 0 0 1.1-2.7 2 2 0 1 1 2.8-2.8A1.6 1.6 0 0 0 9.2 6.6a2 2 0 1 1 4 0 1.6 1.6 0 0 0 2.7-1.1 2 2 0 1 1 2.8 2.8A1.6 1.6 0 0 0 21.4 11a2 2 0 1 1 0 4z"/>',
+    plus: '<path d="M12 5v14M5 12h14"/>',
+    search: '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>',
+    inbox: '<path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5 5h14l3 7v6a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-6z"/>',
+    lock: '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+    key: '<circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.5 12.5 21 2M16 7l3 3M14 9l2 2"/>',
+    pencil: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
+    trash: '<path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>',
+    shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+    info: '<circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/>',
+    alert: '<path d="M10.3 3.3 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.3a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/>',
+    building: '<rect x="4" y="3" width="16" height="18" rx="1"/><path d="M9 7h.01M15 7h.01M9 11h.01M15 11h.01M9 15h.01M15 15h.01M10 21v-3h4v3"/>',
+    award: '<circle cx="12" cy="9" r="6"/><path d="M9 14l-1.5 7L12 19l4.5 2L15 14"/>',
+    arrowRight: '<path d="M5 12h14M13 6l6 6-6 6"/>',
+    arrowLeft: '<path d="M19 12H5M11 6l-6 6 6 6"/>',
+    arrowUp: '<path d="M12 19V5M6 11l6-6 6 6"/>',
+    arrowDown: '<path d="M12 5v14M6 13l6 6 6-6"/>',
+    refresh: '<path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/>',
+    logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/>',
+    cap: '<path d="M22 9 12 4 2 9l10 5 10-5z"/><path d="M6 11v5c0 1 3 3 6 3s6-2 6-3v-5"/>',
+    star: '<path d="m12 3 2.7 5.5 6 .9-4.4 4.2 1 6L12 17l-5.3 2.6 1-6L3.3 9.4l6-.9z"/>',
+    lifebuoy: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5"/><path d="M4.9 4.9 9.5 9.5M14.5 14.5l4.6 4.6M19.1 4.9 14.5 9.5M9.5 14.5l-4.6 4.6"/>',
+    grid: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
+    download: '<path d="M12 3v12M7 11l5 5 5-5"/><path d="M5 21h14"/>',
+    clipboardList: '<rect x="6" y="4" width="12" height="17" rx="2"/><path d="M9 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1"/><path d="M9 11h6M9 15h4"/><circle cx="7" cy="11" r=".4"/>',
+    layers4: '<rect x="4" y="5" width="16" height="14" rx="2"/><path d="M4 9.5h16M4 14h16"/>',
+    layers5: '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 8h16M4 12h16M4 16h16"/>',
+    exchange: '<path d="M4 8h13l-3.5-3.5M20 16H7l3.5 3.5"/>',
+    alertTri: '<path d="M10.3 3.3 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.3a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/>'
+  };
+  function svg(name, cls) { return '<svg class="icon ' + (cls || "") + '" viewBox="0 0 24 24" aria-hidden="true">' + P[name] + "</svg>"; }
+
+  /* ---------- Jumbo logo (huisstijl wordmark) ---------- */
+  function logo(h) {
+    h = h || 36;
+    return '<svg class="logo-mark" height="' + h + '" viewBox="0 0 348 96" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Jumbo">' +
+      '<g font-family="Arial Black, Arial, Nunito Sans, sans-serif" font-weight="900" font-size="84" letter-spacing="-2">' +
+        '<text x="14" y="74" fill="#1d1d1b">JUMBO</text>' +
+        '<text x="8" y="68" fill="#febe10">JUMBO</text>' +
+      '</g></svg>';
+  }
+
+  /* ---------- toast ---------- */
+  function toast(msg, type) {
+    var root = el("toast-root");
+    var t = document.createElement("div");
+    t.className = "toast " + (type || "");
+    t.innerHTML = svg(type === "err" ? "xCircle" : "checkCircle") + "<span>" + esc(msg) + "</span>";
+    root.appendChild(t);
+    setTimeout(function () { t.style.opacity = "0"; t.style.transition = ".3s"; }, 2800);
+    setTimeout(function () { if (t.parentNode) t.parentNode.removeChild(t); }, 3150);
+  }
+
+  /* ---------- modal ---------- */
+  function openModal(opts) {
+    var root = el("modal-root");
+    var ov = document.createElement("div");
+    ov.className = "modal-overlay";
+    ov.innerHTML =
+      '<div class="modal" role="dialog" aria-modal="true">' +
+        '<div class="modal-head">' + svg(opts.icon || "info") + "<h3>" + esc(opts.title) + "</h3>" +
+          (opts.noClose ? "" : '<button class="close" data-close>' + svg("x", "icon-sm") + "</button>") + "</div>" +
+        '<div class="modal-body">' + opts.body + "</div>" +
+        (opts.foot ? '<div class="modal-foot">' + opts.foot + "</div>" : "") +
+      "</div>";
+    root.appendChild(ov);
+    function close() { if (ov.parentNode) ov.parentNode.removeChild(ov); }
+    if (!opts.noClose) ov.addEventListener("click", function (e) { if (e.target === ov || e.target.closest("[data-close]")) close(); });
+    if (opts.onMount) opts.onMount(ov, close);
+    return { overlay: ov, close: close };
+  }
+
+  function act(fn, okMsg) { try { fn(); toast(okMsg, "ok"); renderApp(); } catch (e) { toast(e.message, "err"); } }
+
+  /* ===================================================================
+     LANDING
+     =================================================================== */
+  function renderLanding() {
+    el("app").innerHTML =
+      '<div class="landing">' +
+        '<div class="landing-bg"></div>' +
+        '<header class="landing-top">' +
+          '<div class="brand"><span class="logo-badge">' + logo(40) + '</span><div><div class="app-name">' + PORTAL + '</div><div class="app-sub">Jumbo Bezorgservice</div></div></div>' +
+          '<button class="btn btn-dark" data-go="login">' + svg("arrowRight") + "Inloggen</button></header>" +
+        '<section class="hero">' +
+          '<div class="hero-left">' +
+            '<div class="eyebrow">' + svg("grid", "icon-sm") + " Eén platform voor je hub</div>" +
+            '<h1>Alles voor je hub,<br><span class="hl">op één plek.</span></h1>' +
+            '<p class="lead">' + PORTAL + " brengt het shiftbeheer en de dagelijkse operatie van de bezorgservice samen: shifts en taken ruilen, de takenplanning, schadecontrole, het laadproces en kwaliteit — overzichtelijk en realtime per hub.</p>" +
+            '<div class="hero-cta">' +
+              '<button class="btn btn-primary btn-lg" data-go="login">' + svg("arrowRight") + "Inloggen</button>" +
+              '<span class="hero-note">' + svg("shield", "icon-sm") + " Veilig &amp; per hub afgeschermd</span>" +
+            "</div>" +
+          "</div>" +
+          '<div class="hero-right">' +
+            '<div class="float-card fc1"><div class="fc-top"><span class="fc-av">' + svg("swap", "icon-sm") + '</span><div><b>RuilHub</b><small>shifts &amp; taken ruilen</small></div></div>' +
+              '<div class="fc-badges"><span class="badge am">' + svg("sun", "icon-sm") + 'AM</span><span class="badge n2">' + svg("bolt", "icon-sm") + "N2</span></div></div>" +
+            '<div class="float-card fc2"><div class="fc-top"><span class="fc-av alt">' + svg("shield", "icon-sm") + '</span><div><b>Schadecontrole</b><small>live voortgang</small></div></div>' +
+              '<div class="fc-btn ghost">' + svg("check", "icon-sm") + "12 / 18 bussen</div></div>" +
+            '<div class="float-card fc3"><div class="swap-anim">' + svg("chart") + "</div><b>Dashboard</b><small>realtime overzicht</small></div>" +
+          "</div>" +
+        "</section>" +
+        '<section class="features">' +
+          feature("swap", "RuilHub", "Shifts en taken ruilen binnen je hub.") +
+          feature("clipboardList", "Takenplanning", "Weekrooster maken en delen als afbeelding.") +
+          feature("shield", "Operatie", "Schadecontrole, laden en kwaliteit — live.") +
+          feature("chart", "Dashboard", "Realtime overzicht voor de binnendienst.") +
+        "</section>" +
+        '<footer class="landing-foot">' + PORTAL + " · Jumbo Bezorgservice</footer>" +
+      "</div>";
+    document.querySelectorAll("[data-go=login]").forEach(function (b) { b.addEventListener("click", function () { authScreen = "login"; render(); }); });
+  }
+  function feature(icon, t, d) {
+    return '<div class="feat"><div class="feat-ico">' + svg(icon) + "</div><h3>" + esc(t) + "</h3><p>" + esc(d) + "</p></div>";
+  }
+
+  /* ===================================================================
+     LOGIN
+     =================================================================== */
+  function renderLogin() {
+    el("app").innerHTML =
+      '<div class="auth-wrap"><div class="auth-card">' +
+        '<div class="auth-head">' +
+          '<button class="auth-back" data-back>' + svg("arrowLeft", "icon-sm") + " Terug</button>" +
+          logo(38) + "<h1>Inloggen</h1><p>Welkom terug bij " + PORTAL + "</p></div>" +
+        '<div class="auth-body">' +
+          '<form id="loginForm" autocomplete="on">' +
+            '<div class="field"><label>E-mailadres</label>' +
+              '<input type="email" name="email" value="hr-" placeholder="hr-1234567@jumbo.com" required></div>' +
+            '<div class="field"><label>Wachtwoord</label>' +
+              '<input type="password" name="password" placeholder="Wachtwoord of eenmalige code" required></div>' +
+            '<div id="authMsg"></div>' +
+            '<button class="btn btn-primary btn-block" type="submit">' + svg("arrowRight") + "Inloggen</button>" +
+          "</form>" +
+          '<div class="hint" style="margin-top:14px;text-align:center">Nog geen account? Je teamleider maakt er één aan en geeft je een eenmalige code.</div>' +
+        "</div>" +
+      "</div></div>";
+
+    el("app").querySelector("[data-back]").addEventListener("click", function () { authScreen = "landing"; render(); });
+    el("loginForm").addEventListener("submit", function (e) {
+      e.preventDefault();
+      var f = e.target;
+      try { S.login(f.email.value, f.password.value); render(); }
+      catch (err) { el("authMsg").innerHTML = '<div class="alert alert-error">' + esc(err.message) + "</div>"; }
+    });
+    var em = el("loginForm").email;
+    em.addEventListener("focus", function () { if (em.value === "hr-") setTimeout(function () { em.setSelectionRange(3, 3); }, 0); });
+  }
+
+  /* ===================================================================
+     FORCE PASSWORD (na eenmalige code)
+     =================================================================== */
+  function renderForcePassword(u) {
+    el("app").innerHTML =
+      '<div class="auth-wrap"><div class="auth-card">' +
+        '<div class="auth-head">' + logo(38) + "<h1>Stel je wachtwoord in</h1><p>Welkom " + esc(u.voornaam) + "! Kies een eigen wachtwoord.</p></div>" +
+        '<div class="auth-body">' +
+          '<div class="alert alert-info">Je logde in met een eenmalige code. Stel nu een persoonlijk wachtwoord in om verder te gaan.</div>' +
+          '<form id="pwForm">' +
+            '<div class="field"><label>Nieuw wachtwoord</label><input type="password" name="p1" placeholder="Min. 4 tekens" required></div>' +
+            '<div class="field"><label>Herhaal wachtwoord</label><input type="password" name="p2" required></div>' +
+            '<div id="pwMsg"></div>' +
+            '<button class="btn btn-primary btn-block" type="submit">' + svg("check") + "Opslaan en doorgaan</button>" +
+          "</form>" +
+        "</div></div></div>";
+    el("pwForm").addEventListener("submit", function (e) {
+      e.preventDefault();
+      var f = e.target;
+      if (f.p1.value !== f.p2.value) { el("pwMsg").innerHTML = '<div class="alert alert-error">De wachtwoorden komen niet overeen.</div>'; return; }
+      try { S.setInitialPassword(f.p1.value); toast("Wachtwoord ingesteld.", "ok"); render(); }
+      catch (err) { el("pwMsg").innerHTML = '<div class="alert alert-error">' + esc(err.message) + "</div>"; }
+    });
+  }
+
+  /* ===================================================================
+     APP SHELL
+     =================================================================== */
+  function navItems(u) {
+    var items = [
+      { id: "shifts", label: "Ruilbord", icon: "swap" },
+      { id: "mine", label: "Mijn ruilverzoeken", icon: "clipboard" }
+    ];
+    if (S.can.isApprover(u)) items.push({ id: "approvals", label: "Goedkeuren", icon: "checkCircle", count: S.pendingCount(u) });
+    if (S.can.seeStats(u)) items.push({ id: "stats", label: "Statistieken", icon: "chart" });
+    if (S.can.seeBeheer(u)) items.push({ id: "beheer", label: "Beheren", icon: "userCog" });
+    if (S.can.seeLog(u)) items.push({ id: "log", label: "Historie", icon: "history" });
+    return items;
+  }
+
+  function renderApp() {
+    var u = S.currentUser();
+    var hub = S.hubById(u.hubId);
+    var items = navItems(u);
+    if (!items.some(function (i) { return i.id === state.view; })) state.view = "shifts";
+
+    var nav = items.map(function (i) {
+      return '<button class="nav-btn ' + (state.view === i.id ? "active" : "") + '" data-nav="' + i.id + '">' +
+        svg(i.icon, "icon-sm") + "<span>" + i.label + "</span>" +
+        (i.count ? '<span class="badge-count">' + i.count + "</span>" : "") + "</button>";
+    }).join("");
+
+    el("app").innerHTML =
+      '<header class="app-header"><div class="app-header-inner">' +
+        '<button class="btn btn-icon portal-btn" data-portal title="Naar de Hub">' + svg("grid", "icon-sm") + "</button>" +
+        '<div class="brand"><span class="logo-badge">' + logo(40) + "</span>" +
+          '<div><div class="app-name">' + APP + '</div><div class="app-sub">Shifts &amp; taken ruilen</div></div></div>' +
+        '<div class="header-spacer"></div>' +
+        '<div class="user-chip">' +
+          '<div style="text-align:right"><div class="u-name">' + fullName(u) + "</div>" +
+            '<div class="u-meta">' + esc(S.roleMeta(u.rol).label) + " · HUB " + esc(hub ? hub.naam : "?") + "</div></div>" +
+          '<button class="avatar-btn" data-profile title="Profiel"><span class="avatar">' + initials(u) + "</span>" +
+            '<span class="avatar-gear">' + svg("settings", "icon-sm") + "</span></button>" +
+          '<button class="btn btn-icon btn-ghost" data-logout title="Uitloggen" style="background:rgba(255,255,255,.5)">' + svg("logout", "icon-sm") + "</button>" +
+        "</div>" +
+      "</div></header>" +
+      '<nav class="app-nav"><div class="app-nav-inner">' + nav + "</div></nav>" +
+      '<main id="main"></main>';
+
+    document.querySelectorAll("[data-nav]").forEach(function (b) {
+      b.addEventListener("click", function () { state.view = b.getAttribute("data-nav"); renderMain(); });
+    });
+    el("app").querySelector("[data-logout]").addEventListener("click", function () { S.logout(); authScreen = "landing"; render(); });
+    el("app").querySelector("[data-profile]").addEventListener("click", openProfile);
+    var pb = el("app").querySelector("[data-portal]"); if (pb) pb.addEventListener("click", gotoPortal);
+    renderMain();
+  }
+
+  function renderMain() {
+    document.querySelectorAll("[data-nav]").forEach(function (b) { b.classList.toggle("active", b.getAttribute("data-nav") === state.view); });
+    var m = el("main");
+    switch (state.view) {
+      case "shifts": m.innerHTML = viewBoard(); bindBoard(); break;
+      case "mine": m.innerHTML = viewMine(); break;
+      case "approvals": m.innerHTML = viewApprovals(); bindApprovals(); break;
+      case "stats": m.innerHTML = viewStats(); bindStats(); break;
+      case "beheer": m.innerHTML = viewBeheer(); bindBeheer(); break;
+      case "log": m.innerHTML = viewLog(); bindLog(); break;
+    }
+  }
+
+  /* ---------- gedeelde badges ---------- */
+  function dagdeelBadge(d) {
+    return d === "AM" ? '<span class="badge am">' + svg("sun", "icon-sm") + "AM</span>"
+                      : '<span class="badge pm">' + svg("moon", "icon-sm") + "PM</span>";
+  }
+  function busBadge(t) {
+    if (t === "N2") return '<span class="badge n2">' + svg("bolt", "icon-sm") + "N2</span>";
+    if (t === "diesel") return '<span class="badge diesel">' + svg("droplet", "icon-sm") + "Diesel</span>";
+    return "";
+  }
+  function reasonBadge(r) { return r ? '<span class="badge reason">' + svg("info", "icon-sm") + esc(r) + "</span>" : ""; }
+  function taskBadge(t) {
+    if (!t) return "";
+    var cls = t === S.TASK_JBT ? "jbt" : (t === S.TASK_BINNENDIENST ? "bd" : "task");
+    return '<span class="badge ' + cls + '">' + svg(t === S.TASK_JBT ? "cap" : "tag", "icon-sm") + esc(t) + "</span>";
+  }
+  function statusBadge(s) {
+    var map = { "open": ["st-open", "Open"], "in-afwachting": ["st-afwachting", "In afwachting"], "goedgekeurd": ["st-goedgekeurd", "Goedgekeurd"], "afgekeurd": ["st-afgekeurd", "Afgekeurd"], "ingetrokken": ["st-ingetrokken", "Ingetrokken"] };
+    var m = map[s] || ["", s];
+    return '<span class="badge ' + m[0] + '">' + esc(m[1]) + "</span>";
+  }
+  function emptyState(icon, title, sub) { return '<div class="empty">' + svg(icon) + "<h3>" + esc(title) + "</h3><p>" + esc(sub) + "</p></div>"; }
+  function panel(icon, title, inner, extra) {
+    return '<div class="panel"><div class="panel-head">' + svg(icon) + "<h3>" + esc(title) + "</h3>" + (extra || "") + "</div>" +
+      '<div class="panel-body">' + inner + "</div></div>";
+  }
+  function tableScroll(inner) { return '<div class="table-scroll"><table class="table">' + inner + "</table></div>"; }
+  function matchesQ(text) { return !state.q || text.toLowerCase().indexOf(state.q.toLowerCase()) !== -1; }
+
+  /* ===================================================================
+     RUILBORD
+     =================================================================== */
+  function viewBoard() {
+    var u = S.currentUser();
+    var hub = S.hubById(u.hubId);
+    return '' +
+      '<div class="page-head"><div><h2>Ruilbord</h2><p>Binnen HUB ' + esc(hub ? hub.naam : "?") + " — wie eerst aanbiedt, gaat voor.</p></div>" +
+        '<div class="grow"></div>' +
+        '<button class="btn btn-primary" data-offer="shift">' + svg("plus") + "Shift aanbieden</button>" +
+        '<button class="btn btn-dark" data-offer="task">' + svg("plus") + "Taak aanbieden</button>" +
+        '<button class="btn btn-outline" data-offer="callout">' + svg("search", "icon-sm") + "Shift gezocht</button>" +
+        '<button class="btn btn-outline" data-offer="backup">' + svg("lifebuoy", "icon-sm") + "Back-up</button>" +
+      "</div>" +
+      '<div class="toolbar">' +
+        '<div class="seg">' +
+          '<button data-board="alles" class="' + (state.board === "alles" ? "active" : "") + '">Alles</button>' +
+          '<button data-board="shifts" class="' + (state.board === "shifts" ? "active" : "") + '">Shifts</button>' +
+          '<button data-board="tasks" class="' + (state.board === "tasks" ? "active" : "") + '">Taken</button>' +
+          '<button data-board="callout" class="' + (state.board === "callout" ? "active" : "") + '">Oproepen</button>' +
+          '<button data-board="backup" class="' + (state.board === "backup" ? "active" : "") + '">Back-up</button>' +
+        "</div>" +
+        '<div class="seg">' +
+          '<button data-filter="open" class="' + (state.filter === "open" ? "active" : "") + '">Open</button>' +
+          '<button data-filter="all" class="' + (state.filter === "all" ? "active" : "") + '">Alle statussen</button>' +
+        "</div>" +
+        '<div class="grow"></div>' +
+        '<div class="search">' + svg("search", "icon-sm") + '<input id="boardSearch" placeholder="Zoek op naam, datum of taak…" value="' + esc(state.q) + '"></div>' +
+      "</div>" +
+      '<div id="boardGrid">' + boardContent() + "</div>";
+  }
+
+  // groepeer items per dag, daarbinnen AM/PM
+  function groupRender(items, cardOf) {
+    var byDay = {}, order = [];
+    items.forEach(function (it) { if (!byDay[it.datum]) { byDay[it.datum] = []; order.push(it.datum); } byDay[it.datum].push(it); });
+    order.sort();
+    return order.map(function (day) {
+      var arr = byDay[day];
+      var am = arr.filter(function (i) { return i.dagdeel === "AM"; });
+      var pm = arr.filter(function (i) { return i.dagdeel === "PM"; });
+      function sect(label, ico, list, cls) {
+        if (!list.length) return "";
+        return '<div class="day-part ' + cls + '"><div class="day-part-h">' + svg(ico, "icon-sm") + label + ' <span class="cnt">' + list.length + "</span></div>" +
+          '<div class="grid">' + list.map(cardOf).join("") + "</div></div>";
+      }
+      return '<div class="day-block"><div class="day-head">' + svg("calendar", "icon-sm") + "<span>" + esc(fmtDate(day)) + "</span></div>" +
+        sect("AM · ochtend", "sun", am, "pt-am") + sect("PM · middag", "moon", pm, "pt-pm") + "</div>";
+    }).join("");
+  }
+
+  function statusKeep(s) { return state.filter === "open" ? (s === "open") : (s !== "ingetrokken"); }
+
+  function boardContent() {
+    if (state.board === "shifts") return boardShifts();
+    if (state.board === "tasks") return boardTasks();
+    if (state.board === "callout") return boardCallout();
+    if (state.board === "backup") return boardBackup();
+    return boardAlles();
+  }
+
+  function boardAlles() {
+    var u = S.currentUser();
+    var items = [];
+    S.shiftsForHub(u.hubId).forEach(function (s) { if (S.visibleTask(u, s.taak) && statusKeep(s.status) && matchesQ(qstr(s.aanbiederId, s.datum, s.dagdeel, s.taak))) { s._type = "shift"; items.push(s); } });
+    S.taskOffersForHub(u.hubId).forEach(function (t) { if (S.visibleTask(u, t.taak) && statusKeep(t.status) && matchesQ(qstr(t.aanbiederId, t.datum, t.dagdeel, t.taak))) { t._type = "task"; items.push(t); } });
+    S.calloutsForHub(u.hubId).forEach(function (c) { if (statusKeep(c.status) && matchesQ(qstr(c.aanbiederId, c.datum, c.dagdeel, ""))) { c._type = "callout"; items.push(c); } });
+    S.backupsForHub(u.hubId).forEach(function (b) { if (statusKeep(b.status) && matchesQ(qstr(b.aanbiederId, b.datum, b.dagdeel, b.ritOmschrijving || ""))) { b._type = "backup"; items.push(b); } });
+    if (!items.length) return emptyState("inbox", "Niets op het bord", "Er staan nu geen verzoeken binnen je hub.");
+    return groupRender(items, function (it) {
+      return it._type === "shift" ? shiftCard(it) : it._type === "task" ? taskCard(it) : it._type === "callout" ? calloutCard(it) : backupCard(it);
+    });
+  }
+  function qstr(uid, datum, dagdeel, taak) { var ab = S.userById(uid); return (ab ? ab.voornaam + " " + ab.achternaam : "") + " " + fmtDate(datum) + " " + dagdeel + " " + (taak || ""); }
+
+  function boardShifts() {
+    var u = S.currentUser();
+    var list = S.shiftsForHub(u.hubId).filter(function (s) {
+      return S.visibleTask(u, s.taak) && statusKeep(s.status) && matchesQ(qstr(s.aanbiederId, s.datum, s.dagdeel, s.taak));
+    });
+    list.sort(function (a, b) { return (a.seq || 0) - (b.seq || 0); }); // FCFS oudste eerst
+    if (!list.length) return emptyState("inbox", "Geen shifts", "Er staan nu geen shifts op het bord. Bied er zelf één aan met de knop rechtsboven.");
+    return groupRender(list, shiftCard);
+  }
+
+  function shiftCard(s) {
+    var u = S.currentUser();
+    var ab = S.userById(s.aanbiederId);
+    var mine = s.aanbiederId === u.id;
+    var accent = s.busType === "N2" ? "accent-n2" : (s.busType === "diesel" ? "accent-diesel" : "");
+    if (s.status === "in-afwachting") accent = "pending";
+
+    var rows = '<div class="card-rows">' +
+      '<div class="crow">' + svg("calendar", "icon-sm") + "<strong>" + esc(fmtDate(s.datum)) + "</strong></div>" +
+      (s.starttijd ? '<div class="crow">' + svg("clock", "icon-sm") + "Starttijd <strong>" + esc(s.starttijd) + "</strong></div>"
+        : '<div class="crow">' + svg("clock", "icon-sm") + '<span style="color:var(--muted)">Starttijd nog niet bekend</span></div>') +
+      '<div class="crow tiny">' + svg("history", "icon-sm") + "Geplaatst " + esc(fmtDateTime(s.createdAt)) + "</div>" +
+      "</div>";
+    var badges = '<div class="badges">' + dagdeelBadge(s.dagdeel) + busBadge(s.busType) + taskBadge(s.taak) + reasonBadge(s.aanbiedReden) + (state.filter === "all" ? statusBadge(s.status) : "") + "</div>";
+
+    var foot = "";
+    if (s.status === "open") {
+      if (mine) {
+        foot = '<button class="btn btn-ghost btn-sm" data-editshift="' + s.id + '">' + svg("pencil", "icon-sm") + "Aanpassen</button>" +
+               '<button class="btn btn-red btn-sm" data-withdrawshift="' + s.id + '">' + svg("trash", "icon-sm") + "Intrekken</button>";
+      } else if (S.can.claimShift(u, s)) {
+        foot = '<button class="btn btn-primary btn-block" data-claimshift="' + s.id + '">' + svg("check") + "Overnemen</button>";
+      } else {
+        var reason = "Je kunt deze shift niet overnemen.";
+        if (s.busType === "N2" && !u.n2) reason = "Je hebt geen N2-rijbevoegdheid.";
+        else if (s.taak && !S.canDoTask(u, s.taak)) reason = "Je mag de taak '" + s.taak + "' niet uitvoeren.";
+        foot = '<div class="locked-note warn">' + svg("lock", "icon-sm") + esc(reason) + "</div>";
+      }
+    } else if (s.status === "in-afwachting") {
+      foot = '<div class="locked-note">' + svg("clock", "icon-sm") + "Wacht op goedkeuring — door " + fullName(S.userById(s.overnemerId)) + "</div>";
+    }
+
+    return '<div class="card ' + accent + '">' +
+      '<div class="card-top"><div class="avatar">' + initials(ab) + "</div>" +
+        '<div class="who"><div class="nm clickname" data-uid="' + ab.id + '">' + fullName(ab) + (mine ? " (jij)" : "") + "</div><div class=\"rl\">" + esc(S.roleMeta(ab.rol).label) + "</div></div></div>" +
+      rows + badges + (foot ? '<div class="card-foot">' + foot + "</div>" : "") + "</div>";
+  }
+
+  function boardTasks() {
+    var u = S.currentUser();
+    var list = S.taskOffersForHub(u.hubId).filter(function (t) {
+      return S.visibleTask(u, t.taak) && statusKeep(t.status) && matchesQ(qstr(t.aanbiederId, t.datum, t.dagdeel, t.taak));
+    });
+    if (!list.length) return emptyState("tag", "Geen losse taken", "Heb je een taak voor of na je rit (zoals LC of schadecontrole)? Bied 'm aan zodat een collega extra uren kan draaien.");
+    return groupRender(list, taskCard);
+  }
+  function taskCard(t) {
+    var u = S.currentUser();
+    var ab = S.userById(t.aanbiederId);
+    var mine = t.aanbiederId === u.id;
+    var rows = '<div class="card-rows">' +
+      '<div class="crow">' + svg("calendar", "icon-sm") + "<strong>" + esc(fmtDate(t.datum)) + "</strong></div>" +
+      (t.starttijd ? '<div class="crow">' + svg("clock", "icon-sm") + "Tijd <strong>" + esc(t.starttijd) + "</strong></div>" : "") +
+      '<div class="crow tiny">' + svg("history", "icon-sm") + "Geplaatst " + esc(fmtDateTime(t.createdAt)) + "</div></div>";
+    var badges = '<div class="badges">' + dagdeelBadge(t.dagdeel) + taskBadge(t.taak) + reasonBadge(t.aanbiedReden) + (state.filter === "all" ? statusBadge(t.status) : "") + "</div>";
+    var foot = "";
+    if (t.status === "open") {
+      if (mine) foot = '<button class="btn btn-red btn-sm btn-block" data-withdrawtask="' + t.id + '">' + svg("trash", "icon-sm") + "Intrekken</button>";
+      else if (S.can.claimTask(u, t)) foot = '<button class="btn btn-dark btn-block" data-claimtask="' + t.id + '">' + svg("check") + "Taak overnemen</button>";
+      else foot = '<div class="locked-note warn">' + svg("lock", "icon-sm") + "Je mag de taak '" + esc(t.taak) + "' niet uitvoeren.</div>";
+    } else if (t.status === "in-afwachting") {
+      foot = '<div class="locked-note">' + svg("clock", "icon-sm") + "Wacht op goedkeuring — door " + fullName(S.userById(t.overnemerId)) + "</div>";
+    }
+    return '<div class="card ' + (t.status === "in-afwachting" ? "pending" : "") + '">' +
+      '<div class="card-top"><div class="avatar">' + initials(ab) + "</div>" +
+        '<div class="who"><div class="nm clickname" data-uid="' + ab.id + '">' + fullName(ab) + (mine ? " (jij)" : "") + "</div><div class=\"rl\">" + esc(S.roleMeta(ab.rol).label) + "</div></div></div>" +
+      rows + badges + (foot ? '<div class="card-foot">' + foot + "</div>" : "") + "</div>";
+  }
+
+  function boardBackup() {
+    var u = S.currentUser();
+    var list = S.backupsForHub(u.hubId).filter(function (b) {
+      return statusKeep(b.status) && matchesQ(qstr(b.aanbiederId, b.datum, b.dagdeel, b.ritOmschrijving || ""));
+    });
+    if (!list.length) return emptyState("lifebuoy", "Geen back-up verzoeken", "Wil je rijden terwijl je op back-up staat, of juist je rit weggeven om back-up te staan? Gebruik de knop 'Back-up'.");
+    return groupRender(list, backupCard);
+  }
+  function backupCard(b) {
+    var u = S.currentUser();
+    var ab = S.userById(b.aanbiederId);
+    var mine = b.aanbiederId === u.id;
+    var wantsDrive = b.direction !== "backup"; // "rijden"
+    var line = wantsDrive ? "Staat op back-up, wil graag rijden" : "Geeft rit weg, wil back-up staan";
+    var ritLine = (b.ritOmschrijving && !wantsDrive) ? '<div class="crow">' + svg("van", "icon-sm") + "Rit: <strong>" + esc(b.ritOmschrijving) + (b.ritTijd ? " · " + esc(b.ritTijd) : "") + "</strong></div>" : "";
+    var rows = '<div class="card-rows">' +
+      '<div class="crow">' + svg("calendar", "icon-sm") + "<strong>" + esc(fmtDate(b.datum)) + "</strong></div>" +
+      '<div class="crow">' + svg("lifebuoy", "icon-sm") + esc(line) + "</div>" + ritLine +
+      (b.toelichting ? '<div class="crow tiny">' + svg("info", "icon-sm") + esc(b.toelichting) + "</div>" : "") +
+      '<div class="crow tiny">' + svg("history", "icon-sm") + "Geplaatst " + esc(fmtDateTime(b.createdAt)) + "</div></div>";
+    var badges = '<div class="badges">' + dagdeelBadge(b.dagdeel) + '<span class="badge ' + (wantsDrive ? "task" : "n2") + '">' + (wantsDrive ? "wil rijden" : "geeft rit") + "</span>" + (state.filter === "all" ? statusBadge(b.status) : "") + "</div>";
+    var foot = "";
+    if (b.status === "open") {
+      if (mine) foot = '<button class="btn btn-red btn-sm btn-block" data-withdrawbackup="' + b.id + '">' + svg("trash", "icon-sm") + "Intrekken</button>";
+      else if (S.can.claimBackup(u, b)) foot = '<button class="btn btn-dark btn-block" data-claimbackup="' + b.id + '">' + svg("swap", "icon-sm") + (wantsDrive ? "Ik geef mijn rit op" : "Ik neem de rit over") + "</button>";
+    } else if (b.status === "in-afwachting") {
+      foot = '<div class="locked-note">' + svg("clock", "icon-sm") + "Wacht op goedkeuring — " + fullName(S.userById(b.overnemerId)) + "</div>";
+    }
+    return '<div class="card ' + (b.status === "in-afwachting" ? "pending" : "") + '">' +
+      '<div class="card-top"><div class="avatar alt">' + initials(ab) + "</div>" +
+        '<div class="who"><div class="nm clickname" data-uid="' + ab.id + '">' + fullName(ab) + (mine ? " (jij)" : "") + "</div><div class=\"rl\">" + esc(S.roleMeta(ab.rol).label) + "</div></div></div>" +
+      rows + badges + (foot ? '<div class="card-foot">' + foot + "</div>" : "") + "</div>";
+  }
+
+  function boardCallout() {
+    var u = S.currentUser();
+    var list = S.calloutsForHub(u.hubId).filter(function (c) {
+      return statusKeep(c.status) && matchesQ(qstr(c.aanbiederId, c.datum, c.dagdeel, ""));
+    });
+    if (!list.length) return emptyState("search", "Geen oproepen", "Zoek je zelf een shift? Plaats een oproep met de knop 'Shift gezocht'.");
+    return groupRender(list, calloutCard);
+  }
+  function calloutCard(c) {
+    var u = S.currentUser();
+    var ab = S.userById(c.aanbiederId);
+    var mine = c.aanbiederId === u.id;
+    var rows = '<div class="card-rows">' +
+      '<div class="crow">' + svg("calendar", "icon-sm") + "<strong>" + esc(fmtDate(c.datum)) + "</strong></div>" +
+      '<div class="crow">' + svg("search", "icon-sm") + "Zoekt een shift" + "</div>" +
+      (c.toelichting ? '<div class="crow tiny">' + svg("info", "icon-sm") + esc(c.toelichting) + "</div>" : "") +
+      '<div class="crow tiny">' + svg("history", "icon-sm") + "Geplaatst " + esc(fmtDateTime(c.createdAt)) + "</div></div>";
+    var badges = '<div class="badges">' + dagdeelBadge(c.dagdeel) + '<span class="badge reason">' + svg("search", "icon-sm") + "Oproep</span>" + (state.filter === "all" ? statusBadge(c.status) : "") + "</div>";
+    var foot = "";
+    if (c.status === "open") {
+      if (mine) foot = '<button class="btn btn-red btn-sm btn-block" data-withdrawcallout="' + c.id + '">' + svg("trash", "icon-sm") + "Intrekken</button>";
+      else foot = '<button class="btn btn-dark btn-block" data-claimcallout="' + c.id + '">' + svg("check") + "Ik geef jou mijn shift</button>";
+    } else if (c.status === "in-afwachting") {
+      foot = '<div class="locked-note">' + svg("clock", "icon-sm") + "Wacht op goedkeuring — " + fullName(S.userById(c.overnemerId)) + " geeft shift</div>";
+    }
+    return '<div class="card ' + (c.status === "in-afwachting" ? "pending" : "") + '">' +
+      '<div class="card-top"><div class="avatar">' + initials(ab) + "</div>" +
+        '<div class="who"><div class="nm clickname" data-uid="' + ab.id + '">' + fullName(ab) + (mine ? " (jij)" : "") + "</div><div class=\"rl\">" + esc(S.roleMeta(ab.rol).label) + "</div></div></div>" +
+      rows + badges + (foot ? '<div class="card-foot">' + foot + "</div>" : "") + "</div>";
+  }
+
+  function bindBoard() {
+    document.querySelectorAll("[data-board]").forEach(function (b) { b.addEventListener("click", function () { state.board = b.getAttribute("data-board"); renderMain(); }); });
+    document.querySelectorAll("[data-filter]").forEach(function (b) { b.addEventListener("click", function () { state.filter = b.getAttribute("data-filter"); renderMain(); }); });
+    var s = el("boardSearch");
+    if (s) s.addEventListener("input", function () { state.q = s.value; el("boardGrid").innerHTML = boardContent(); bindBoardActions(); });
+    document.querySelectorAll("[data-offer]").forEach(function (b) { b.addEventListener("click", function () { openOfferModal(b.getAttribute("data-offer")); }); });
+    bindBoardActions();
+  }
+  function bindBoardActions() {
+    function on(attr, fn, msg) { document.querySelectorAll("[" + attr + "]").forEach(function (b) { b.addEventListener("click", function () { act(function () { fn(b.getAttribute(attr)); }, msg); }); }); }
+    document.querySelectorAll("[data-claimshift]").forEach(function (b) { b.addEventListener("click", function () { tryClaimShift(b.getAttribute("data-claimshift")); }); });
+    on("data-withdrawshift", S.withdrawShift, "Shift ingetrokken.");
+    on("data-claimtask", S.claimTask, "Taak overgenomen — wacht op goedkeuring.");
+    on("data-withdrawtask", S.withdrawTask, "Taak ingetrokken.");
+    on("data-withdrawbackup", S.withdrawBackup, "Verzoek ingetrokken.");
+    on("data-claimcallout", S.claimCallout, "Je geeft je shift — wacht op goedkeuring.");
+    on("data-withdrawcallout", S.withdrawCallout, "Oproep ingetrokken.");
+    document.querySelectorAll("[data-claimbackup]").forEach(function (b) { b.addEventListener("click", function () { openClaimBackupModal(b.getAttribute("data-claimbackup")); }); });
+    document.querySelectorAll("[data-editshift]").forEach(function (b) { b.addEventListener("click", function () { openOfferModal("shift", b.getAttribute("data-editshift")); }); });
+    document.querySelectorAll(".clickname").forEach(function (n) { n.addEventListener("click", function () { openUserDetail(n.getAttribute("data-uid")); }); });
+  }
+
+  // FCFS: bij een shift zonder starttijd waarschuwen als er een eerder geplaatste open shift is
+  function tryClaimShift(id) {
+    var u = S.currentUser();
+    var s = S.db.shifts.filter(function (x) { return x.id === id; })[0];
+    if (!s) return;
+    var earlier = null;
+    if (!s.starttijd) {
+      earlier = S.db.shifts.filter(function (o) {
+        return o.id !== s.id && o.hubId === s.hubId && o.status === "open" && o.datum === s.datum && o.dagdeel === s.dagdeel && !o.starttijd && (o.seq || 0) < (s.seq || 0);
+      }).sort(function (a, b) { return (a.seq || 0) - (b.seq || 0); })[0];
+    }
+    if (!earlier) { act(function () { S.claimShift(id); }, "Shift overgenomen — wacht op goedkeuring."); return; }
+    var ab = S.userById(earlier.aanbiederId);
+    openModal({
+      title: "Er staat een eerdere shift open", icon: "alert",
+      body: '<div class="fifo-alert" style="margin-bottom:4px">' + svg("alert", "icon-sm") +
+        "<div><b>" + fullName(ab) + "</b> bood al eerder een shift aan voor <b>" + esc(fmtDate(earlier.datum)) + " " + earlier.dagdeel +
+        "</b> (geplaatst " + esc(fmtDateTime(earlier.createdAt)) + "). Wie het eerst aanbiedt, gaat normaal voor.</div></div>",
+      foot: '<button class="btn btn-primary" id="fifoFirst">' + svg("check") + "Neem de eerste shift</button>" +
+        '<button class="btn btn-ghost" id="fifoThis">Toch deze overnemen</button>',
+      onMount: function (ov, close) {
+        ov.querySelector("#fifoFirst").addEventListener("click", function () { close(); act(function () { S.claimShift(earlier.id); }, "Eerste shift overgenomen — wacht op goedkeuring."); });
+        ov.querySelector("#fifoThis").addEventListener("click", function () { close(); act(function () { S.claimShift(id); }, "Shift overgenomen — wacht op goedkeuring."); });
+      }
+    });
+  }
+
+  /* ---------- tijd-kiezer ---------- */
+  function hoursFor(dagdeel) { var w = S.WINDOW[dagdeel]; var a = []; for (var h = Math.floor(w.min / 60); h <= Math.floor(w.max / 60); h++) a.push(h); return a; }
+  function hourOptions(dagdeel, sel) {
+    return '<option value="">uur</option>' + hoursFor(dagdeel).map(function (h) {
+      var v = ("0" + h).slice(-2); return '<option value="' + v + '"' + (sel === v ? " selected" : "") + ">" + v + "</option>";
+    }).join("");
+  }
+  function minuteOptions(sel) {
+    var o = '<option value="">min</option>'; for (var m = 0; m < 60; m++) { var v = ("0" + m).slice(-2); o += '<option value="' + v + '"' + (sel === v ? " selected" : "") + ">" + v + "</option>"; } return o;
+  }
+
+  /* ---------- eigen datumkiezer ---------- */
+  function dateField(name, value, label) {
+    return '<div class="field"><label>' + (label || "Datum") + "</label>" +
+      '<div class="datepick" data-datepick>' +
+        '<input type="hidden" name="' + name + '" value="' + esc(value || "") + '">' +
+        '<button type="button" class="datepick-btn">' + svg("calendar", "icon-sm") +
+          '<span class="dp-label' + (value ? "" : " ph") + '">' + (value ? esc(fmtDate(value)) : "Kies een datum") + "</span></button>" +
+        '<div class="datepick-pop" hidden></div>' +
+      "</div></div>";
+  }
+  function calendarHTML(view, selected) {
+    var y = view.getFullYear(), m = view.getMonth();
+    var months = ["januari", "februari", "maart", "april", "mei", "juni", "juli", "augustus", "september", "oktober", "november", "december"];
+    var startDow = (new Date(y, m, 1).getDay() + 6) % 7;
+    var days = new Date(y, m + 1, 0).getDate();
+    var today = new Date(); var todayStr = today.getFullYear() + "-" + ("0" + (today.getMonth() + 1)).slice(-2) + "-" + ("0" + today.getDate()).slice(-2);
+    var cells = "";
+    for (var i = 0; i < startDow; i++) cells += '<span class="dp-cell empty"></span>';
+    for (var d = 1; d <= days; d++) {
+      var ds = y + "-" + ("0" + (m + 1)).slice(-2) + "-" + ("0" + d).slice(-2);
+      cells += '<button type="button" class="dp-cell' + (ds === selected ? " sel" : "") + (ds === todayStr ? " today" : "") + '" data-day="' + ds + '">' + d + "</button>";
+    }
+    return '<div class="dp-head"><button type="button" class="dp-nav" data-pm>' + svg("arrowLeft", "icon-sm") + "</button>" +
+      '<span class="dp-title">' + months[m] + " " + y + "</span>" +
+      '<button type="button" class="dp-nav" data-nm>' + svg("arrowRight", "icon-sm") + "</button></div>" +
+      '<div class="dp-week"><span>ma</span><span>di</span><span>wo</span><span>do</span><span>vr</span><span>za</span><span>zo</span></div>' +
+      '<div class="dp-grid">' + cells + "</div>";
+  }
+  function bindDateFields(ov, onPick) {
+    var fields = [].slice.call(ov.querySelectorAll("[data-datepick]"));
+    fields.forEach(function (dp) {
+      var input = dp.querySelector("input"), btn = dp.querySelector(".datepick-btn"), pop = dp.querySelector(".datepick-pop"), label = dp.querySelector(".dp-label");
+      var view = input.value ? new Date(input.value + "T00:00:00") : new Date();
+      function draw() {
+        pop.innerHTML = calendarHTML(view, input.value);
+        pop.querySelector("[data-pm]").onclick = function () { view.setMonth(view.getMonth() - 1); draw(); };
+        pop.querySelector("[data-nm]").onclick = function () { view.setMonth(view.getMonth() + 1); draw(); };
+        pop.querySelectorAll("[data-day]").forEach(function (b) {
+          b.onclick = function () { input.value = b.getAttribute("data-day"); label.textContent = fmtDate(input.value); label.classList.remove("ph"); pop.hidden = true; if (onPick) onPick(input.value, ov); };
+        });
+      }
+      btn.onclick = function (e) {
+        e.stopPropagation();
+        var willOpen = pop.hidden;
+        fields.forEach(function (o) { o.querySelector(".datepick-pop").hidden = true; });
+        if (willOpen) { view = input.value ? new Date(input.value + "T00:00:00") : new Date(); draw(); pop.hidden = false; }
+      };
+      pop.onclick = function (e) { e.stopPropagation(); };
+    });
+  }
+  // Zondag heeft geen PM-shift: verberg PM en zet selectie op AM.
+  function applySundayRule(ov) {
+    var inp = ov.querySelector("[data-datepick] input"); var pm = ov.querySelector(".choice.dd-pm");
+    if (!inp || !pm) return;
+    var sun = inp.value && S.isSunday(inp.value);
+    pm.style.display = sun ? "none" : "";
+    if (sun) { var pmr = pm.querySelector("input"); if (pmr && pmr.checked) { pm.classList.remove("sel"); var am = ov.querySelector(".choice.dd-am input"); if (am) { am.checked = true; am.closest(".choice").classList.add("sel"); } } }
+  }
+
+  /* ---------- aanbied/aanpas modal ---------- */
+  function openOfferModal(kind, editId) {
+    var u = S.currentUser();
+    if (kind === "backup") return openBackupModal();
+    if (kind === "callout") return openCalloutModal();
+    var existing = editId ? S.db.shifts.filter(function (s) { return s.id === editId; })[0] : null;
+    var isShift = kind === "shift";
+    var d = existing || {};
+    var bekend = existing ? existing.shiftsBekend : false;
+    var dagdeel = d.dagdeel || "AM";
+    var curH = d.starttijd ? d.starttijd.split(":")[0] : "";
+    var curM = d.starttijd ? d.starttijd.split(":")[1] : "";
+    var av = S.availableTasks(u);
+    var taskOpts = av.map(function (t) { return '<option value="' + esc(t) + '"' + (d.taak === t ? " selected" : "") + ">" + esc(t) + "</option>"; }).join("");
+
+    var dagdeelBlock = '<div class="field"><label>Dagdeel</label><div class="choice-grid">' +
+      '<label class="choice dd-am ' + (dagdeel === "AM" ? "sel" : "") + '"><input type="radio" name="dagdeel" value="AM" ' + (dagdeel === "AM" ? "checked" : "") + ' hidden><span class="dd-ico">' + svg("sun", "icon-lg") + '</span><span class="ch-t">AM</span><span class="ch-s">ochtend</span></label>' +
+      '<label class="choice dd-pm ' + (dagdeel === "PM" ? "sel" : "") + '"><input type="radio" name="dagdeel" value="PM" ' + (dagdeel === "PM" ? "checked" : "") + ' hidden><span class="dd-ico">' + svg("moon", "icon-lg") + '</span><span class="ch-t">PM</span><span class="ch-s">middag</span></label>' +
+      "</div></div>";
+
+    var timeBlock = '<div class="field"><label>Starttijd</label><div class="timepick">' +
+      '<select name="uur" id="selUur">' + hourOptions(dagdeel, curH) + "</select><span class=\"colon\">:</span>" +
+      '<select name="minuut">' + minuteOptions(curM) + "</select></div>" +
+      '<div class="hint">AM: 05:00-15:00 &middot; PM: 13:00-23:00</div></div>';
+
+    var reasonField = '<div class="field"><label>Reden (optioneel)</label><select name="aanbiedReden"><option value="">— Geen reden —</option>' +
+      S.REASONS.map(function (r) { return '<option value="' + esc(r) + '"' + (d.aanbiedReden === r ? " selected" : "") + ">" + esc(r) + "</option>"; }).join("") + "</select></div>";
+
+    var body = '<form id="offerForm">' +
+      dateField("datum", d.datum) +
+      dagdeelBlock;
+
+    if (isShift) {
+      body += '<div class="field toggle-row"><div><label style="margin:0">Zijn de shifts al bekend?</label>' +
+        '<div class="hint">Pas dan kun je starttijd, bus en taak invullen.</div></div>' +
+        '<label class="toggle"><input type="checkbox" id="bekendToggle" ' + (bekend ? "checked" : "") + '><span class="track"></span></label></div>' +
+        '<div id="bekendFields" style="' + (bekend ? "" : "display:none") + '">' + timeBlock +
+          '<div class="field"><label>Welke bus rijd je?</label><div class="choice-grid">' +
+            '<label class="choice ' + (d.busType === "diesel" ? "sel" : "") + '"><input type="radio" name="busType" value="diesel" ' + (d.busType === "diesel" ? "checked" : "") + ' hidden>' + svg("van", "icon-lg") + '<span class="ch-t">Volkswagen</span><span class="ch-s">diesel</span></label>' +
+            '<label class="choice ' + (d.busType === "N2" ? "sel" : "") + '"><input type="radio" name="busType" value="N2" ' + (d.busType === "N2" ? "checked" : "") + ' hidden>' + svg("bolt", "icon-lg") + '<span class="ch-t">N2</span><span class="ch-s">elektrisch</span></label>' +
+          "</div></div>" +
+          '<div class="field"><label>Taak voor/na je rit (optioneel)</label><select name="taak"><option value="">— Geen taak —</option>' + taskOpts + "</select>" +
+            (av.length ? "" : '<div class="hint">Je hebt nog geen taken die je mag uitvoeren.</div>') + "</div>" +
+        "</div>";
+      body += reasonField;
+    } else {
+      if (!av.length) body += '<div class="alert alert-info">Je hebt nog geen taken die je mag uitvoeren. Vraag je teamleider om taken toe te wijzen.</div>';
+      body += '<div class="field"><label>Welke taak bied je aan?</label><select name="taak" required><option value="">— Kies een taak —</option>' + taskOpts + "</select></div>" + timeBlock + reasonField;
+    }
+    body += "</form>";
+
+    var foot = '<button class="btn btn-ghost" data-close>Annuleren</button>' +
+      '<button class="btn btn-primary" id="offerSubmit">' + svg("check") + (editId ? "Opslaan" : (isShift ? "Shift plaatsen" : "Taak plaatsen")) + "</button>";
+
+    openModal({
+      title: editId ? "Shift aanpassen" : (isShift ? "Shift aanbieden" : "Taak aanbieden"),
+      icon: isShift ? "swap" : "tag", body: body, foot: foot,
+      onMount: function (ov, close) {
+        bindDateFields(ov, function () { applySundayRule(ov); }); applySundayRule(ov);
+        ov.querySelectorAll(".choice input").forEach(function (inp) {
+          inp.addEventListener("change", function () {
+            ov.querySelectorAll('.choice input[name="' + inp.name + '"]').forEach(function (x) { x.closest(".choice").classList.toggle("sel", x.checked); });
+            if (inp.name === "dagdeel") { var su = ov.querySelector("#selUur"); if (su) su.innerHTML = hourOptions(inp.value, ""); }
+          });
+        });
+        var tog = ov.querySelector("#bekendToggle");
+        if (tog) tog.addEventListener("change", function () { ov.querySelector("#bekendFields").style.display = tog.checked ? "" : "none"; });
+        ov.querySelector("#offerSubmit").addEventListener("click", function () {
+          var f = ov.querySelector("#offerForm");
+          var hh = f.uur ? f.uur.value : "", mm = f.minuut ? f.minuut.value : "";
+          var data = {
+            datum: f.datum.value,
+            dagdeel: (f.querySelector('input[name="dagdeel"]:checked') || {}).value,
+            starttijd: (hh && mm) ? (hh + ":" + mm) : "",
+            taak: f.taak ? f.taak.value : "",
+            aanbiedReden: f.aanbiedReden ? f.aanbiedReden.value : ""
+          };
+          try {
+            if (isShift) {
+              data.shiftsBekend = tog ? tog.checked : false;
+              data.busType = (f.querySelector('input[name="busType"]:checked') || {}).value || "";
+              if (editId) { S.editShift(editId, data); toast("Shift bijgewerkt.", "ok"); }
+              else { S.offerShift(data); toast("Shift geplaatst.", "ok"); }
+            } else { S.offerTask(data); toast("Taak geplaatst.", "ok"); }
+            close(); renderApp();
+          } catch (e) { toast(e.message, "err"); }
+        });
+      }
+    });
+  }
+
+  function dagdeelChoiceBlock() {
+    return '<div class="field"><label>Dagdeel</label><div class="choice-grid">' +
+      '<label class="choice dd-am sel"><input type="radio" name="dagdeel" value="AM" checked hidden><span class="dd-ico">' + svg("sun", "icon-lg") + '</span><span class="ch-t">AM</span><span class="ch-s">ochtend</span></label>' +
+      '<label class="choice dd-pm"><input type="radio" name="dagdeel" value="PM" hidden><span class="dd-ico">' + svg("moon", "icon-lg") + '</span><span class="ch-t">PM</span><span class="ch-s">middag</span></label>' +
+      "</div></div>";
+  }
+  function bindChoices(ov) {
+    ov.querySelectorAll(".choice input").forEach(function (inp) {
+      inp.addEventListener("change", function () { ov.querySelectorAll('.choice input[name="' + inp.name + '"]').forEach(function (x) { x.closest(".choice").classList.toggle("sel", x.checked); }); });
+    });
+  }
+
+  function openBackupModal() {
+    var body = '<form id="buForm">' +
+      '<div class="field"><label>Wat wil je?</label><div class="choice-grid">' +
+        '<label class="choice bu-dir sel"><input type="radio" name="direction" value="rijden" checked hidden>' + svg("van", "icon-lg") + '<span class="ch-t">Ik wil rijden</span><span class="ch-s">sta op back-up</span></label>' +
+        '<label class="choice bu-dir"><input type="radio" name="direction" value="backup" hidden>' + svg("lifebuoy", "icon-lg") + '<span class="ch-t">Ik geef mijn rit</span><span class="ch-s">wil back-up staan</span></label>' +
+      "</div></div>" +
+      dateField("datum") + dagdeelChoiceBlock() +
+      '<div id="ritFields" style="display:none">' +
+        '<div class="field"><label>Wat voor rit geef je weg?</label><input name="ritOmschrijving" placeholder="Bijv. vroege rit, 2e rit, vak 12"></div>' +
+        '<div class="field"><label>Hoe laat (optioneel)</label><input type="time" name="ritTijd"></div>' +
+      "</div>" +
+      '<div class="field"><label>Toelichting (optioneel)</label><textarea name="toelichting" rows="2" placeholder="Bijv. wil graag extra uren draaien"></textarea></div>' +
+      "</form>";
+    openModal({
+      title: "Back-up regelen", icon: "lifebuoy", body: body,
+      foot: '<button class="btn btn-ghost" data-close>Annuleren</button><button class="btn btn-primary" id="buSubmit">' + svg("check") + "Plaatsen</button>",
+      onMount: function (ov, close) {
+        bindDateFields(ov, function () { applySundayRule(ov); }); bindChoices(ov); applySundayRule(ov);
+        ov.querySelectorAll('input[name="direction"]').forEach(function (r) {
+          r.addEventListener("change", function () { ov.querySelector("#ritFields").style.display = (ov.querySelector('input[name="direction"]:checked').value === "backup") ? "" : "none"; });
+        });
+        ov.querySelector("#buSubmit").addEventListener("click", function () {
+          var f = ov.querySelector("#buForm");
+          try {
+            S.offerBackup({
+              direction: (f.querySelector('input[name="direction"]:checked') || {}).value,
+              datum: f.datum.value, dagdeel: (f.querySelector('input[name="dagdeel"]:checked') || {}).value,
+              ritOmschrijving: f.ritOmschrijving.value, ritTijd: f.ritTijd.value, toelichting: f.toelichting.value
+            });
+            toast("Back-up verzoek geplaatst.", "ok"); close(); renderApp();
+          } catch (e) { toast(e.message, "err"); }
+        });
+      }
+    });
+  }
+
+  function openCalloutModal() {
+    var body = '<form id="coForm">' +
+      '<div class="alert alert-info">Je zoekt een shift. Plaats een oproep; een collega kan zijn shift aan jou geven.</div>' +
+      dateField("datum") + dagdeelChoiceBlock() +
+      '<div class="field"><label>Toelichting (optioneel)</label><textarea name="toelichting" rows="2" placeholder="Bijv. ik wil graag extra werken"></textarea></div>' +
+      "</form>";
+    openModal({
+      title: "Oproep: shift gezocht", icon: "search", body: body,
+      foot: '<button class="btn btn-ghost" data-close>Annuleren</button><button class="btn btn-primary" id="coSubmit">' + svg("check") + "Oproep plaatsen</button>",
+      onMount: function (ov, close) {
+        bindDateFields(ov, function () { applySundayRule(ov); }); bindChoices(ov); applySundayRule(ov);
+        ov.querySelector("#coSubmit").addEventListener("click", function () {
+          var f = ov.querySelector("#coForm");
+          try { S.offerCallout({ datum: f.datum.value, dagdeel: (f.querySelector('input[name="dagdeel"]:checked') || {}).value, toelichting: f.toelichting.value }); toast("Oproep geplaatst.", "ok"); close(); renderApp(); }
+          catch (e) { toast(e.message, "err"); }
+        });
+      }
+    });
+  }
+
+  function openClaimBackupModal(id) {
+    var b = S.db.backups.filter(function (x) { return x.id === id; })[0];
+    if (b && b.direction === "backup") { act(function () { S.claimBackup(id); }, "Rit overgenomen — wacht op goedkeuring."); return; }
+    // richting "rijden": jij geeft je rit op -> ritdetails invullen
+    openModal({
+      title: "Mijn rit opgeven", icon: "van",
+      body: '<div class="hint" style="margin-bottom:10px">Je geeft je rit aan een collega die op back-up staat. Vul in wat voor rit het is, zodat de beoordelaar het snapt.</div>' +
+        '<form id="cbForm"><div class="field"><label>Wat voor rit?</label><input name="ritOmschrijving" placeholder="Bijv. vroege rit, 2e rit, vak 12" required></div>' +
+        '<div class="field"><label>Hoe laat (optioneel)</label><input type="time" name="ritTijd"></div></form>',
+      foot: '<button class="btn btn-ghost" data-close>Annuleren</button><button class="btn btn-primary" id="cbOk">' + svg("check") + "Rit opgeven</button>",
+      onMount: function (ov, close) {
+        ov.querySelector("#cbOk").addEventListener("click", function () {
+          var f = ov.querySelector("#cbForm");
+          try { S.claimBackup(id, { ritOmschrijving: f.ritOmschrijving.value, ritTijd: f.ritTijd.value }); toast("Rit opgegeven — wacht op goedkeuring.", "ok"); close(); renderApp(); }
+          catch (e) { toast(e.message, "err"); }
+        });
+      }
+    });
+  }
+
+  /* ===================================================================
+     MIJN RUILVERZOEKEN
+     =================================================================== */
+  function viewMine() {
+    var u = S.currentUser();
+    var myShifts = S.db.shifts.filter(function (s) { return s.aanbiederId === u.id || s.overnemerId === u.id; });
+    var myTasks = S.db.taskOffers.filter(function (t) { return t.aanbiederId === u.id || t.overnemerId === u.id; });
+    var myBackups = S.db.backups.filter(function (b) { return b.aanbiederId === u.id || b.overnemerId === u.id; });
+    var myCallouts = S.db.callouts.filter(function (c) { return c.aanbiederId === u.id || c.overnemerId === u.id; });
+
+    function row(item, kind) {
+      var mineOffer = item.aanbiederId === u.id;
+      var details = kind === "task" ? taskBadge(item.taak)
+        : kind === "backup" ? '<span class="cellsub">' + (item.direction === "backup" ? "rit weggeven" : "back-up rijden") + "</span>"
+        : kind === "callout" ? '<span class="cellsub">shift gezocht</span>'
+        : (busBadge(item.busType) + " " + taskBadge(item.taak));
+      var rol = (kind === "backup" || kind === "callout") ? (mineOffer ? "Verzoek" : "Reactie") : (mineOffer ? "Aangeboden" : "Overgenomen");
+      return "<tr><td><div class=\"cellname\">" + esc(fmtDate(item.datum)) + "</div><div class=\"cellsub\">" + (mineOffer ? "Door jou" : "Met " + fullName(S.userById(item.aanbiederId))) + "</div></td>" +
+        "<td>" + dagdeelBadge(item.dagdeel) + "</td><td>" + details + "</td><td><span class=\"cellsub\">" + rol + "</span></td>" +
+        "<td>" + statusBadge(item.status) + (item.status === "afgekeurd" && item.reden ? '<div class="cellsub">' + esc(item.reden) + "</div>" : "") + "</td></tr>";
+    }
+    function tbl(list, kind, empty) {
+      return list.length ? list.map(function (i) { return row(i, kind); }).join("") : '<tr><td colspan="5"><div class="cellsub" style="padding:8px 0">' + empty + "</div></td></tr>";
+    }
+    var head = "<thead><tr><th>Datum</th><th>Dagdeel</th><th>Details</th><th>Soort</th><th>Status</th></tr></thead>";
+    return '<div class="page-head"><div><h2>Mijn ruilverzoeken</h2><p>Wat jij hebt aangeboden of overgenomen.</p></div></div>' +
+      panel("swap", "Shifts", tableScroll(head + "<tbody>" + tbl(myShifts, "shift", "Nog geen shiftruilingen.") + "</tbody>")) +
+      panel("tag", "Losse taken", tableScroll(head + "<tbody>" + tbl(myTasks, "task", "Nog geen taakruilingen.") + "</tbody>")) +
+      panel("lifebuoy", "Back-up", tableScroll(head + "<tbody>" + tbl(myBackups, "backup", "Nog geen back-up verzoeken.") + "</tbody>")) +
+      panel("search", "Oproepen", tableScroll(head + "<tbody>" + tbl(myCallouts, "callout", "Nog geen oproepen.") + "</tbody>"));
+  }
+
+  /* ===================================================================
+     GOEDKEUREN
+     =================================================================== */
+  function viewApprovals() {
+    var u = S.currentUser();
+    var p = S.pendingForApprover(u);
+    var cards = [];
+    p.shifts.forEach(function (s) { cards.push(approvalShift(s)); });
+    p.tasks.forEach(function (t) { cards.push(approvalSimple(t, "task")); });
+    p.backups.forEach(function (b) { cards.push(approvalSimple(b, "backup")); });
+    p.callouts.forEach(function (c) { cards.push(approvalSimple(c, "callout")); });
+    var body = cards.length ? '<div class="grid">' + cards.join("") + "</div>" : emptyState("checkCircle", "Niets te beoordelen", "Er staan geen ruilingen in afwachting van jouw goedkeuring.");
+    return '<div class="page-head"><div><h2>Goedkeuren</h2><p>Beoordeel openstaande ruilingen binnen jouw hub.</p></div></div>' + body;
+  }
+
+  function approvalShift(s) {
+    var ab = S.userById(s.aanbiederId), ov = S.userById(s.overnemerId);
+    var alert = "";
+    if (s.fifoWarning) {
+      alert = '<div class="fifo-alert">' + svg("alert", "icon-sm") + "<div><b>Let op — volgorde.</b> Er stond een eerder aangeboden shift open van <b>" + esc(s.fifoSkippedBy) +
+        "</b> (geplaatst " + esc(fmtDateTime(s.fifoSkippedAt)) + "). Deze shift is later geplaatst (" + esc(fmtDateTime(s.createdAt)) + ").</div></div>";
+    }
+    var badges = '<div class="badges">' + dagdeelBadge(s.dagdeel) + busBadge(s.busType) + taskBadge(s.taak) +
+      (s.shiftsBekend ? '<span class="badge st-goedgekeurd">Shifts bekend</span>' : '<span class="badge st-ingetrokken">Vooraf geplaatst</span>') + "</div>";
+    return '<div class="card pending">' +
+      '<div class="card-rows">' +
+        '<div class="crow">' + svg("calendar", "icon-sm") + "<strong>" + esc(fmtDate(s.datum)) + "</strong>" + (s.starttijd ? " · " + esc(s.starttijd) : "") + "</div>" +
+        '<div class="crow">' + svg("user", "icon-sm") + "Geeft weg: <strong>" + fullName(ab) + "</strong></div>" +
+        '<div class="crow">' + svg("arrowRight", "icon-sm") + "Neemt over: <strong>" + fullName(ov) + "</strong></div>" +
+        '<div class="crow tiny">' + svg("history", "icon-sm") + "Aangeboden " + esc(fmtDateTime(s.createdAt)) + "</div>" +
+      "</div>" + badges + alert +
+      '<div class="card-foot">' +
+        '<button class="btn btn-green" data-approve="shift:' + s.id + '">' + svg("check") + "Goedkeuren</button>" +
+        '<button class="btn btn-red" data-reject="shift:' + s.id + '">' + svg("x") + "Afkeuren</button></div></div>";
+  }
+  function approvalSimple(item, kind) {
+    var ab = S.userById(item.aanbiederId), ov = S.userById(item.overnemerId);
+    var line, line2, ritLine = "";
+    if (kind === "task") {
+      line = svg("user", "icon-sm") + "Taak van: <strong>" + fullName(ab) + "</strong>";
+      line2 = "Neemt over: <strong>" + fullName(ov) + "</strong>";
+    } else if (kind === "callout") {
+      line = svg("search", "icon-sm") + "Oproep van: <strong>" + fullName(ab) + "</strong> (zoekt shift)";
+      line2 = "Geeft zijn shift: <strong>" + fullName(ov) + "</strong>";
+    } else { // backup
+      var wantsDrive = item.direction !== "backup";
+      line = svg("lifebuoy", "icon-sm") + (wantsDrive ? "Back-up: <strong>" + fullName(ab) + "</strong> wil rijden" : "<strong>" + fullName(ab) + "</strong> geeft rit, wil back-up");
+      line2 = wantsDrive ? "Geeft rit op: <strong>" + fullName(ov) + "</strong>" : "Neemt rit over: <strong>" + fullName(ov) + "</strong>";
+      if (item.ritOmschrijving) ritLine = '<div class="crow">' + svg("van", "icon-sm") + "Rit: <strong>" + esc(item.ritOmschrijving) + (item.ritTijd ? " · " + esc(item.ritTijd) : "") + "</strong></div>";
+    }
+    var badges = '<div class="badges">' + dagdeelBadge(item.dagdeel) + (kind === "task" ? taskBadge(item.taak) : "") + "</div>";
+    return '<div class="card pending">' +
+      '<div class="card-rows">' +
+        '<div class="crow">' + svg("calendar", "icon-sm") + "<strong>" + esc(fmtDate(item.datum)) + "</strong>" + (item.starttijd ? " · " + esc(item.starttijd) : "") + "</div>" +
+        '<div class="crow">' + line + "</div>" + ritLine + "<div class=\"crow\">" + svg("arrowRight", "icon-sm") + line2 + "</div>" +
+        '<div class="crow tiny">' + svg("history", "icon-sm") + "Aangeboden " + esc(fmtDateTime(item.createdAt)) + "</div>" +
+      "</div>" + badges +
+      '<div class="card-foot">' +
+        '<button class="btn btn-green" data-approve="' + kind + ":" + item.id + '">' + svg("check") + "Goedkeuren</button>" +
+        '<button class="btn btn-red" data-reject="' + kind + ":" + item.id + '">' + svg("x") + "Afkeuren</button></div></div>";
+  }
+
+  function bindApprovals() {
+    document.querySelectorAll("[data-approve]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var p = b.getAttribute("data-approve").split(":");
+        act(function () { decide(p[0], p[1], true, ""); }, "Ruiling goedgekeurd.");
+      });
+    });
+    document.querySelectorAll("[data-reject]").forEach(function (b) {
+      b.addEventListener("click", function () { var p = b.getAttribute("data-reject").split(":"); openRejectModal(p[0], p[1]); });
+    });
+  }
+  function decide(kind, id, ok, reden) {
+    if (kind === "task") S.decideTask(id, ok, reden);
+    else if (kind === "backup") S.decideBackup(id, ok, reden);
+    else if (kind === "callout") S.decideCallout(id, ok, reden);
+    else S.decideShift(id, ok, reden);
+  }
+  function openRejectModal(kind, id) {
+    openModal({
+      title: "Ruiling afkeuren", icon: "xCircle",
+      body: '<div class="field"><label>Reden (optioneel)</label><textarea id="rejReason" rows="3" placeholder="Bijv. te weinig bezetting…"></textarea></div>' +
+        '<div class="hint">Na afkeuren gaat de ruiling terug naar het bord. Het besluit komt in de historie.</div>',
+      foot: '<button class="btn btn-ghost" data-close>Annuleren</button><button class="btn btn-red" id="rejConfirm">' + svg("x") + "Afkeuren</button>",
+      onMount: function (ov, close) {
+        ov.querySelector("#rejConfirm").addEventListener("click", function () {
+          try { decide(kind, id, false, ov.querySelector("#rejReason").value); toast("Ruiling afgekeurd.", "ok"); close(); renderApp(); }
+          catch (e) { toast(e.message, "err"); }
+        });
+      }
+    });
+  }
+
+  /* ===================================================================
+     STATISTIEKEN
+     =================================================================== */
+  function viewStats() {
+    var u = S.currentUser();
+    var users = S.usersForHub(u.hubId);
+    var tot = { sa: 0, so: 0, ta: 0, to: 0 };
+    users.forEach(function (x) { tot.sa += x.stats.shiftsAangeboden; tot.so += x.stats.shiftsOvergenomen; tot.ta += x.stats.takenAangeboden; tot.to += x.stats.takenOvergenomen; });
+
+    function stat(dir, val, lab) {
+      return '<div class="stat-card"><div class="s-ico ' + dir + '">' + svg(dir === "up" ? "arrowUp" : "arrowDown") + '</div><div class="s-val">' + val + '</div><div class="s-lab">' + esc(lab) + "</div></div>";
+    }
+    var sorted = users.slice().sort(function (a, b) { return b.stats[state.statSort] - a.stats[state.statSort]; });
+    var rows = sorted.map(function (x) {
+      return "<tr><td><div class=\"cellname\">" + fullName(x) + "</div><div class=\"cellsub\">" + esc(S.roleMeta(x.rol).label) + "</div></td>" +
+        '<td class="num up grp-start">' + x.stats.shiftsOvergenomen + "</td><td class=\"num down\">" + x.stats.shiftsAangeboden + "</td>" +
+        '<td class="num up grp-start">' + x.stats.takenOvergenomen + "</td><td class=\"num down\">" + x.stats.takenAangeboden + "</td></tr>";
+    }).join("");
+
+    var sortSel = '<select class="pill-select" id="statSort">' +
+      '<option value="shiftsOvergenomen"' + (state.statSort === "shiftsOvergenomen" ? " selected" : "") + ">Meeste shifts overgenomen</option>" +
+      '<option value="shiftsAangeboden"' + (state.statSort === "shiftsAangeboden" ? " selected" : "") + ">Meeste shifts weggegeven</option>" +
+      '<option value="takenOvergenomen"' + (state.statSort === "takenOvergenomen" ? " selected" : "") + ">Meeste taken overgenomen</option>" +
+      '<option value="takenAangeboden"' + (state.statSort === "takenAangeboden" ? " selected" : "") + ">Meeste taken weggegeven</option></select>";
+
+    var upH = svg("arrowUp", "icon-sm");
+    var dnH = svg("arrowDown", "icon-sm");
+    return '<div class="page-head"><div><h2>Statistieken</h2><p>Telt alleen goedgekeurde ruilingen.</p></div></div>' +
+      '<div class="stat-section"><div class="stat-section-title">' + svg("swap", "icon-sm") + "Shifts</div>" +
+        '<div class="stat-grid">' + stat("up", tot.so, "Overgenomen") + stat("down", tot.sa, "Weggegeven") + "</div></div>" +
+      '<div class="stat-section"><div class="stat-section-title">' + svg("tag", "icon-sm") + "Taken</div>" +
+        '<div class="stat-grid">' + stat("up", tot.to, "Overgenomen") + stat("down", tot.ta, "Weggegeven") + "</div></div>" +
+      panel("users", "Per medewerker", tableScroll(
+        '<thead><tr><th></th><th class="grp-start grp-shift" colspan="2">Shifts</th><th class="grp-start grp-task" colspan="2">Taken</th></tr>' +
+        "<tr><th>Medewerker</th>" +
+        '<th class="grp-start"><span class="hcol up">' + upH + "Over</span></th><th><span class=\"hcol down\">" + dnH + "Weg</span></th>" +
+        '<th class="grp-start"><span class="hcol up">' + upH + "Over</span></th><th><span class=\"hcol down\">" + dnH + "Weg</span></th></tr></thead><tbody>" +
+        (rows || '<tr><td colspan="5"><div class="cellsub" style="padding:8px 0">Geen gegevens.</div></td></tr>') + "</tbody>"),
+        '<div style="flex:1"></div><span class="cellsub" style="margin-right:8px">Sorteer:</span>' + sortSel);
+  }
+  function bindStats() {
+    var s = el("statSort");
+    if (s) s.addEventListener("change", function () { state.statSort = s.value; renderMain(); });
+  }
+
+  /* ===================================================================
+     BEHEREN
+     =================================================================== */
+  function viewBeheer() {
+    var u = S.currentUser();
+    var tabs = [{ id: "team", label: "Medewerkers" }, { id: "hubs", label: "Hubs" }, { id: "tasks", label: "Taken" }];
+    if (S.can.resetData(u)) tabs.push({ id: "data", label: "Gegevens" });
+    if (!tabs.some(function (t) { return t.id === state.beheerTab; })) state.beheerTab = "team";
+
+    var seg = '<div class="seg" style="margin-bottom:18px">' + tabs.map(function (t) {
+      return '<button data-btab="' + t.id + '" class="' + (state.beheerTab === t.id ? "active" : "") + '">' + t.label + "</button>";
+    }).join("") + "</div>";
+
+    var body = state.beheerTab === "team" ? beheerTeam() : (state.beheerTab === "hubs" ? beheerHubs() : (state.beheerTab === "tasks" ? beheerTasks() : beheerData()));
+    return '<div class="page-head"><div><h2>Beheren</h2><p>Medewerkers, functies, taken en hubs.</p></div></div>' + seg + body;
+  }
+
+  function beheerTeam() {
+    var u = S.currentUser();
+    var canEdit = S.can.editTeam(u), canRoles = S.can.editRoles(u), showHub = S.level(u) >= 5;
+    var users = S.manageableUsers(u).slice().filter(function (x) {
+      if (!state.teamQ) return true;
+      var hub = S.hubById(x.hubId);
+      return (x.voornaam + " " + x.achternaam + " " + x.email + " " + (hub ? hub.naam : "")).toLowerCase().indexOf(state.teamQ.toLowerCase()) !== -1;
+    }).sort(function (a, b) { return S.level(b) - S.level(a) || a.voornaam.localeCompare(b.voornaam); });
+
+    function roleOpts(sel) { return S.ROLES.map(function (r) { return '<option value="' + r.id + '"' + (sel === r.id ? " selected" : "") + ">" + esc(r.label) + "</option>"; }).join(""); }
+
+    var rows = users.map(function (x) {
+      var hub = S.hubById(x.hubId);
+      var isSelf = x.id === u.id;
+      // niemand wijzigt zijn eigen functie
+      var roleCell = (canRoles && !isSelf) ? '<select class="pill-select role-select" data-role="' + x.id + '">' + roleOpts(x.rol) + "</select>" : '<span class="badge role">' + esc(S.roleMeta(x.rol).label) + "</span>";
+      // iedereen heeft diesel; N2 is een extra bevoegdheid
+      var n2Cell = canEdit
+        ? '<label class="toggle n2-toggle"><input type="checkbox" data-n2="' + x.id + '" ' + (x.n2 ? "checked" : "") + '><span class="track"></span></label>'
+        : (x.n2 ? '<span class="badge n2">' + svg("bolt", "icon-sm") + "N2</span>" : '<span class="badge diesel">' + svg("van", "icon-sm") + "Diesel</span>");
+      var jbtCell = canEdit
+        ? '<span class="chip jbt-chip ' + (x.jbtTrainer ? "on" : "") + '" data-jbt="' + x.id + '">' + svg("cap", "icon-sm") + "JBT-trainer</span>"
+        : (x.jbtTrainer ? '<span class="badge jbt">' + svg("cap", "icon-sm") + "JBT-trainer</span>" : '<span class="cellsub">—</span>');
+      var taskChips = S.assignableTasks(x).map(function (t) {
+        var on = x.taken.indexOf(t) !== -1;
+        var sr = S.taskType(t) === "senior" ? " task-senior" : "";
+        if (canEdit) return '<span class="chip' + sr + " " + (on ? "on" : "") + '" data-utask="' + x.id + "|" + esc(t) + '">' + esc(t) + "</span>";
+        return on ? '<span class="chip on' + sr + '">' + esc(t) + "</span>" : "";
+      }).join("");
+      var acct = "";
+      if (x.mustSetPassword && x.otp) {
+        acct = '<div class="otp-line">' + svg("key", "icon-sm") + "Eenmalige code: <code>" + esc(x.otp) + "</code>" +
+          (canEdit ? ' <button class="link-btn" data-regen="' + x.id + '">' + svg("refresh", "icon-sm") + "nieuw</button>" : "") + "</div>";
+      } else if (canEdit) {
+        acct = '<button class="link-btn" data-regen="' + x.id + '">' + svg("key", "icon-sm") + "Reset wachtwoord</button>";
+      }
+
+      return "<tr><td><div class=\"cellname\">" + fullName(x) + (x.id === u.id ? " (jij)" : "") + "</div><div class=\"cellsub\">" + esc(x.email) + "</div>" +
+        (showHub ? '<div class="cellsub">HUB ' + esc(hub ? hub.naam : "?") + "</div>" : "") + acct + "</td>" +
+        "<td>" + roleCell + "</td><td>" + n2Cell + "</td><td>" + jbtCell + "</td>" +
+        '<td><div class="chips">' + (taskChips || '<span class="cellsub">—</span>') + "</div></td></tr>";
+    }).join("");
+
+    var addBtn = canEdit ? '<button class="btn btn-dark btn-sm" id="addUser">' + svg("userPlus", "icon-sm") + "Nieuwe medewerker</button>" : "";
+    var search = '<div class="search"><span style="display:flex">' + svg("search", "icon-sm") + '</span><input id="teamSearch" placeholder="Zoek medewerker…" value="' + esc(state.teamQ) + '"></div>';
+
+    return '<div class="toolbar">' + search + '<div class="grow"></div>' + addBtn + "</div>" +
+      panel("users", "Medewerkers" + (showHub ? " (alle hubs)" : ""), tableScroll(
+        "<thead><tr><th>Medewerker</th><th>Functie</th><th>Bus</th><th>JBT</th><th>Taken</th></tr></thead><tbody>" +
+        (rows || '<tr><td colspan="5"><div class="cellsub" style="padding:8px 0">Geen medewerkers gevonden.</div></td></tr>') + "</tbody>"));
+  }
+
+  function beheerHubs() {
+    var u = S.currentUser();
+    var canEdit = S.can.editHubs(u);
+    var hubs = S.db.hubs.slice().sort(function (a, b) { return a.naam.localeCompare(b.naam); });
+    var rows = hubs.map(function (h) {
+      var count = S.usersForHub(h.id).length;
+      return "<tr><td class=\"cellname\">HUB " + esc(h.naam) + "</td><td class=\"cellsub\">" + count + " medewerker" + (count === 1 ? "" : "s") + "</td>" +
+        (canEdit ? '<td style="text-align:right"><button class="btn btn-ghost btn-sm" data-delhub="' + h.id + '">' + svg("trash", "icon-sm") + "Verwijderen</button></td>" : "<td></td>") + "</tr>";
+    }).join("");
+    var extra = canEdit ? '<div style="flex:1"></div><div class="add-inline"><input id="newHub" placeholder="Nieuwe hubnaam"><button class="btn btn-dark btn-sm" id="addHub">' + svg("plus", "icon-sm") + "Toevoegen</button></div>"
+      : '<div style="flex:1"></div><span class="locked-note" style="margin:0">' + svg("lock", "icon-sm") + "Alleen-lezen</span>";
+    return panel("building", "Hubs", tableScroll("<tbody>" + rows + "</tbody>"), extra);
+  }
+
+  function beheerTasks() {
+    var u = S.currentUser();
+    var canEdit = S.can.editCatalog(u);
+    var cat = S.db.taskCatalog.slice().sort(function (a, b) { return a.localeCompare(b); });
+    var rows = cat.map(function (t) {
+      var senior = S.taskType(t) === "senior";
+      var typeCell = canEdit
+        ? '<div class="seg mini type-seg"><button class="' + (!senior ? "active" : "") + '" data-tasktype="' + esc(t) + '|bezorger">Bezorger</button>' +
+          '<button class="' + (senior ? "active sr" : "") + '" data-tasktype="' + esc(t) + '|senior">Senior</button></div>'
+        : '<span class="badge ' + (senior ? "bd" : "task") + '">' + (senior ? "Senior-taak" : "Bezorger-taak") + "</span>";
+      return "<tr><td class=\"cellname\">" + esc(t) + "</td><td>" + typeCell + "</td>" +
+        (canEdit ? '<td style="text-align:right"><button class="btn btn-ghost btn-sm" data-deltask="' + esc(t) + '">' + svg("trash", "icon-sm") + "Verwijderen</button></td>" : "<td></td>") + "</tr>";
+    }).join("");
+    var special = "<tr><td class=\"cellname\">" + esc(S.TASK_JBT) + '</td><td><span class="badge jbt">' + svg("cap", "icon-sm") + "Alleen JBT-trainers</span></td><td></td></tr>";
+    var extra = canEdit
+      ? '<div style="flex:1"></div><div class="add-inline"><input id="newTask" placeholder="Nieuwe taak">' +
+        '<select id="newTaskType" class="pill-select"><option value="bezorger">Bezorger-taak</option><option value="senior">Senior-taak</option></select>' +
+        '<button class="btn btn-dark btn-sm" id="addTask">' + svg("plus", "icon-sm") + "Toevoegen</button></div>"
+      : '<div style="flex:1"></div><span class="locked-note" style="margin:0">' + svg("lock", "icon-sm") + "Alleen-lezen</span>";
+    return panel("tag", "Takenlijst", tableScroll("<thead><tr><th>Taak</th><th>Type</th><th></th></tr></thead><tbody>" + (rows || "") + special + "</tbody>"), extra);
+  }
+
+  function beheerData() {
+    return '<div class="panel"><div class="panel-head">' + svg("shield") + "<h3>Gegevens &amp; prototype</h3></div>" +
+      '<div style="padding:18px"><p style="margin:0 0 14px;color:var(--ink-soft);font-weight:600">Lokaal prototype: alle gegevens staan in deze browser (localStorage). ' +
+      'Andere apparaten zien deze gegevens niet. Voor echt gedeeld gebruik is een online versie met server nodig.</p>' +
+      '<button class="btn btn-red" id="resetData">' + svg("trash", "icon-sm") + "Alle gegevens wissen &amp; demo herstellen</button></div></div>";
+  }
+
+  function bindBeheer() {
+    document.querySelectorAll("[data-btab]").forEach(function (b) { b.addEventListener("click", function () { state.beheerTab = b.getAttribute("data-btab"); renderMain(); }); });
+    var ts = el("teamSearch");
+    if (ts) ts.addEventListener("input", function () { state.teamQ = ts.value; var m = el("main"); m.innerHTML = viewBeheer(); bindBeheer(); var n = el("teamSearch"); if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); } });
+    document.querySelectorAll("[data-role]").forEach(function (s) { s.addEventListener("change", function () { act(function () { S.setUserRole(s.getAttribute("data-role"), s.value); }, "Functie bijgewerkt."); }); });
+    document.querySelectorAll("[data-n2]").forEach(function (c) { c.addEventListener("change", function () { act(function () { S.setUserN2(c.getAttribute("data-n2"), c.checked); }, "N2-bevoegdheid bijgewerkt."); }); });
+    document.querySelectorAll("[data-tasktype]").forEach(function (b) { b.addEventListener("click", function () { var p = b.getAttribute("data-tasktype").split("|"); act(function () { S.setTaskType(p[0], p[1]); }, "Taaktype bijgewerkt."); }); });
+    document.querySelectorAll("[data-jbt]").forEach(function (c) { c.addEventListener("click", function () { var id = c.getAttribute("data-jbt"); var t = S.userById(id); act(function () { S.setUserJbt(id, !t.jbtTrainer); }, "JBT-trainer bijgewerkt."); }); });
+    document.querySelectorAll("[data-utask]").forEach(function (c) { c.addEventListener("click", function () { var p = c.getAttribute("data-utask").split("|"); act(function () { S.toggleUserTask(p[0], p[1]); }, "Taken bijgewerkt."); }); });
+    document.querySelectorAll("[data-regen]").forEach(function (b) { b.addEventListener("click", function () { var id = b.getAttribute("data-regen"); try { var otp = S.regenerateOtp(id); showOtpModal(S.userById(id), otp); renderApp(); } catch (e) { toast(e.message, "err"); } }); });
+    var ah = el("addHub"); if (ah) ah.addEventListener("click", function () { act(function () { S.addHub(el("newHub").value); }, "Hub toegevoegd."); });
+    document.querySelectorAll("[data-delhub]").forEach(function (b) { b.addEventListener("click", function () { act(function () { S.removeHub(b.getAttribute("data-delhub")); }, "Hub verwijderd."); }); });
+    var at = el("addTask"); if (at) at.addEventListener("click", function () { var ty = el("newTaskType") ? el("newTaskType").value : "bezorger"; act(function () { S.addCatalogTask(el("newTask").value, ty); }, "Taak toegevoegd."); });
+    document.querySelectorAll("[data-deltask]").forEach(function (b) { b.addEventListener("click", function () { act(function () { S.removeCatalogTask(b.getAttribute("data-deltask")); }, "Taak verwijderd."); }); });
+    var au = el("addUser"); if (au) au.addEventListener("click", openAddUser);
+    var rd = el("resetData"); if (rd) rd.addEventListener("click", function () {
+      openModal({ title: "Weet je het zeker?", icon: "trash",
+        body: '<p style="margin:0;color:var(--ink-soft);font-weight:600">Alle accounts, ruilingen en de historie worden gewist en de demo-gegevens hersteld. Dit kan niet ongedaan worden gemaakt.</p>',
+        foot: '<button class="btn btn-ghost" data-close>Annuleren</button><button class="btn btn-red" id="cr">' + svg("trash", "icon-sm") + "Wissen</button>",
+        onMount: function (ov, close) { ov.querySelector("#cr").addEventListener("click", function () { S.resetDemo(); close(); authScreen = "landing"; render(); toast("Demo hersteld.", "ok"); }); } });
+    });
+  }
+
+  function openAddUser() {
+    var u = S.currentUser();
+    var canRoles = S.can.editRoles(u);
+    var roleOpts = S.ROLES.filter(function (r) { return canRoles || ["bezorger", "aankomend", "senior"].indexOf(r.id) !== -1; })
+      .map(function (r) { return '<option value="' + r.id + '"' + (r.id === "bezorger" ? " selected" : "") + ">" + esc(r.label) + "</option>"; }).join("");
+    var hubField = canRoles
+      ? '<div class="field"><label>Hub</label><select name="hubId">' + S.db.hubs.slice().sort(function (a, b) { return a.naam.localeCompare(b.naam); }).map(function (h) { return '<option value="' + h.id + '"' + (h.id === u.hubId ? " selected" : "") + ">HUB " + esc(h.naam) + "</option>"; }).join("") + "</select></div>"
+      : '<div class="field"><label>Hub</label><input value="HUB ' + esc((S.hubById(u.hubId) || {}).naam || "") + '" disabled></div>';
+    var body = '<form id="auForm">' +
+      '<div class="row2"><div class="field"><label>Voornaam</label><input name="voornaam" required></div>' +
+        '<div class="field"><label>Achternaam</label><input name="achternaam" required></div></div>' +
+      '<div class="field"><label>Personeelsnummer</label><div class="prefix-in"><span>hr-</span><input name="num" inputmode="numeric" placeholder="1234567" required></div>' +
+        '<div class="hint">Wordt het e-mailadres hr-&lt;nummer&gt;@jumbo.com</div></div>' +
+      '<div class="field"><label>Functie</label><select name="rol">' + roleOpts + "</select></div>" + hubField +
+      '<div class="field check-row"><label class="chk"><input type="checkbox" name="n2"> Mag in de N2-bus rijden</label>' +
+        '<label class="chk"><input type="checkbox" name="jbt"> JBT-trainer</label></div>' +
+      "</form>";
+    openModal({
+      title: "Nieuwe medewerker", icon: "userPlus", body: body,
+      foot: '<button class="btn btn-ghost" data-close>Annuleren</button><button class="btn btn-primary" id="auSubmit">' + svg("check") + "Account aanmaken</button>",
+      onMount: function (ov, close) {
+        ov.querySelector("#auSubmit").addEventListener("click", function () {
+          var f = ov.querySelector("#auForm");
+          try {
+            var res = S.createUserByLeader({ voornaam: f.voornaam.value, achternaam: f.achternaam.value, personeelsnummer: f.num.value, rol: f.rol.value, hubId: f.hubId ? f.hubId.value : null, n2: f.n2.checked, jbtTrainer: f.jbt.checked });
+            close(); renderApp(); showOtpModal(res.user, res.otp);
+          } catch (e) { toast(e.message, "err"); }
+        });
+      }
+    });
+  }
+  function showOtpModal(user, otp) {
+    openModal({
+      title: "Account klaar", icon: "key",
+      body: '<p style="margin:0 0 14px;color:var(--ink-soft);font-weight:600">Geef deze eenmalige code aan <b>' + fullName(user) + "</b>. Bij de eerste keer inloggen stelt de medewerker zelf een wachtwoord in.</p>" +
+        '<div class="otp-big">' + esc(otp) + "</div>" +
+        '<div class="hint" style="text-align:center;margin-top:10px">Inloggen met <code>' + esc(user.email) + "</code> + deze code.</div>",
+      foot: '<button class="btn btn-primary btn-block" data-close>' + svg("check") + "Begrepen</button>"
+    });
+  }
+
+  /* ===================================================================
+     HISTORIE (logboek)
+     =================================================================== */
+  function viewLog() {
+    var u = S.currentUser();
+    var logs = S.logsForHub(u.hubId).filter(function (l) {
+      if (state.logType !== "all" && l.type !== state.logType) return false;
+      if (!state.logQ) return true;
+      var ab = S.userById(l.aanbiederId), ov = S.userById(l.overnemerId), by = S.userById(l.doorId);
+      var hay = (ab ? ab.voornaam + " " + ab.achternaam : "") + " " + (ov ? ov.voornaam + " " + ov.achternaam : "") + " " + (by ? by.voornaam + " " + by.achternaam : "") + " " + fmtDate(l.details.datum) + " " + (l.details.taak || "");
+      return hay.toLowerCase().indexOf(state.logQ.toLowerCase()) !== -1;
+    });
+    function logItem(l) {
+      var ok = l.actie === "goedgekeurd";
+      var ab = S.userById(l.aanbiederId), ov = S.userById(l.overnemerId), by = S.userById(l.doorId);
+      var d = l.details || {};
+      var label = l.type === "shiftwissel" ? "Shiftwissel" : (l.type === "taakwissel" ? "Taakwissel" : (l.type === "oproep" ? "Oproep" : "Back-up"));
+      var what = label + " — " + (d.dagdeel || "") + (d.starttijd ? " " + d.starttijd : "") + (d.taak ? " · " + d.taak : "") + (d.busType ? " · " + d.busType : "");
+      return '<div class="log-item"><div class="log-dot ' + (ok ? "ok" : "no") + '">' + svg(ok ? "check" : "x", "icon-sm") + "</div>" +
+        '<div class="log-body"><div class="l-title">' + esc(what) + ' — <span style="color:' + (ok ? "var(--green)" : "var(--red)") + '">' + (ok ? "Goedgekeurd" : "Afgekeurd") + "</span></div>" +
+          '<div class="l-desc">' + fullName(ab) + " " + inlineArrow() + " " + fullName(ov) + (l.reden ? " — <em>" + esc(l.reden) + "</em>" : "") + "</div>" +
+          '<div class="l-meta">Beoordeeld door ' + fullName(by) + " · " + fmtDateTime(l.timestamp) + "</div></div></div>";
+    }
+    // groeperen per dag (van de ruiling)
+    var byDay = {}, order = [];
+    logs.forEach(function (l) { var d = (l.details && l.details.datum) || "—"; if (!byDay[d]) { byDay[d] = []; order.push(d); } byDay[d].push(l); });
+    order.sort(function (a, b) { return a < b ? 1 : -1; }); // nieuwste dag eerst
+    var inner = logs.length ? order.map(function (day) {
+      return '<div class="log-day"><div class="log-day-h">' + svg("calendar", "icon-sm") + (day === "—" ? "Onbekend" : esc(fmtDate(day))) + "</div>" + byDay[day].map(logItem).join("") + "</div>";
+    }).join("") : emptyState("history", "Niets gevonden", "Er zijn geen beslissingen die aan je zoekopdracht voldoen.");
+
+    var typeSeg = '<div class="seg mini">' +
+      '<button data-ltype="all" class="' + (state.logType === "all" ? "active" : "") + '">Alles</button>' +
+      '<button data-ltype="shiftwissel" class="' + (state.logType === "shiftwissel" ? "active" : "") + '">Shifts</button>' +
+      '<button data-ltype="taakwissel" class="' + (state.logType === "taakwissel" ? "active" : "") + '">Taken</button>' +
+      '<button data-ltype="oproep" class="' + (state.logType === "oproep" ? "active" : "") + '">Oproepen</button>' +
+      '<button data-ltype="backup" class="' + (state.logType === "backup" ? "active" : "") + '">Back-up</button></div>';
+
+    return '<div class="page-head"><div><h2>Historie</h2><p>Alle goed- en afkeuringen binnen jouw hub.</p></div></div>' +
+      '<div class="toolbar">' + typeSeg + '<div class="grow"></div><div class="search">' + svg("search", "icon-sm") + '<input id="logSearch" placeholder="Zoek op naam, datum of taak…" value="' + esc(state.logQ) + '"></div></div>' +
+      '<div class="panel"><div>' + inner + "</div></div>";
+  }
+  function inlineArrow() { return '<svg class="icon icon-sm" style="display:inline;vertical-align:-3px;color:var(--muted)" viewBox="0 0 24 24">' + P.arrowRight + "</svg>"; }
+  function bindLog() {
+    document.querySelectorAll("[data-ltype]").forEach(function (b) { b.addEventListener("click", function () { state.logType = b.getAttribute("data-ltype"); renderMain(); }); });
+    var s = el("logSearch"); if (s) s.addEventListener("input", function () { state.logQ = s.value; var m = el("main"); m.innerHTML = viewLog(); bindLog(); var n = el("logSearch"); if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); } });
+  }
+
+  /* ===================================================================
+     MEDEWERKERDETAIL (klik op naam)
+     =================================================================== */
+  function udStat(dir, val, lab) {
+    return '<div class="stat-card"><div class="s-ico ' + dir + '">' + svg(dir === "up" ? "arrowUp" : "arrowDown") + '</div><div class="s-val">' + val + '</div><div class="s-lab">' + esc(lab) + "</div></div>";
+  }
+  function openUserDetail(uid) {
+    function body() {
+      var me = S.currentUser(); var t = S.userById(uid); if (!t) return "";
+      var canTeam = S.can.editTeam(me); var canRoles = S.can.editRoles(me) && t.id !== me.id;
+      var seeStats = S.level(me) >= 4 || t.id === me.id;
+      var hub = S.hubById(t.hubId);
+      var head = '<div class="prof-head"><div class="avatar lg">' + initials(t) + '</div><div><div class="prof-name">' + fullName(t) +
+        '</div><div class="cellsub">' + esc(S.roleMeta(t.rol).label) + " · HUB " + esc(hub ? hub.naam : "?") + "</div></div></div>";
+      var stats = seeStats ? '<div class="prof-divider">Statistieken</div><div class="stat-grid ud-stats">' +
+        udStat("up", t.stats.shiftsOvergenomen, "Shifts overgenomen") + udStat("down", t.stats.shiftsAangeboden, "Shifts weggegeven") +
+        udStat("up", t.stats.takenOvergenomen, "Taken overgenomen") + udStat("down", t.stats.takenAangeboden, "Taken weggegeven") + "</div>" : "";
+      var edit = "";
+      if (canTeam) {
+        edit += '<div class="prof-divider">Beheer</div>';
+        edit += '<div class="ud-row"><span>Functie</span>' + (canRoles
+          ? '<select class="pill-select" data-udrole>' + S.ROLES.map(function (r) { return '<option value="' + r.id + '"' + (t.rol === r.id ? " selected" : "") + ">" + esc(r.label) + "</option>"; }).join("") + "</select>"
+          : '<span class="badge role">' + esc(S.roleMeta(t.rol).label) + "</span>") + "</div>";
+        edit += '<div class="ud-row"><span>N2-bevoegdheid</span><label class="toggle"><input type="checkbox" data-udn2 ' + (t.n2 ? "checked" : "") + '><span class="track"></span></label></div>';
+        edit += '<div class="ud-row"><span>JBT-trainer</span><label class="toggle"><input type="checkbox" data-udjbt ' + (t.jbtTrainer ? "checked" : "") + '><span class="track"></span></label></div>';
+        edit += '<div class="ud-tasks"><div class="ud-tasks-l">Taken (mag uitvoeren)</div><div class="chips">' +
+          S.assignableTasks(t).map(function (tk) { var on = t.taken.indexOf(tk) !== -1; var sr = S.taskType(tk) === "senior" ? " task-senior" : ""; return '<span class="chip' + sr + (on ? " on" : "") + '" data-udtask="' + esc(tk) + '">' + esc(tk) + "</span>"; }).join("") + "</div></div>";
+      }
+      return head + stats + edit;
+    }
+    function bind(ov) {
+      function rr() { ov.querySelector(".modal-body").innerHTML = body(); bind(ov); renderApp(); }
+      var role = ov.querySelector("[data-udrole]"); if (role) role.addEventListener("change", function () { try { S.setUserRole(uid, role.value); toast("Functie bijgewerkt.", "ok"); rr(); } catch (e) { toast(e.message, "err"); } });
+      var n2 = ov.querySelector("[data-udn2]"); if (n2) n2.addEventListener("change", function () { try { S.setUserN2(uid, n2.checked); toast("N2 bijgewerkt.", "ok"); rr(); } catch (e) { toast(e.message, "err"); } });
+      var jbt = ov.querySelector("[data-udjbt]"); if (jbt) jbt.addEventListener("change", function () { try { S.setUserJbt(uid, jbt.checked); toast("JBT bijgewerkt.", "ok"); rr(); } catch (e) { toast(e.message, "err"); } });
+      ov.querySelectorAll("[data-udtask]").forEach(function (c) { c.addEventListener("click", function () { try { S.toggleUserTask(uid, c.getAttribute("data-udtask")); rr(); } catch (e) { toast(e.message, "err"); } }); });
+    }
+    openModal({ title: "Medewerker", icon: "user", body: body(), onMount: function (ov) { bind(ov); } });
+  }
+
+  /* ===================================================================
+     PROFIEL
+     =================================================================== */
+  function openProfile() {
+    var u = S.currentUser();
+    var hub = S.hubById(u.hubId);
+    function locked(label, val) {
+      return '<div class="prof-row"><div class="prof-l">' + esc(label) + "</div><div class=\"prof-v\">" + esc(val) + svg("lock", "icon-sm") + "</div></div>";
+    }
+    var body =
+      '<div class="prof-head"><div class="avatar lg">' + initials(u) + "</div><div><div class=\"prof-name\">" + fullName(u) + "</div><div class=\"cellsub\">" + esc(S.roleMeta(u.rol).label) + "</div></div></div>" +
+      '<div class="prof-info">' +
+        locked("E-mail", u.email) + locked("Hub", "HUB " + (hub ? hub.naam : "?")) +
+        locked("Functie", S.roleMeta(u.rol).label) +
+        locked("Bus", u.n2 ? "Diesel + N2" : "Alleen diesel") +
+        (u.jbtTrainer ? locked("JBT-trainer", "Ja") : "") +
+      "</div>" +
+      '<div class="prof-divider">Wachtwoord wijzigen</div>' +
+      '<form id="cpForm">' +
+        '<div class="field"><label>Huidig wachtwoord</label><input type="password" name="old" required></div>' +
+        '<div class="field"><label>Nieuw wachtwoord</label><input type="password" name="n1" placeholder="Min. 4 tekens" required></div>' +
+        '<div class="field"><label>Herhaal nieuw wachtwoord</label><input type="password" name="n2" required></div>' +
+        '<div id="cpMsg"></div>' +
+      "</form>";
+    openModal({
+      title: "Mijn profiel", icon: "userCog", body: body,
+      foot: '<button class="btn btn-ghost" data-close>Sluiten</button><button class="btn btn-primary" id="cpSave">' + svg("key", "icon-sm") + "Wachtwoord opslaan</button>",
+      onMount: function (ov, close) {
+        ov.querySelector("#cpSave").addEventListener("click", function () {
+          var f = ov.querySelector("#cpForm");
+          var msg = ov.querySelector("#cpMsg");
+          if (f.n1.value !== f.n2.value) { msg.innerHTML = '<div class="alert alert-error">De nieuwe wachtwoorden komen niet overeen.</div>'; return; }
+          try { S.changeOwnPassword(f.old.value, f.n1.value); toast("Wachtwoord gewijzigd.", "ok"); close(); }
+          catch (e) { msg.innerHTML = '<div class="alert alert-error">' + esc(e.message) + "</div>"; }
+        });
+      }
+    });
+  }
+
+  /* ===================================================================
+     ROOT
+     =================================================================== */
+  function render() {
+    var u = S.currentUser();
+    if (u) {
+      if (u.mustSetPassword) renderForcePassword(u);
+      else if (!state.module) renderPortal();
+      else if (state.module === "ruilhub") renderApp();
+      else renderModulePage();
+    } else { if (authScreen === "login") renderLogin(); else renderLanding(); }
+  }
+
+  /* ===================================================================
+     PORTAAL (keuzemenu)
+     =================================================================== */
+  function portalModules(u) {
+    var m = [{ id: "ruilhub", name: "RuilHub", icon: "exchange", color: "yellow", desc: "Shifts en taken ruilen binnen je hub." }];
+    if (S.level(u) >= 3) {
+      m.push({ id: "dashboard", name: "Dashboard", icon: "chart", color: "dark", desc: "Realtime overzicht van de shift." });
+      m.push({ id: "takenplanning", name: "Takenplanning", icon: "clipboardList", color: "blue", desc: "Weekrooster maken & delen." });
+      m.push({ id: "schadecontrole", name: "Schadecontrole", icon: "shield", color: "green", desc: "Bussen controleren & afvinken." });
+      m.push({ id: "kwaliteit", name: "Kwaliteit", icon: "award", color: "purple", desc: "Emballage tellen per vak." });
+      m.push({ id: "lc", name: "Laadproces", icon: "inbox", color: "orange", desc: "Ritten koppelen aan bussen & trolleys." });
+    }
+    return m;
+  }
+
+  function portalHeader(u) {
+    var hub = S.hubById(u.hubId);
+    return '<header class="app-header portal-header"><div class="app-header-inner">' +
+      '<div class="brand"><span class="logo-badge">' + logo(40) + "</span>" +
+        '<div><div class="app-name">' + PORTAL + '</div><div class="app-sub">Bezorgservice · HUB ' + esc(hub ? hub.naam : "?") + "</div></div></div>" +
+      '<div class="header-spacer"></div>' +
+      '<div class="user-chip">' +
+        '<div style="text-align:right"><div class="u-name">' + fullName(u) + "</div>" +
+          '<div class="u-meta">' + esc(S.roleMeta(u.rol).label) + "</div></div>" +
+        '<button class="avatar-btn" data-profile title="Profiel"><span class="avatar">' + initials(u) + "</span>" +
+          '<span class="avatar-gear">' + svg("settings", "icon-sm") + "</span></button>" +
+        '<button class="btn btn-icon btn-ghost" data-logout title="Uitloggen" style="background:rgba(255,255,255,.5)">' + svg("logout", "icon-sm") + "</button>" +
+      "</div></div></header>";
+  }
+
+  function renderPortal() {
+    var u = S.currentUser();
+    var mods = portalModules(u);
+    var tiles = mods.map(function (m) {
+      return '<button class="tile tile-' + m.color + '" data-module="' + m.id + '">' +
+        '<span class="tile-ico">' + svg(m.icon, "icon-lg") + "</span>" +
+        '<span class="tile-name">' + esc(m.name) + "</span>" +
+        '<span class="tile-desc">' + esc(m.desc) + "</span></button>";
+    }).join("");
+    el("app").innerHTML = portalHeader(u) +
+      '<main class="portal-main">' +
+        '<div class="portal-welcome"><h2>Hoi ' + esc(u.voornaam) + " 👋</h2><p>Waar wil je mee aan de slag?</p></div>" +
+        '<div class="tile-grid">' + tiles + "</div>" +
+      "</main>";
+    el("app").querySelector("[data-logout]").addEventListener("click", function () { S.logout(); authScreen = "landing"; render(); });
+    el("app").querySelector("[data-profile]").addEventListener("click", openProfile);
+    document.querySelectorAll("[data-module]").forEach(function (b) {
+      b.addEventListener("click", function () { state.module = b.getAttribute("data-module"); state.view = "shifts"; render(); });
+    });
+  }
+
+  function gotoPortal() { state.module = null; render(); }
+
+  /* ===================================================================
+     MODULE-PAGINA (operationeel — in aanbouw)
+     =================================================================== */
+  function renderModulePage() {
+    if (state.module === "takenplanning") return renderPlanning();
+    if (state.module === "dashboard") return renderDashboard();
+    if (state.module === "schadecontrole") return renderSchade();
+    if (state.module === "kwaliteit") return renderKwaliteit();
+    if (state.module === "lc") return renderLC();
+    var u = S.currentUser();
+    var info = {
+      takenplanning: { name: "Takenplanning", icon: "clipboardList", desc: "Hier maak je straks het weekrooster (medewerkers × dagen, AM/PM en taken) en download je het als afbeelding voor de groepsapp." },
+      schadecontrole: { name: "Schadecontrole", icon: "shield", desc: "Hier komt de schadecontrole: bussen importeren uit de planning (busnummer + kenteken) en per bus afvinken (schadecontrole, tolkrol, kabeltjes, doekjes). De binnendienst volgt de voortgang live." },
+      kwaliteit: { name: "Kwaliteit", icon: "award", desc: "Hier komt de kwaliteitsmodule: emballage/kratten tellen en de trolley-teller (4- en 5-laags), met live overzicht voor de binnendienst." },
+      lc: { name: "LC — Laden", icon: "inbox", desc: "Hier komt het laadproces: vakken (1–40) koppelen aan bussen en ritnummers, importeren in de ochtend en handmatig invullen in de middag." }
+    }[state.module] || { name: "Module", icon: "grid", desc: "" };
+
+    el("app").innerHTML = portalHeader(u) +
+      '<main><button class="btn btn-ghost back-portal" data-portal>' + svg("arrowLeft", "icon-sm") + "Naar de Hub</button>" +
+      '<div class="page-head" style="margin-top:14px"><div><h2>' + esc(info.name) + "</h2></div></div>" +
+      '<div class="panel" style="padding:30px;text-align:center">' +
+        '<div class="empty" style="padding:30px 10px">' + svg(info.icon) + "<h3>" + esc(info.name) + " — in aanbouw</h3><p style=\"max-width:520px;margin:0 auto\">" + esc(info.desc) + "</p>" +
+        '<div style="margin-top:18px"><span class="badge st-afwachting">Volgende fase</span></div></div></div></main>';
+    el("app").querySelector("[data-logout]").addEventListener("click", function () { S.logout(); authScreen = "landing"; render(); });
+    el("app").querySelector("[data-profile]").addEventListener("click", openProfile);
+    el("app").querySelector("[data-portal]").addEventListener("click", gotoPortal);
+  }
+
+  /* ===================================================================
+     TAKENPLANNING
+     =================================================================== */
+  var DAYNAMES = ["Ma", "Di", "Wo", "Do", "Vr", "Za", "Zo"];
+  function planDagdelen(di) { return di === 6 ? ["AM"] : ["AM", "PM"]; } // zondag (index 6) alleen AM
+  function renderPlanning() {
+    var u = S.currentUser();
+    var canEdit = S.can.planning(u);
+    if (!state.planWeek) state.planWeek = ymd(mondayOf(new Date()));
+    var mon = new Date(state.planWeek + "T00:00:00");
+    var plan = S.planningFor(u.hubId, state.planWeek);
+    var days = []; for (var i = 0; i < 7; i++) { var dd = new Date(mon); dd.setDate(mon.getDate() + i); days.push(dd); }
+    var req = ["Schadecontrole", "LC", "Kwaliteit"].filter(function (t) { return S.db.taskCatalog.indexOf(t) !== -1; });
+
+    function cellHTML(key, di, dagdeel) {
+      var c = plan.cells[key + "__" + di + "__" + dagdeel];
+      var txt = c ? (c.taak || "✓") : "";
+      return '<td class="plan-cell ' + (dagdeel === "AM" ? "c-am" : "c-pm") + (c ? " on" : "") + '">' +
+        '<button type="button" data-cell="' + plan.id + "|" + key + "|" + di + "|" + dagdeel + '">' + esc(txt) + "</button></td>";
+    }
+    var thead = "<thead><tr><th class=\"pl-name\" rowspan=\"2\">Naam</th>" +
+      days.map(function (d, i) { return '<th class="pl-day" colspan="' + planDagdelen(i).length + '">' + DAYNAMES[i] + ' <span class="pl-date">' + d.getDate() + "-" + (d.getMonth() + 1) + "</span></th>"; }).join("") +
+      "</tr><tr>" + days.map(function (d, i) { return planDagdelen(i).map(function (dd) { return '<th class="pl-h-' + dd.toLowerCase() + '">' + dd + "</th>"; }).join(""); }).join("") + "</tr></thead>";
+    var totalCols = 1 + days.reduce(function (a, d, i) { return a + planDagdelen(i).length; }, 0);
+    var tbody = "<tbody>" + (plan.rows.length ? plan.rows.map(function (r) {
+      var cells = ""; for (var di = 0; di < 7; di++) planDagdelen(di).forEach(function (dd) { cells += cellHTML(r.key, di, dd); });
+      return "<tr><td class=\"pl-name\">" + esc(r.naam) + (canEdit ? ' <button class="pl-x" data-delrow="' + plan.id + "|" + r.key + '" title="Rij verwijderen">' + svg("x", "icon-sm") + "</button>" : "") + "</td>" + cells + "</tr>";
+    }).join("") : '<tr><td colspan="' + totalCols + '"><div class="cellsub" style="padding:10px">Nog geen medewerkers in deze planning.</div></td></tr>') + "</tbody>";
+
+    // dekkingsstrip: zijn de belangrijke taken per dag ingevuld?
+    function dayCov(di) {
+      var present = {}; req.forEach(function (t) { present[t] = false; });
+      planDagdelen(di).forEach(function (dd) { plan.rows.forEach(function (r) { var c = plan.cells[r.key + "__" + di + "__" + dd]; if (c && c.taak && present.hasOwnProperty(c.taak)) present[c.taak] = true; }); });
+      var miss = req.filter(function (t) { return !present[t]; });
+      return { cov: req.length - miss.length, total: req.length, miss: miss };
+    }
+    var covStrip = req.length ? '<div class="cov-strip">' + days.map(function (d, i) {
+      var cv = dayCov(i), full = cv.cov === cv.total;
+      return '<span class="cov-chip ' + (full ? "ok" : "warn") + '" title="' + (full ? "Alle taken ingevuld" : "Mist: " + cv.miss.join(", ")) + '">' + (full ? svg("check", "icon-sm") : svg("alertTri", "icon-sm")) + DAYNAMES[i] + " " + (full ? "" : cv.cov + "/" + cv.total) + "</span>";
+    }).join("") + "</div>" : "";
+
+    var weekLabel = "Week " + isoWeek(mon);
+    var toolbar = '<div class="toolbar">' +
+      '<div class="seg"><button data-week="-1">' + svg("arrowLeft", "icon-sm") + "</button>" +
+        '<button class="active" style="cursor:default">' + esc(weekLabel) + "</button>" +
+        '<button data-week="1">' + svg("arrowRight", "icon-sm") + "</button></div>" +
+      '<div class="grow"></div>' +
+      (canEdit ? '<div class="add-inline"><input id="plNewRow" placeholder="Naam toevoegen"><button class="btn btn-dark btn-sm" id="plAddRow">' + svg("plus", "icon-sm") + "Rij</button></div>" : "") +
+      '<button class="btn btn-primary btn-sm" id="plDownload">' + svg("download", "icon-sm") + "Afbeelding</button>" +
+      "</div>";
+
+    el("app").innerHTML = portalHeader(u) +
+      '<main><button class="btn btn-ghost back-portal" data-portal>' + svg("arrowLeft", "icon-sm") + "Naar de Hub</button>" +
+      '<div class="page-head" style="margin-top:14px"><div><h2>Takenplanning</h2></div></div>' +
+      toolbar + covStrip +
+      '<div class="panel" style="padding:0"><div class="table-scroll"><table class="table plan-table">' + thead + tbody + "</table></div></div></main>";
+
+    bindModuleHeader();
+    document.querySelectorAll("[data-week]").forEach(function (b) {
+      b.addEventListener("click", function () { var m = new Date(state.planWeek + "T00:00:00"); m.setDate(m.getDate() + 7 * parseInt(b.getAttribute("data-week"), 10)); state.planWeek = ymd(m); renderPlanning(); });
+    });
+    if (canEdit) {
+      document.querySelectorAll("[data-cell]").forEach(function (b) { b.addEventListener("click", function () { openPlanCell(b.getAttribute("data-cell")); }); });
+      document.querySelectorAll("[data-delrow]").forEach(function (b) { b.addEventListener("click", function () { var p = b.getAttribute("data-delrow").split("|"); try { S.removePlanRow(p[0], p[1]); renderPlanning(); } catch (e) { toast(e.message, "err"); } }); });
+      var ar = el("plAddRow"); if (ar) ar.addEventListener("click", function () { try { S.addPlanRow(plan.id, el("plNewRow").value); renderPlanning(); } catch (e) { toast(e.message, "err"); } });
+    }
+    el("plDownload").addEventListener("click", function () { downloadPlanningPNG(plan); });
+  }
+
+  function openPlanCell(spec) {
+    var p = spec.split("|"); var planId = p[0], key = p[1], di = p[2], dagdeel = p[3];
+    var plan = S.planById(planId); if (!plan) return;
+    var c = plan.cells[key + "__" + di + "__" + dagdeel] || null;
+    var row = plan.rows.filter(function (r) { return r.key === key; })[0] || {};
+    var taskOpts = '<option value="">Werkt — geen taak</option>' + S.db.taskCatalog.slice().sort(function (a, b) { return a.localeCompare(b); })
+      .concat([S.TASK_JBT]).map(function (t) { return '<option value="' + esc(t) + '"' + (c && c.taak === t ? " selected" : "") + ">" + esc(t) + "</option>"; }).join("");
+    openModal({
+      title: esc(row.naam) + " — " + DAYNAMES[di] + " " + dagdeel, icon: dagdeel === "AM" ? "sun" : "moon",
+      body: '<form id="pcForm"><div class="field"><label>Taak</label><select name="taak">' + taskOpts + "</select></div></form>",
+      foot: (c ? '<button class="btn btn-red" id="pcDel">' + svg("trash", "icon-sm") + "Verwijderen</button>" : '<button class="btn btn-ghost" data-close>Annuleren</button>') +
+        '<button class="btn btn-primary" id="pcSave">' + svg("check") + "Opslaan</button>",
+      onMount: function (ov, close) {
+        ov.querySelector("#pcSave").addEventListener("click", function () {
+          var f = ov.querySelector("#pcForm");
+          try { S.setPlanCell(planId, key, di, dagdeel, { taak: f.taak.value }); close(); renderPlanning(); } catch (e) { toast(e.message, "err"); }
+        });
+        var del = ov.querySelector("#pcDel"); if (del) del.addEventListener("click", function () { try { S.setPlanCell(planId, key, di, dagdeel, null); close(); renderPlanning(); } catch (e) { toast(e.message, "err"); } });
+      }
+    });
+  }
+
+  function downloadPlanningPNG(plan) {
+    var u = S.currentUser(); var hub = S.hubById(u.hubId);
+    var mon = new Date(plan.weekStart + "T00:00:00");
+    var days = []; for (var i = 0; i < 7; i++) { var d = new Date(mon); d.setDate(mon.getDate() + i); days.push(d); }
+    // kolommen: Ma-Za AM+PM, Zo alleen AM
+    var colsArr = []; for (var di = 0; di < 7; di++) planDagdelen(di).forEach(function (dd) { colsArr.push({ di: di, dd: dd }); });
+    var nameW = 170, cellW = 62, rowH = 28, headH = 44, titleH = 50, cols = colsArr.length;
+    var W = nameW + cols * cellW, H = titleH + headH + plan.rows.length * rowH;
+    var sc = 2, cv = document.createElement("canvas"); cv.width = W * sc; cv.height = H * sc;
+    var ctx = cv.getContext("2d"); ctx.scale(sc, sc);
+    ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = "#febe10"; ctx.fillRect(0, 0, W, titleH);
+    ctx.fillStyle = "#1d1d1b"; ctx.textBaseline = "middle"; ctx.textAlign = "left";
+    ctx.font = "900 18px Arial"; ctx.fillText("Takenplanning  ·  Week " + isoWeek(mon) + "  ·  HUB " + (hub ? hub.naam : ""), 14, titleH / 2);
+    var y0 = titleH;
+    // dag-headers (gegroepeerd) + AM/PM
+    ctx.textAlign = "center";
+    for (var ci = 0; ci < colsArr.length; ci++) {
+      var cx0 = nameW + ci * cellW, col = colsArr[ci];
+      if (col.dd === "AM") { // dagnaam boven de AM-kolom (over breedte van de dag)
+        var span = planDagdelen(col.di).length;
+        ctx.fillStyle = "#1d1d1b"; ctx.font = "800 12px Arial";
+        ctx.fillText(DAYNAMES[col.di] + " " + days[col.di].getDate() + "-" + (days[col.di].getMonth() + 1), cx0 + (span * cellW) / 2, y0 + 15);
+      }
+      ctx.font = "700 11px Arial"; ctx.fillStyle = col.dd === "AM" ? "#3a6ea5" : "#c47a16";
+      ctx.fillText(col.dd, cx0 + cellW / 2, y0 + 33);
+    }
+    ctx.fillStyle = "#1d1d1b"; ctx.font = "800 13px Arial"; ctx.textAlign = "left"; ctx.fillText("Naam", 12, y0 + headH / 2);
+    var y = y0 + headH;
+    plan.rows.forEach(function (r, ri) {
+      var ry = y + ri * rowH;
+      ctx.fillStyle = ri % 2 ? "#faf9f4" : "#fff"; ctx.fillRect(0, ry, W, rowH);
+      ctx.fillStyle = "#1d1d1b"; ctx.font = "700 12px Arial"; ctx.textAlign = "left"; ctx.textBaseline = "middle";
+      ctx.fillText(r.naam.length > 22 ? r.naam.slice(0, 21) + "…" : r.naam, 12, ry + rowH / 2);
+      colsArr.forEach(function (col, ci) {
+        var cx = nameW + ci * cellW;
+        var cell = plan.cells[r.key + "__" + col.di + "__" + col.dd];
+        if (cell) {
+          ctx.fillStyle = col.dd === "AM" ? "#bfe0ff" : "#ffdca8"; ctx.fillRect(cx + 1, ry + 1, cellW - 2, rowH - 2);
+          var txt = cell.taak || "✓";
+          ctx.fillStyle = "#1d1d1b"; ctx.font = "700 10px Arial"; ctx.textAlign = "center";
+          ctx.fillText(txt.length > 11 ? txt.slice(0, 10) + "…" : txt, cx + cellW / 2, ry + rowH / 2);
+        }
+      });
+    });
+    ctx.strokeStyle = "#e1e1dc"; ctx.lineWidth = 1;
+    for (var gx = 0; gx <= cols; gx++) { var lx = nameW + gx * cellW; ctx.beginPath(); ctx.moveTo(lx, y0); ctx.lineTo(lx, y + plan.rows.length * rowH); ctx.stroke(); }
+    for (var gy = 0; gy <= plan.rows.length; gy++) { var ly = y + gy * rowH; ctx.beginPath(); ctx.moveTo(0, ly); ctx.lineTo(W, ly); ctx.stroke(); }
+    ctx.beginPath(); ctx.moveTo(0, y0); ctx.lineTo(W, y0); ctx.stroke();
+    ctx.strokeRect(0.5, 0.5, W - 1, H - 1);
+    cv.toBlob(function (blob) {
+      var a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+      a.download = "takenplanning-week" + isoWeek(mon) + ".png"; document.body.appendChild(a); a.click();
+      setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+    });
+    toast("Afbeelding gedownload.", "ok");
+  }
+
+  /* ===================================================================
+     OPERATIONELE MODULES (prototype, live tussen tabbladen)
+     =================================================================== */
+  function moduleShell(title, content, opts) {
+    opts = opts || {};
+    return portalHeader(S.currentUser()) +
+      '<main><button class="btn btn-ghost back-portal" data-portal>' + svg("arrowLeft", "icon-sm") + "Naar de Hub</button>" +
+      '<div class="page-head" style="margin-top:14px"><div><h2>' + esc(title) + "</h2></div>" +
+      '<div class="grow"></div><span class="live-badge">' + svg("refresh", "icon-sm") + "Live</span></div>" +
+      (opts.noShift ? "" : shiftBar()) + content + "</main>";
+  }
+  function bindModuleHeader(rerender) {
+    el("app").querySelector("[data-logout]").addEventListener("click", function () { S.logout(); authScreen = "landing"; render(); });
+    el("app").querySelector("[data-profile]").addEventListener("click", openProfile);
+    el("app").querySelector("[data-portal]").addEventListener("click", gotoPortal);
+    if (rerender) bindShiftBar(rerender);
+  }
+  function ensureShiftState() {
+    if (!state.opDate) state.opDate = ymd(new Date());
+    if (!state.opShift) state.opShift = "AM";
+    if (S.isSunday(state.opDate)) state.opShift = "AM";
+  }
+  function shiftBar() {
+    ensureShiftState();
+    var dd = new Date(state.opDate + "T00:00:00");
+    var dn = ["zo", "ma", "di", "wo", "do", "vr", "za"][dd.getDay()];
+    var lbl = dn + " " + dd.getDate() + "-" + (dd.getMonth() + 1) + "-" + dd.getFullYear();
+    var sun = S.isSunday(state.opDate);
+    return '<div class="shiftbar"><div class="seg"><button data-opday="-1">' + svg("arrowLeft", "icon-sm") + "</button>" +
+      '<button class="active" style="cursor:default;text-transform:capitalize">' + svg("calendar", "icon-sm") + esc(lbl) + "</button>" +
+      '<button data-opday="1">' + svg("arrowRight", "icon-sm") + "</button></div>" +
+      '<div class="seg"><button data-opshift="AM" class="' + (state.opShift === "AM" ? "active" : "") + '">' + svg("sun", "icon-sm") + "AM</button>" +
+      (sun ? "" : '<button data-opshift="PM" class="' + (state.opShift === "PM" ? "active" : "") + '">' + svg("moon", "icon-sm") + "PM</button>") + "</div>" +
+      (sun ? '<span class="cellsub">Zondag heeft alleen een AM-shift</span>' : "") + "</div>";
+  }
+  function bindShiftBar(rer) {
+    document.querySelectorAll("[data-opday]").forEach(function (b) { b.addEventListener("click", function () { var m = new Date(state.opDate + "T00:00:00"); m.setDate(m.getDate() + parseInt(b.getAttribute("data-opday"), 10)); state.opDate = ymd(m); ensureShiftState(); rer(); }); });
+    document.querySelectorAll("[data-opshift]").forEach(function (b) { b.addEventListener("click", function () { state.opShift = b.getAttribute("data-opshift"); rer(); }); });
+  }
+  function opProgress(done, total, label) {
+    var pct = total ? Math.round(done / total * 100) : 0;
+    return '<div class="op-progress"><div class="op-bar"><span style="width:' + pct + '%"></span></div><div class="op-pct">' + done + " / " + total + " " + esc(label) + " (" + pct + "%)</div></div>";
+  }
+  function layerLabel(n) { return '<span class="layer-tag">' + svg(n === 5 ? "layers5" : "layers4", "icon-sm") + n + "-laags</span>"; }
+  function ctx() { ensureShiftState(); var u = S.currentUser(); return { u: u, h: u.hubId, d: state.opDate, dd: state.opShift }; }
+
+  /* ---------- Schadecontrole (alleen afvinken) ---------- */
+  function renderSchade() {
+    var c = ctx(), u = c.u;
+    var s = S.getSchade(c.h, c.d, c.dd);
+    var canEdit = S.canOpShift(u, c.h, c.d, c.dd, "schadecontrole", "Schadecontrole");
+    var st = S.schadeStats(c.h, c.d, c.dd);
+    function chk(b, f) {
+      return '<td class="sc-chk"><label class="chk-box ' + (b[f] ? "on" : "") + (canEdit ? "" : " ro") + '">' +
+        '<input type="checkbox" ' + (b[f] ? "checked" : "") + (canEdit ? "" : " disabled") + ' data-schade="' + b.id + "|" + f + '">' + svg("check", "icon-sm") + "</label></td>";
+    }
+    var rows = s.buses.length ? s.buses.map(function (b) {
+      var full = b.schade && b.tolkrol && b.kabels && b.doekjes;
+      var dockCell = b.dock ? '<span class="badge dock">' + svg("building", "icon-sm") + "Dock " + esc(b.dock) + "</span>" : '<span class="cellsub">—</span>';
+      return "<tr class=\"" + (full ? "sc-done" : "") + "\"><td><div class=\"cellname\">Bus " + esc(b.bus || "?") + "</div><div class=\"cellsub\">" + esc(b.naam || "") + (b.kenteken ? " · " + esc(b.kenteken) : "") + "</div></td>" +
+        chk(b, "schade") + chk(b, "tolkrol") + chk(b, "kabels") + chk(b, "doekjes") + "<td>" + dockCell + "</td></tr>";
+    }).join("") : '<tr><td colspan="6"><div class="cellsub" style="padding:14px">De binnendienst zet de lijst klaar via het dashboard.</div></td></tr>';
+    var table = '<div class="panel" style="padding:0"><div class="table-scroll"><table class="table sc-table">' +
+      "<thead><tr><th>Bus</th><th>Gecontroleerd</th><th>Tolkrol</th><th>Kabels</th><th>Doekjes</th><th>Dock</th></tr></thead><tbody>" + rows + "</tbody></table></div></div>";
+
+    // 5 steekproeven: naam + hr-nummer + (optioneel) ritnummer + aantal kratten
+    var sp = S.steekproevenVan(c.h, c.d, c.dd), spSt = S.steekproefStats(c.h, c.d, c.dd);
+    var spRows = sp.slice(0, 5).map(function (x, i) {
+      var done = x.naam && x.kratten !== "" && x.kratten != null;
+      function inp(f, ph, val, type) { return '<input class="lc-in" data-sp="' + i + "|" + f + '" placeholder="' + ph + '"' + (type ? ' type="' + type + '" inputmode="numeric"' : "") + ' value="' + esc(val == null ? "" : val) + '"' + (canEdit ? "" : " disabled") + ">"; }
+      return '<div class="sp-card' + (done ? " done" : "") + '"><div class="sp-nr">' + (i + 1) + (done ? " " + svg("check", "icon-sm") : "") + "</div>" +
+        '<div class="sp-fields">' + inp("naam", "Naam bezorger", x.naam) + inp("hr", "hr-nummer", x.hr) + inp("rit", "Ritnummer (optioneel)", x.rit) +
+        '<label class="sp-kr">Kratten in de bus <input class="lc-in" data-sp="' + i + '|kratten" type="number" inputmode="numeric" min="0" value="' + esc(x.kratten == null ? "" : x.kratten) + '"' + (canEdit ? "" : " disabled") + "></label></div></div>";
+    }).join("");
+    var spSection = '<div class="page-head" style="margin:22px 0 6px"><div><h2 style="font-size:18px">Steekproeven</h2></div></div>' +
+      opProgress(spSt.done, spSt.total, "steekproeven gedaan") +
+      '<div class="sp-grid">' + spRows + "</div>";
+
+    el("app").innerHTML = moduleShell("Schadecontrole", opProgress(st.done, st.total, "bussen klaar") + table + spSection);
+    bindModuleHeader(renderSchade);
+    document.querySelectorAll("[data-schade]").forEach(function (el2) { el2.addEventListener("change", function () { var p = el2.getAttribute("data-schade").split("|"); try { S.schadeToggle(c.h, c.d, c.dd, p[0], p[1]); renderSchade(); } catch (e) { toast(e.message, "err"); } }); });
+    document.querySelectorAll("[data-sp]").forEach(function (inp) { inp.addEventListener("change", function () { var p = inp.getAttribute("data-sp").split("|"); var d = {}; d[p[1]] = inp.value; try { S.setSteekproef(c.h, c.d, c.dd, parseInt(p[0], 10), d); renderSchade(); } catch (e) { toast(e.message, "err"); } }); });
+  }
+
+  /* ---------- Kwaliteit (vak-soort + emballage per vak) ---------- */
+  function renderKwaliteit() {
+    var c = ctx(), u = c.u;
+    var canEdit = S.canOpShift(u, c.h, c.d, c.dd, "kwaliteit", "Kwaliteit");
+    function soortOpts(sel) { return S.VAK_SOORTEN.map(function (s) { return '<option value="' + s.id + '"' + (sel === s.id ? " selected" : "") + ">" + esc(s.label) + "</option>"; }).join(""); }
+    var rows = "";
+    for (var i = 1; i <= S.EMB_VAKKEN; i++) {
+      var soort = S.vakSoort(c.h, c.d, c.dd, i), isEmb = soort === "emb5", tot = isEmb ? S.emballageVakTotal(c.h, c.d, c.dd, i) : 0;
+      rows += '<tr class="' + (isEmb ? "vak-emb" : "") + '"><td class="lc-nr">' + i + "</td>" +
+        "<td>" + (canEdit ? '<select class="lc-in vaksoort-sel" data-vaksoort="' + i + '">' + soortOpts(soort) + "</select>" : '<span class="badge ' + (soort ? "task" : "") + '">' + esc(S.vakSoortLabel(soort)) + "</span>") + "</td>" +
+        "<td>" + (isEmb ? '<button class="btn btn-primary btn-sm" data-embopen="' + i + '">' + svg("tag", "icon-sm") + "Tellen · " + tot + "</button>" : '<span class="cellsub">—</span>') + "</td></tr>";
+    }
+    var table = '<div class="panel" style="padding:0"><div class="table-scroll"><table class="table"><thead><tr><th>Vak</th><th>Wat mag erin</th><th>Emballage</th></tr></thead><tbody>' + rows + "</tbody></table></div></div>";
+    el("app").innerHTML = moduleShell("Kwaliteit", table);
+    bindModuleHeader(renderKwaliteit);
+    document.querySelectorAll("[data-vaksoort]").forEach(function (s) { s.addEventListener("change", function () { try { S.setVakSoort(c.h, c.d, c.dd, parseInt(s.getAttribute("data-vaksoort"), 10), s.value); renderKwaliteit(); } catch (e) { toast(e.message, "err"); } }); });
+    document.querySelectorAll("[data-embopen]").forEach(function (b) { b.addEventListener("click", function () { openEmbVak(c, parseInt(b.getAttribute("data-embopen"), 10)); }); });
+  }
+  function openEmbVak(c, vak) {
+    var canEdit = S.canOpShift(S.currentUser(), c.h, c.d, c.dd, "kwaliteit", "Kwaliteit");
+    var arr = S.getKwaliteit(c.h, c.d, c.dd).emballage[vak] || [];
+    var trolleys = "";
+    for (var t = 0; t < S.EMB_TROLLEYS; t++) { trolleys += '<div class="emb-trolley"><div class="emb-tnr">Trolley ' + (t + 1) + '</div><input type="number" min="0" inputmode="numeric" class="emb-in" data-emb="' + vak + "|" + t + '" value="' + (arr[t] || 0) + '"' + (canEdit ? "" : " disabled") + "></div>"; }
+    openModal({
+      title: "Vak " + vak + " — emballage", icon: "tag",
+      body: '<div class="emb-rack"><div class="emb-rack-h">14 trolleys <span class="emb-total">' + S.emballageVakTotal(c.h, c.d, c.dd, vak) + " kratjes</span></div><div class=\"emb-grid\">" + trolleys + "</div></div>",
+      onMount: function (ov) {
+        ov.querySelectorAll("[data-emb]").forEach(function (inp) {
+          inp.addEventListener("change", function () {
+            var p = inp.getAttribute("data-emb").split("|");
+            try { S.emballageSet(c.h, c.d, c.dd, p[0], parseInt(p[1], 10), inp.value); ov.querySelector(".emb-total").textContent = S.emballageVakTotal(c.h, c.d, c.dd, vak) + " kratjes"; renderKwaliteit(); } catch (e) { toast(e.message, "err"); }
+          });
+        });
+      }
+    });
+  }
+
+  /* ---------- LC (laden + pendels) ---------- */
+  function renderLC() {
+    var c = ctx(), u = c.u;
+    var lc = S.getLC(c.h, c.d, c.dd);
+    var tr = S.getTrolley(c.h, c.d, c.dd);
+    var canLoad = S.canOpShift(u, c.h, c.d, c.dd, "lc", "LC");
+    var isPM = c.dd === "PM";
+    var st = S.lcStats(c.h, c.d, c.dd);
+
+    var pendel = canLoad ? '<div class="panel"><div class="panel-head">' + svg("inbox") + "<h3>Pendel — trolleys</h3>" +
+      '<span class="cellsub" style="margin-left:auto">Op de hub: ' + tr.stock4 + " (4-laags) · " + tr.stock5 + " (5-laags)</span></div>" +
+      '<div class="pendel-form">' +
+        '<div class="pendel-col">' + layerLabel(4) +
+          '<label class="pendel-in"><span class="dir in">' + svg("arrowDown", "icon-sm") + "binnen</span><input type=\"number\" min=\"0\" id=\"pIn4\" value=\"0\"></label>" +
+          '<label class="pendel-in"><span class="dir out">' + svg("arrowUp", "icon-sm") + "retour</span><input type=\"number\" min=\"0\" id=\"pOut4\" value=\"0\"></label></div>" +
+        '<div class="pendel-col">' + layerLabel(5) +
+          '<label class="pendel-in"><span class="dir in">' + svg("arrowDown", "icon-sm") + "binnen</span><input type=\"number\" min=\"0\" id=\"pIn5\" value=\"0\"></label>" +
+          '<label class="pendel-in"><span class="dir out">' + svg("arrowUp", "icon-sm") + "retour</span><input type=\"number\" min=\"0\" id=\"pOut5\" value=\"0\"></label></div>" +
+        '<button class="btn btn-primary" id="pAdd">' + svg("plus", "icon-sm") + "Pendel toevoegen</button>" +
+      "</div>" +
+      (tr.pendels.length ? '<div class="pendel-list">' + tr.pendels.map(function (p, idx) {
+        return '<div class="pendel-row"><span class="pendel-nr">#' + (tr.pendels.length - idx) + "</span>" +
+          '<span class="pendel-bit in">' + svg("arrowDown", "icon-sm") + (p.in4 + p.in5) + " in</span>" +
+          '<span class="pendel-bit out">' + svg("arrowUp", "icon-sm") + (p.out4 + p.out5) + " retour</span>" +
+          '<span class="cellsub">4: +' + p.in4 + "/-" + p.out4 + " · 5: +" + p.in5 + "/-" + p.out5 + "</span></div>";
+      }).join("") + "</div>" : "") + "</div>" : "";
+
+    var rows = lc.vakken.length ? lc.vakken.map(function (v) {
+      var busCell = (canLoad && isPM) ? '<input class="lc-in" data-lcbus="' + v.nr + '" placeholder="busnr" value="' + esc(v.bus) + '">' : '<span class="' + (v.bus ? "cellname" : "cellsub") + '">' + (v.bus ? esc(v.bus) : "—") + "</span>";
+      var typeBadge = v.type === "N2" ? '<span class="badge n2">' + svg("bolt", "icon-sm") + "N2</span>" : '<span class="badge diesel">' + svg("droplet", "icon-sm") + "Diesel</span>";
+      return "<tr class=\"" + (v.geladen ? "sc-done" : "") + "\"><td class=\"lc-nr\">" + v.nr + "</td>" +
+        '<td class="cellsub">' + (v.vertrek ? esc(v.vertrek) : "—") + "</td><td>" + busCell + "</td>" +
+        '<td class="cellsub">' + (v.rit ? esc(v.rit) : "—") + "</td><td>" + typeBadge + "</td>" +
+        '<td style="text-align:center">' + (v.ze ? '<span class="badge dock">ZE</span>' : "") + "</td>" +
+        '<td class="sc-chk"><label class="chk-box ' + (v.geladen ? "on" : "") + (canLoad ? "" : " ro") + '"><input type="checkbox" ' + (v.geladen ? "checked" : "") + (canLoad ? "" : " disabled") + ' data-lcgel="' + v.nr + '">' + svg("check", "icon-sm") + "</label></td></tr>";
+    }).join("") : '<tr><td colspan="7"><div class="cellsub" style="padding:14px">De binnendienst zet de vakken klaar via het dashboard.</div></td></tr>';
+    var table = '<div class="panel" style="padding:0"><div class="table-scroll"><table class="table lc-table">' +
+      "<thead><tr><th>Vak</th><th>Vertrek</th><th>Bus</th><th>Rit</th><th>Type</th><th>ZE</th><th>Geladen</th></tr></thead><tbody>" + rows + "</tbody></table></div></div>";
+
+    el("app").innerHTML = moduleShell("LC — Laden", opProgress(st.done, st.used, "vakken geladen") + pendel + table);
+    bindModuleHeader(renderLC);
+    document.querySelectorAll("[data-lcbus]").forEach(function (inp) { inp.addEventListener("change", function () { try { S.lcSetBus(c.h, c.d, c.dd, parseInt(inp.getAttribute("data-lcbus"), 10), inp.value); } catch (e) { toast(e.message, "err"); } }); });
+    document.querySelectorAll("[data-lcgel]").forEach(function (cb) { cb.addEventListener("change", function () { try { S.lcToggleGeladen(c.h, c.d, c.dd, parseInt(cb.getAttribute("data-lcgel"), 10)); renderLC(); } catch (e) { toast(e.message, "err"); } }); });
+    var pa = el("pAdd"); if (pa) pa.addEventListener("click", function () { try { S.addPendel(c.h, c.d, c.dd, { in4: el("pIn4").value, out4: el("pOut4").value, in5: el("pIn5").value, out5: el("pOut5").value }); toast("Pendel toegevoegd.", "ok"); renderLC(); } catch (e) { toast(e.message, "err"); } });
+  }
+
+  /* ---------- Senior-dashboard ---------- */
+  function dockOptions(sel) { return '<option value="">—</option>' + S.DOCKS.map(function (d) { return '<option value="' + d + '"' + (String(sel) === String(d) ? " selected" : "") + ">Dock " + d + "</option>"; }).join(""); }
+  function renderDashboard() {
+    var c = ctx(), u = c.u;
+    if (!state.dashTab) state.dashTab = "overzicht";
+    var tabs = [["overzicht", "Overzicht"], ["klaarzetten", "Klaarzetten"], ["diensten", "Diensten"]];
+    var seg = '<div class="seg" style="margin:14px 0 16px;flex-wrap:wrap">' + tabs.map(function (t) { return '<button data-dashtab="' + t[0] + '" class="' + (state.dashTab === t[0] ? "active" : "") + '">' + t[1] + "</button>"; }).join("") + "</div>";
+    var body = state.dashTab === "klaarzetten" ? dashKlaarzetten(c) : state.dashTab === "diensten" ? dashDiensten(c) : dashOverzicht(c);
+    el("app").innerHTML = moduleShell("Dashboard", seg + body);
+    bindModuleHeader(renderDashboard);
+    document.querySelectorAll("[data-dashtab]").forEach(function (b) { b.addEventListener("click", function () { state.dashTab = b.getAttribute("data-dashtab"); renderDashboard(); }); });
+    if (state.dashTab === "klaarzetten") bindDashKlaarzetten(c);
+    else if (state.dashTab === "diensten") bindDashDiensten(c);
+  }
+  function dashOverzicht(c) {
+    var sc = S.schadeStats(c.h, c.d, c.dd), lcS = S.lcStats(c.h, c.d, c.dd), tr = S.getTrolley(c.h, c.d, c.dd);
+    var diensten = S.getDiensten(c.h, c.d, c.dd);
+    var isPM = c.dd === "PM";
+    // to-do waarschuwingen voor de binnendienst
+    var todo = [];
+    if (lcS.total === 0) todo.push("Laden is nog niet klaargezet");
+    if (isPM && sc.total === 0) todo.push("Schadecontrolelijst is nog niet klaargezet");
+    if (!diensten.lc.length || !diensten.schadecontrole.length || !diensten.kwaliteit.length) todo.push("Niet alle diensten zijn toegewezen");
+    var todoBanner = todo.length ? '<div class="todo-banner">' + svg("alertTri", "icon-sm") + "<div><b>Nog te doen:</b> " + todo.map(esc).join(" · ") + ' <button class="link-btn" data-dashtab="klaarzetten">Naar klaarzetten</button></div></div>' : "";
+
+    function tile(title, icon, color, inner) { return '<div class="dash-card dash-' + color + '"><div class="dash-h">' + svg(icon, "icon-sm") + esc(title) + "</div>" + inner + "</div>"; }
+    var ring = function (pct, cls) { return '<div class="dash-ring ' + cls + '" style="--p:' + pct + '"><span>' + pct + "%</span></div>"; };
+    var vakTotals = ""; for (var i = 1; i <= S.EMB_VAKKEN; i++) { var t = S.emballageVakTotal(c.h, c.d, c.dd, i); if (t) vakTotals += '<span class="emb-vaktot">Vak ' + i + " <b>" + t + "</b></span>"; }
+    // Laden vóór schadecontrole
+    var grid = '<div class="dash-grid">' +
+      tile("Laden", "inbox", "orange", '<div class="dash-row">' + ring(lcS.pct, "o") + '<div><div class="dash-big">' + lcS.done + " / " + lcS.used + '</div><div class="cellsub">vakken geladen</div></div></div>') +
+      tile("Schadecontrole", "shield", "green", '<div class="dash-row">' + ring(sc.pct, "g") + '<div><div class="dash-big">' + sc.done + " / " + sc.total + '</div><div class="cellsub">bussen gecontroleerd</div></div></div>') +
+      tile("Trolley-voorraad", "inbox", "blue", '<div class="dash-stocks"><div><div class="dash-big">' + tr.stock4 + '</div><div class="cellsub">4-laags</div></div><div><div class="dash-big">' + tr.stock5 + '</div><div class="cellsub">5-laags</div></div></div>') +
+      tile("Emballage per vak", "tag", "purple", vakTotals ? '<div class="emb-vaktots">' + vakTotals + "</div>" : '<div class="cellsub">Nog niets geteld</div>') +
+      "</div>";
+    var docks = S.getSchade(c.h, c.d, c.dd).buses.filter(function (b) { return b.dock; });
+    var dockPanel = "";
+    if (isPM) { // bussen klaarzetten voor morgen is een PM-taak
+      var dockList = docks.length ? '<table class="table"><thead><tr><th>Dock</th><th>Bus</th><th>Status</th></tr></thead><tbody>' +
+        docks.sort(function (a, b) { return a.dock - b.dock; }).map(function (b) {
+          var full = b.schade && b.tolkrol && b.kabels && b.doekjes;
+          return "<tr><td class=\"cellname\">Dock " + esc(b.dock) + "</td><td>Bus " + esc(b.bus) + "</td><td>" + (full ? '<span class="badge st-goedgekeurd">Klaar</span>' : '<span class="badge st-afwachting">Nog niet</span>') + "</td></tr>";
+        }).join("") + "</tbody></table>" : '<div class="cellsub" style="padding:12px">Nog geen bussen aan een dock toegewezen.</div>';
+      dockPanel = panel("building", "Klaarzetten voor morgen (docks)", dockList);
+    }
+    return todoBanner + grid + dockPanel;
+  }
+
+  function dashKlaarzetten(c) {
+    var isPM = c.dd === "PM";
+    var lc = S.getLC(c.h, c.d, c.dd);
+    var s = S.getSchade(c.h, c.d, c.dd);
+
+    var importBlock = '<div class="kz-section"><div class="kz-h">' + svg("download", "icon-sm") + "Hele planning importeren</div>" +
+      '<p class="cellsub" style="margin:0 0 8px">Plak de volledige planning-sheet (mét kopregel). Het systeem vult schadecontrole én laden automatisch en herkent N2/ZE.</p>' +
+      '<textarea id="kzSheet" rows="5" class="kz-sheet" placeholder="Plak hier de hele Excel-sheet…"></textarea>' +
+      '<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"><button class="btn btn-primary btn-sm" id="kzImport">' + svg("check", "icon-sm") + "Importeren</button>" +
+      '<button class="btn btn-ghost btn-sm" id="kzResetAll">' + svg("trash", "icon-sm") + "Alles leegmaken</button></div></div>";
+
+    // Laden klaarzetten
+    var lcRows = lc.vakken.length ? lc.vakken.map(function (v) {
+      var inp = function (f, ph, val) { return '<input class="lc-in" data-lcset="' + v.nr + "|" + f + '" placeholder="' + ph + '" value="' + esc(val) + '">'; };
+      return "<tr><td class=\"lc-nr\">" + v.nr + "</td><td>" + inp("vertrek", "tijd", v.vertrek || "") + "</td><td>" + inp("bus", "busnr", v.bus) + "</td><td>" + inp("rit", "rit", v.rit) + "</td>" +
+        '<td><select class="lc-in" data-lcset="' + v.nr + '|type"><option value="diesel"' + (v.type !== "N2" ? " selected" : "") + ">Diesel</option><option value=\"N2\"" + (v.type === "N2" ? " selected" : "") + ">N2</option></select></td>" +
+        '<td style="text-align:center"><input type="checkbox" data-lcze="' + v.nr + '"' + (v.ze ? " checked" : "") + "></td></tr>";
+    }).join("") : '<tr><td colspan="6"><div class="cellsub" style="padding:12px">Importeer de planning of stel het aantal vakken in.</div></td></tr>';
+    var ladenBlock = '<div class="kz-section"><div class="kz-h">' + svg("inbox", "icon-sm") + "Laden klaarzetten</div>" +
+      '<div class="lc-setup"><label>Aantal vakken</label><input type="number" min="0" max="60" id="lcAantal" value="' + (lc.aantal || lc.vakken.length) + '"><button class="btn btn-dark btn-sm" id="lcSetAantal">' + svg("check", "icon-sm") + "Instellen</button></div>" +
+      '<div class="panel" style="padding:0;margin-top:10px"><div class="table-scroll"><table class="table lc-table"><thead><tr><th>Vak</th><th>Vertrek</th><th>Bus</th><th>Rit</th><th>Type</th><th>ZE</th></tr></thead><tbody>' + lcRows + "</tbody></table></div></div></div>";
+
+    // Schade klaarzetten (alleen PM nodig)
+    var schadeBlock;
+    if (!isPM) {
+      schadeBlock = '<div class="kz-section"><div class="kz-h">' + svg("shield", "icon-sm") + "Schadecontrole klaarzetten</div>" +
+        '<div class="cellsub" style="padding:6px 0">Voor een AM-shift hoeven er geen bussen klaargezet te worden.</div></div>';
+    } else {
+      var scRows = s.buses.length ? s.buses.map(function (b) {
+        return "<tr><td><div class=\"cellname\">Bus " + esc(b.bus || "?") + "</div><div class=\"cellsub\">" + esc(b.naam || "") + (b.kenteken ? " · " + esc(b.kenteken) : "") + "</div></td>" +
+          '<td><select class="lc-in dock-sel" data-dock="' + b.id + '">' + dockOptions(b.dock) + "</select></td>" +
+          '<td style="text-align:right"><button class="pl-x" data-schadedel="' + b.id + '">' + svg("trash", "icon-sm") + "</button></td></tr>";
+      }).join("") : '<tr><td colspan="3"><div class="cellsub" style="padding:12px">Nog geen bussen. Importeer de planning of voeg toe.</div></td></tr>';
+      schadeBlock = '<div class="kz-section"><div class="kz-h">' + svg("shield", "icon-sm") + "Schadecontrole klaarzetten</div>" +
+        '<div class="add-inline"><input id="scBus" placeholder="Busnr"><input id="scKent" placeholder="Kenteken"><input id="scNaam" placeholder="Bezorger"><button class="btn btn-dark btn-sm" id="scAdd">' + svg("plus", "icon-sm") + "Bus</button></div>" +
+        '<div class="panel" style="padding:0;margin-top:10px"><div class="table-scroll"><table class="table"><thead><tr><th>Bus</th><th>Dock (morgen)</th><th></th></tr></thead><tbody>' + scRows + "</tbody></table></div></div></div>";
+    }
+
+    return importBlock + ladenBlock + schadeBlock;
+  }
+  function bindDashKlaarzetten(c) {
+    var im = el("kzImport"); if (im) im.addEventListener("click", function () { try { var n = S.importSheet(c.h, c.d, c.dd, el("kzSheet").value); toast(n + " ritten geïmporteerd.", "ok"); renderDashboard(); } catch (e) { toast(e.message, "err"); } });
+    var ra = el("kzResetAll"); if (ra) ra.addEventListener("click", function () { try { S.lcReset(c.h, c.d, c.dd); S.schadeReset(c.h, c.d, c.dd); renderDashboard(); } catch (e) { toast(e.message, "err"); } });
+    var sa = el("lcSetAantal"); if (sa) sa.addEventListener("click", function () { try { S.lcSetAantal(c.h, c.d, c.dd, el("lcAantal").value); renderDashboard(); } catch (e) { toast(e.message, "err"); } });
+    document.querySelectorAll("[data-lcset]").forEach(function (inp) { inp.addEventListener("change", function () { var p = inp.getAttribute("data-lcset").split("|"); var data = {}; data[p[1]] = inp.value; try { S.lcSetupVak(c.h, c.d, c.dd, parseInt(p[0], 10), data); } catch (e) { toast(e.message, "err"); } }); });
+    document.querySelectorAll("[data-lcze]").forEach(function (cb) { cb.addEventListener("change", function () { try { S.lcSetupVak(c.h, c.d, c.dd, parseInt(cb.getAttribute("data-lcze"), 10), { ze: cb.checked }); } catch (e) { toast(e.message, "err"); } }); });
+    document.querySelectorAll("[data-dock]").forEach(function (sl) { sl.addEventListener("change", function () { try { S.schadeSetDock(c.h, c.d, c.dd, sl.getAttribute("data-dock"), sl.value); renderDashboard(); } catch (e) { toast(e.message, "err"); } }); });
+    document.querySelectorAll("[data-schadedel]").forEach(function (b) { b.addEventListener("click", function () { try { S.schadeRemove(c.h, c.d, c.dd, b.getAttribute("data-schadedel")); renderDashboard(); } catch (e) { toast(e.message, "err"); } }); });
+    var add = el("scAdd"); if (add) add.addEventListener("click", function () { try { S.schadeAddBus(c.h, c.d, c.dd, el("scNaam").value, el("scBus").value, el("scKent").value); renderDashboard(); } catch (e) { toast(e.message, "err"); } });
+    // banner-knop naar klaarzetten
+    var bb = el("app").querySelector('.todo-banner [data-dashtab]'); if (bb) bb.addEventListener("click", function () { state.dashTab = "klaarzetten"; renderDashboard(); });
+  }
+  function dashDiensten(c) {
+    var d = S.getDiensten(c.h, c.d, c.dd);
+    var users = S.usersForHub(c.h).slice().sort(function (a, b) { return (a.voornaam + a.achternaam).localeCompare(b.voornaam + b.achternaam); });
+    function block(key, label, taskName) {
+      var chips = users.filter(function (us) { return us.taken.indexOf(taskName) !== -1 || S.level(us) >= 3; }).map(function (us) {
+        var on = (d[key] || []).indexOf(us.id) !== -1;
+        return '<span class="chip ' + (on ? "on" : "") + '" data-dienst="' + key + "|" + us.id + '">' + (on ? svg("check", "icon-sm") : "") + fullName(us) + "</span>";
+      }).join("");
+      var who = (d[key] && d[key].length) ? fullName(S.userById(d[key][0])) : '<span class="cellsub">niemand</span>';
+      return '<div class="dienst-block"><div class="dienst-h">' + esc(label) + ' <span class="dienst-who">' + who + "</span></div><div class=\"chips\">" + (chips || '<span class="cellsub">Geen geschikte medewerkers.</span>') + "</div></div>";
+    }
+    return panel("users", "Wie doet wat deze shift", block("schadecontrole", "Schadecontrole", "Schadecontrole") + block("lc", "LC — Laden", "LC") + block("kwaliteit", "Kwaliteit", "Kwaliteit"));
+  }
+  function bindDashDiensten(c) {
+    document.querySelectorAll("[data-dienst]").forEach(function (ch) {
+      ch.addEventListener("click", function () {
+        var p = ch.getAttribute("data-dienst").split("|"); var key = p[0], uid = p[1];
+        var cur = (S.getDiensten(c.h, c.d, c.dd)[key] || []);
+        var next = (cur.length === 1 && cur[0] === uid) ? [] : [uid]; // één persoon per taak
+        try { S.setDienst(c.h, c.d, c.dd, key, next); renderDashboard(); } catch (e) { toast(e.message, "err"); }
+      });
+    });
+  }
+  /* ---------- realtime via polling (werkt op Java-server én Netlify-functions) ---------- */
+  var pollTimer = null;
+  function startRealtime() {
+    if (pollTimer) clearInterval(pollTimer);
+    pollTimer = setInterval(function () {
+      fetch("/api/version").then(function (r) { return r.json(); }).then(function (j) {
+        if (j && j.version && j.version !== S.serverVersion) {
+          S.refresh(function () { if (!document.querySelector(".modal-overlay")) render(); });
+        }
+      }).catch(function () { /* even geen verbinding; volgende tik opnieuw */ });
+    }, 3000);
+  }
+
+  function bootScreen(msg, err) {
+    el("app").innerHTML = '<div class="auth-wrap"><div class="auth-card" style="max-width:380px"><div class="auth-head">' + logo(38) +
+      "<h1>HubConnect</h1><p>" + esc(msg) + "</p></div>" +
+      (err ? '<div class="auth-body"><div class="alert alert-error">' + esc(err) + '</div><button class="btn btn-primary btn-block" id="retry">Opnieuw proberen</button></div>' : "") + "</div></div>";
+    var r = el("retry"); if (r) r.addEventListener("click", boot);
+  }
+  function boot() {
+    bootScreen("Verbinden met de server…");
+    S.boot(function (err) {
+      if (err) { bootScreen("Geen verbinding met de server.", "Controleer of de server draait en de database bereikbaar is. (" + (err.message || err) + ")"); return; }
+      startRealtime();
+      render();
+    });
+  }
+
+  document.addEventListener("DOMContentLoaded", boot);
+  if (document.readyState !== "loading") boot();
+})();
