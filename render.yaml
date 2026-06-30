@@ -1,0 +1,13 @@
+# Render Blueprint — gratis Java web service
+services:
+  - type: web
+    name: hubconnect
+    runtime: docker
+    plan: free
+    envVars:
+      - key: DB_URL
+        sync: false      # zelf invullen in het Render-dashboard (geheim)
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
