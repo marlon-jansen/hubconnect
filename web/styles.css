@@ -28,13 +28,22 @@
 
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 body {
   font-family: var(--font);
   color: var(--ink);
   background: var(--bg);
   -webkit-font-smoothing: antialiased;
   line-height: 1.45;
+  touch-action: manipulation; /* geen dubbeltik-zoom */
 }
+/* Voorkom auto-inzoomen bij focus op mobiel (iOS zoomt bij invoervelden < 16px) */
+input, select, textarea { font-size: 16px; }
+/* Wachtwoordveld met oogje */
+.pw-wrap { position: relative; }
+.pw-wrap input { width: 100%; padding-right: 42px; }
+.pw-eye { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); background: none; border: 0; padding: 7px; color: var(--muted); cursor: pointer; display: inline-flex; border-radius: 8px; }
+.pw-eye.on, .pw-eye:hover { color: var(--ink); }
 a { color: var(--blue); }
 button { font-family: inherit; }
 svg { display: block; }
