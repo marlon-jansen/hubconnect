@@ -1741,8 +1741,13 @@
     }
     var trolleyPanel = panel("inbox", "Trolley-voorraad tellen", '<div class="tro-row">' + counter("stock5", 5) + counter("stock4", 4) + "</div>");
 
-    el("app").innerHTML = moduleShell("Kwaliteit", table + trolleyPanel);
+    if (!state.kwTab) state.kwTab = "vakken";
+    var seg = '<div class="seg" style="margin-bottom:16px">' +
+      '<button data-kwtab="vakken" class="' + (state.kwTab === "vakken" ? "active" : "") + '">Vakken</button>' +
+      '<button data-kwtab="trolleys" class="' + (state.kwTab === "trolleys" ? "active" : "") + '">Trolleys tellen</button></div>';
+    el("app").innerHTML = moduleShell("Kwaliteit", seg + (state.kwTab === "trolleys" ? trolleyPanel : table));
     bindModuleHeader(renderKwaliteit);
+    document.querySelectorAll("[data-kwtab]").forEach(function (b) { b.addEventListener("click", function () { state.kwTab = b.getAttribute("data-kwtab"); renderKwaliteit(); }); });
     document.querySelectorAll("[data-vaksoort]").forEach(function (s) { s.addEventListener("change", function () { try { S.setVakSoort(c.h, c.d, c.dd, parseInt(s.getAttribute("data-vaksoort"), 10), s.value); renderKwaliteit(); } catch (e) { toast(e.message, "err"); } }); });
     document.querySelectorAll("[data-embopen]").forEach(function (b) { b.addEventListener("click", function () { openEmbVak(c, parseInt(b.getAttribute("data-embopen"), 10)); }); });
     document.querySelectorAll("[data-troll]").forEach(function (b) { b.addEventListener("click", function () { var p = b.getAttribute("data-troll").split("|"); try { S.trolleyBump(c.h, c.d, c.dd, p[0], parseInt(p[1], 10)); renderKwaliteit(); } catch (e) { toast(e.message, "err"); } }); });
@@ -1802,7 +1807,8 @@
 
     // ----- LADEN -----
     var rows = lc.vakken.length ? lc.vakken.map(function (v) {
-      var busCell = (canLoad && isPM) ? '<input class="lc-in" data-lcbus="' + v.nr + '" placeholder="busnr" value="' + esc(v.bus) + '">' : '<span class="' + (v.bus ? "cellname" : "cellsub") + '">' + (v.bus ? esc(v.bus) : "—") + "</span>";
+      var busEditable = canLoad && isPM && v.type !== "N2"; // op PM mag de LC alleen diesel-bussen aanpassen
+      var busCell = busEditable ? '<input class="lc-in" data-lcbus="' + v.nr + '" placeholder="busnr" value="' + esc(v.bus) + '">' : '<span class="' + (v.bus ? "cellname" : "cellsub") + '">' + (v.bus ? esc(v.bus) : "—") + "</span>";
       var typeBadge = v.type === "N2" ? '<span class="badge n2">' + svg("bolt", "icon-sm") + "N2</span>" : '<span class="badge diesel">' + svg("droplet", "icon-sm") + "Diesel</span>";
       return "<tr class=\"" + (v.geladen ? "sc-done" : "") + "\"><td class=\"lc-nr\">" + v.nr + "</td>" +
         '<td class="cellsub">' + (v.vertrek ? esc(v.vertrek) : "—") + "</td><td>" + busCell + "</td>" +
@@ -1828,14 +1834,15 @@
     }
     var pendelList = tr.pendels.length ? tr.pendels.map(function (p, i) {
       return '<div class="pen-card"><div class="pen-head">' + svg("van", "icon-sm") + "<b>Pendel " + (i + 1) + "</b>" +
-        (p.tijd ? '<span class="pen-tijd">aankomst ' + esc(p.tijd) + "</span>" : "") +
-        (canSetup ? '<button class="pen-x" data-pendeldel="' + p.id + '" title="Verwijderen">' + svg("x", "icon-sm") + "</button>" : "") + "</div>" +
+        (p.tijd ? '<span class="pen-tijd">aankomst ' + esc(p.tijd) + "</span>" : "") + "</div>" +
         '<div class="pen-grid">' + layBlock(p, 4) + layBlock(p, 5) + "</div></div>";
-    }).join("") : '<div class="cellsub" style="padding:12px">Nog geen pendels klaargezet.</div>';
-    var addForm = canSetup ? '<div class="toolbar"><div class="add-inline"><input id="penTijd" type="time" class="lc-in" style="max-width:130px">' +
-      '<button class="btn btn-dark btn-sm" id="penAdd">' + svg("plus", "icon-sm") + "Pendel toevoegen</button></div></div>" : "";
-    var stockBar = '<div class="panel" style="padding:14px;margin-bottom:14px"><b>Op de hub:</b> ' + tr.stock4 + " trolleys (4-laags) · " + tr.stock5 + " (5-laags)</div>";
-    var pendelsBody = stockBar + addForm + '<div class="pen-list">' + pendelList + "</div>";
+    }).join("") : '<div class="cellsub" style="padding:12px">De binnendienst zet de pendels klaar via het dashboard.</div>';
+    var stockBar = '<div class="hub-stock"><div class="hub-stock-h">' + svg("inbox", "icon-sm") + "Op de hub</div>" +
+      '<div class="hub-stock-grid">' +
+        '<div class="hub-stock-item">' + svg("layers5", "icon-sm") + '<div><div class="hub-stock-n">' + tr.stock5 + '</div><div class="hub-stock-l">5-laags</div></div></div>' +
+        '<div class="hub-stock-item">' + svg("layers4", "icon-sm") + '<div><div class="hub-stock-n">' + tr.stock4 + '</div><div class="hub-stock-l">4-laags</div></div></div>' +
+      "</div></div>";
+    var pendelsBody = stockBar + '<div class="pen-list">' + pendelList + "</div>";
 
     el("app").innerHTML = moduleShell("Laadproces", seg + (state.lcTab === "pendels" ? pendelsBody : ladenBody));
     bindModuleHeader(renderLC);
@@ -1844,8 +1851,6 @@
       document.querySelectorAll("[data-lcbus]").forEach(function (inp) { inp.addEventListener("change", function () { try { S.lcSetBus(c.h, c.d, c.dd, parseInt(inp.getAttribute("data-lcbus"), 10), inp.value); } catch (e) { toast(e.message, "err"); } }); });
       document.querySelectorAll("[data-lcgel]").forEach(function (cb) { cb.addEventListener("change", function () { try { S.lcToggleGeladen(c.h, c.d, c.dd, parseInt(cb.getAttribute("data-lcgel"), 10)); renderLC(); } catch (e) { toast(e.message, "err"); } }); });
     } else {
-      var pa = el("penAdd"); if (pa) pa.addEventListener("click", function () { try { S.addPendelPlan(c.h, c.d, c.dd, el("penTijd").value); renderLC(); } catch (e) { toast(e.message, "err"); } });
-      document.querySelectorAll("[data-pendeldel]").forEach(function (b) { b.addEventListener("click", function () { try { S.removePendel(c.h, c.d, c.dd, b.getAttribute("data-pendeldel")); renderLC(); } catch (e) { toast(e.message, "err"); } }); });
       document.querySelectorAll("[data-penbump]").forEach(function (b) { b.addEventListener("click", function () { var p = b.getAttribute("data-penbump").split("|"); try { S.pendelBump(c.h, c.d, c.dd, p[0], p[1], parseInt(p[2], 10)); renderLC(); } catch (e) { toast(e.message, "err"); } }); });
     }
   }
@@ -1919,9 +1924,17 @@
         '<td><select class="lc-in" data-lcset="' + v.nr + '|type"><option value="diesel"' + (v.type !== "N2" ? " selected" : "") + ">Diesel</option><option value=\"N2\"" + (v.type === "N2" ? " selected" : "") + ">N2</option></select></td>" +
         '<td style="text-align:center"><input type="checkbox" data-lcze="' + v.nr + '"' + (v.ze ? " checked" : "") + "></td></tr>";
     }).join("") : '<tr><td colspan="6"><div class="cellsub" style="padding:12px">Importeer de planning of stel het aantal vakken in.</div></td></tr>';
+    var tr = S.getTrolley(c.h, c.d, c.dd);
+    var pendelRows = tr.pendels.length ? tr.pendels.map(function (p, i) {
+      return '<div class="kz-pendel-row"><span>' + svg("van", "icon-sm") + "Pendel " + (i + 1) + (p.tijd ? " · aankomst " + esc(p.tijd) : "") + "</span>" +
+        '<button class="pl-x" data-pendeldel="' + p.id + '" title="Verwijderen">' + svg("trash", "icon-sm") + "</button></div>";
+    }).join("") : '<div class="cellsub" style="padding:8px 0">Nog geen pendels klaargezet.</div>';
+    var pendelPlanBlock = '<div class="kz-section"><div class="kz-h">' + svg("van", "icon-sm") + "Pendels klaarzetten (hele dag)</div>" +
+      '<div class="add-inline"><input id="penTijd" type="time" class="lc-in" style="max-width:140px"><button class="btn btn-dark btn-sm" id="penAdd">' + svg("plus", "icon-sm") + "Pendel toevoegen</button></div>" +
+      '<div style="margin-top:10px">' + pendelRows + "</div></div>";
     var ladenBlock = ladenImport + '<div class="kz-section"><div class="kz-h">' + svg("inbox", "icon-sm") + "Laden klaarzetten</div>" +
       '<div class="lc-setup"><label>Aantal vakken</label><input type="number" min="0" max="60" id="lcAantal" value="' + (lc.aantal || lc.vakken.length) + '"><button class="btn btn-dark btn-sm" id="lcSetAantal">' + svg("check", "icon-sm") + "Instellen</button></div>" +
-      '<div class="panel" style="padding:0;margin-top:10px"><div class="table-scroll"><table class="table lc-table"><thead><tr><th>Vak</th><th>Vertrek</th><th>Bus</th><th>Rit</th><th>Type</th><th>ZE</th></tr></thead><tbody>' + lcRows + "</tbody></table></div></div></div>";
+      '<div class="panel" style="padding:0;margin-top:10px"><div class="table-scroll"><table class="table lc-table"><thead><tr><th>Vak</th><th>Vertrek</th><th>Bus</th><th>Rit</th><th>Type</th><th>ZE</th></tr></thead><tbody>' + lcRows + "</tbody></table></div></div></div>" + pendelPlanBlock;
 
     // ---- Schadecontrole (Voorbereiding AM) ----
     var schadeImport = '<div class="kz-section"><div class="kz-h">' + svg("download", "icon-sm") + "Schadecontrole importeren</div>" +
@@ -1946,6 +1959,8 @@
     var rl = el("kzResetLaden"); if (rl) rl.addEventListener("click", function () { try { S.lcReset(c.h, c.d, c.dd); renderDashboard(); } catch (e) { toast(e.message, "err"); } });
     var isc = el("kzImportSchade"); if (isc) isc.addEventListener("click", function () { try { var n = S.importSheet(c.h, c.d, c.dd, el("kzSheetSchade").value, "schade"); toast(n + " bussen geïmporteerd.", "ok"); renderDashboard(); } catch (e) { toast(e.message, "err"); } });
     var rsc = el("kzResetSchade"); if (rsc) rsc.addEventListener("click", function () { try { S.schadeReset(c.h, c.d, c.dd); renderDashboard(); } catch (e) { toast(e.message, "err"); } });
+    var pa = el("penAdd"); if (pa) pa.addEventListener("click", function () { try { S.addPendelPlan(c.h, c.d, c.dd, el("penTijd").value); renderDashboard(); } catch (e) { toast(e.message, "err"); } });
+    document.querySelectorAll("[data-pendeldel]").forEach(function (b) { b.addEventListener("click", function () { try { S.removePendel(c.h, c.d, c.dd, b.getAttribute("data-pendeldel")); renderDashboard(); } catch (e) { toast(e.message, "err"); } }); });
     var sa = el("lcSetAantal"); if (sa) sa.addEventListener("click", function () { try { S.lcSetAantal(c.h, c.d, c.dd, el("lcAantal").value); renderDashboard(); } catch (e) { toast(e.message, "err"); } });
     document.querySelectorAll("[data-lcset]").forEach(function (inp) { inp.addEventListener("change", function () { var p = inp.getAttribute("data-lcset").split("|"); var data = {}; data[p[1]] = inp.value; try { S.lcSetupVak(c.h, c.d, c.dd, parseInt(p[0], 10), data); } catch (e) { toast(e.message, "err"); } }); });
     document.querySelectorAll("[data-lcze]").forEach(function (cb) { cb.addEventListener("change", function () { try { S.lcSetupVak(c.h, c.d, c.dd, parseInt(cb.getAttribute("data-lcze"), 10), { ze: cb.checked }); } catch (e) { toast(e.message, "err"); } }); });

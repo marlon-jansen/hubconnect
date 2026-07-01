@@ -827,6 +827,7 @@
     if (!canOpShift(u, hubId, datum, dagdeel, "lc", "LC")) throw new Error("Je bent deze shift niet aangewezen als LC.");
     if (dagdeel !== "PM" && !isSetup(u)) throw new Error("Busnummers invoeren door de LC kan alleen op een PM-shift.");
     var vk = getLC(hubId, datum, dagdeel).vakken.filter(function (x) { return x.nr === nr; })[0]; if (!vk) return;
+    if (vk.type === "N2" && !isSetup(u)) throw new Error("N2-bussen worden door de binnendienst ingevuld, niet door de LC.");
     vk.bus = (bus || "").trim(); save();
   }
   function lcToggleGeladen(hubId, datum, dagdeel, nr) {
