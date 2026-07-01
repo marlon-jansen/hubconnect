@@ -73,7 +73,7 @@
       version: 7, hubs: hubs, taskCatalog: DEFAULT_TASKS.slice(),
       taskTypes: JSON.parse(JSON.stringify(DEFAULT_TASK_TYPES)),
       users: users, shifts: [], taskOffers: [], backups: [], callouts: [], logs: [],
-      plannings: [], schade: {}, kwaliteit: {}, lc: {}, trolley: {}, diensten: {},
+      plannings: [], schade: {}, kwaliteit: {}, lc: {}, trolley: {}, trolleyStock: {}, diensten: {},
       session: { userId: null }
     };
   }
@@ -746,23 +746,31 @@
     var k = getKwaliteit(hubId, datum, dagdeel); delete k.emballage[vak]; save();
   }
 
-  /* ----- Trolley-voorraad (loopt door per hub: draagt over naar volgende dagdeel én dag) ----- */
-  function trolleyOrd(datum, dagdeel) { return datum + (dagdeel === "AM" ? "0" : "1"); }
-  function latestTrolleyBefore(hubId, datum, dagdeel) {
+  /* ----- Trolley-voorraad: ÉÉN doorlopende voorraad per hub (loopt door tussen dagdelen én dagen) ----- */
+  // Migratie: als er nog geen doorlopende voorraad is, overnemen van de meest recente per-shift telling.
+  function latestShiftStock(hubId) {
     if (!db.trolley) return null;
-    var curOrd = trolleyOrd(datum, dagdeel), best = null, bestOrd = "";
+    var best = null, bestOrd = "";
     Object.keys(db.trolley).forEach(function (kk) {
       var p = kk.split("|"); if (p[0] !== hubId) return;
-      var o = trolleyOrd(p[1], p[2]);
-      if (o < curOrd && o > bestOrd) { bestOrd = o; best = db.trolley[kk]; }
+      var o = p[1] + (p[2] === "AM" ? "0" : "1");
+      if (o > bestOrd && db.trolley[kk] && (db.trolley[kk].stock4 != null || db.trolley[kk].stock5 != null)) { bestOrd = o; best = db.trolley[kk]; }
     });
     return best;
   }
+  function getTrolleyStock(hubId) {
+    if (!db.trolleyStock) db.trolleyStock = {};
+    if (!db.trolleyStock[hubId]) { var prev = latestShiftStock(hubId); db.trolleyStock[hubId] = { stock4: prev ? (prev.stock4 || 0) : 0, stock5: prev ? (prev.stock5 || 0) : 0 }; }
+    return db.trolleyStock[hubId];
+  }
+  // Pendels blijven per shift; stock4/stock5 komen uit de doorlopende hub-voorraad.
   function getTrolley(hubId, datum, dagdeel) {
     if (!db.trolley) db.trolley = {};
     var k = opKey(hubId, datum, dagdeel);
-    if (!db.trolley[k]) { var prev = latestTrolleyBefore(hubId, datum, dagdeel); db.trolley[k] = { stock4: prev ? prev.stock4 : 0, stock5: prev ? prev.stock5 : 0, pendels: [] }; }
+    if (!db.trolley[k]) db.trolley[k] = { pendels: [] };
     if (!db.trolley[k].pendels) db.trolley[k].pendels = [];
+    var s = getTrolleyStock(hubId);
+    db.trolley[k].stock4 = s.stock4; db.trolley[k].stock5 = s.stock5; // spiegel voor bestaande UI
     return db.trolley[k];
   }
   // Binnendienst plant een pendel (met geplande aankomsttijd) klaar voor deze shift.
@@ -784,18 +792,19 @@
     var nv = Math.max(0, (p[field] || 0) + (parseInt(delta, 10) || 0)); var applied = nv - (p[field] || 0); p[field] = nv;
     var lay = (field === "in4" || field === "out4") ? "stock4" : "stock5";
     var sign = (field === "in4" || field === "in5") ? 1 : -1;
-    t[lay] = Math.max(0, (t[lay] || 0) + sign * applied);
+    var s = getTrolleyStock(hubId); s[lay] = Math.max(0, (s[lay] || 0) + sign * applied);
     save();
   }
   function trolleySetStock(hubId, datum, dagdeel, field, value) {
     if (!isSetup(currentUser())) throw new Error("Alleen binnendienst (senior+) mag corrigeren.");
-    var t = getTrolley(hubId, datum, dagdeel); t[field] = Math.max(0, parseInt(value, 10) || 0); save();
+    if (field !== "stock4" && field !== "stock5") return;
+    var s = getTrolleyStock(hubId); s[field] = Math.max(0, parseInt(value, 10) || 0); save();
   }
-  // Trolley-telling met +/- (kwaliteit tijdens/na de shift, of senior+).
+  // Trolley-telling met +/- (kwaliteit tijdens/na de shift, of senior+). Past de doorlopende hub-voorraad aan.
   function trolleyBump(hubId, datum, dagdeel, field, delta) {
     if (!(canOpShift(currentUser(), hubId, datum, dagdeel, "kwaliteit", "Kwaliteit") || isSetup(currentUser()))) throw new Error("Je bent deze shift niet aangewezen voor kwaliteit.");
     if (field !== "stock4" && field !== "stock5") return;
-    var t = getTrolley(hubId, datum, dagdeel); t[field] = Math.max(0, (t[field] || 0) + (parseInt(delta, 10) || 0)); save();
+    var s = getTrolleyStock(hubId); s[field] = Math.max(0, (s[field] || 0) + (parseInt(delta, 10) || 0)); save();
   }
 
   /* ----- LC (laden) ----- */

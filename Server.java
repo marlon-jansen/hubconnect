@@ -84,6 +84,7 @@ public class Server {
       "CREATE TABLE IF NOT EXISTS kwaliteit (hub_id TEXT, datum TEXT, dagdeel TEXT, emballage JSONB, soort JSONB, PRIMARY KEY (hub_id, datum, dagdeel))",
       "CREATE TABLE IF NOT EXISTS lc (hub_id TEXT, datum TEXT, dagdeel TEXT, aantal INT, vakken JSONB, PRIMARY KEY (hub_id, datum, dagdeel))",
       "CREATE TABLE IF NOT EXISTS trolley (hub_id TEXT, datum TEXT, dagdeel TEXT, stock4 INT, stock5 INT, pendels JSONB, PRIMARY KEY (hub_id, datum, dagdeel))",
+      "CREATE TABLE IF NOT EXISTS trolley_stock (hub_id TEXT PRIMARY KEY, stock4 INT, stock5 INT)",
       "CREATE TABLE IF NOT EXISTS diensten (hub_id TEXT, datum TEXT, dagdeel TEXT, schadecontrole JSONB, lc JSONB, kwaliteit JSONB, PRIMARY KEY (hub_id, datum, dagdeel))"
     };
     try (Statement s = db().createStatement()) { for (String q : ddl) s.execute(q); }
@@ -197,6 +198,11 @@ public class Server {
       while (r.next()) { JsonObject o = new JsonObject(); o.addProperty("stock4", r.getInt("stock4")); o.addProperty("stock5", r.getInt("stock5")); o.add("pendels", parse(r.getString("pendels"), "[]")); tr.add(key(r), o); }
     }
     root.add("trolley", tr);
+    JsonObject trs = new JsonObject();
+    try (ResultSet r = c.createStatement().executeQuery("SELECT * FROM trolley_stock")) {
+      while (r.next()) { JsonObject o = new JsonObject(); o.addProperty("stock4", r.getInt("stock4")); o.addProperty("stock5", r.getInt("stock5")); trs.add(r.getString("hub_id"), o); }
+    }
+    root.add("trolleyStock", trs);
     JsonObject di = new JsonObject();
     try (ResultSet r = c.createStatement().executeQuery("SELECT * FROM diensten")) {
       while (r.next()) { JsonObject o = new JsonObject(); o.add("schadecontrole", parse(r.getString("schadecontrole"), "[]")); o.add("lc", parse(r.getString("lc"), "[]")); o.add("kwaliteit", parse(r.getString("kwaliteit"), "[]")); di.add(key(r), o); }
@@ -251,7 +257,7 @@ public class Server {
     boolean prevAuto = c.getAutoCommit();
     c.setAutoCommit(false);
     try (Statement s = c.createStatement()) {
-      for (String t : new String[]{"hubs","task_catalog","users","shifts","task_offers","backups","callouts","logs","plannings","schade","kwaliteit","lc","trolley","diensten"}) s.execute("DELETE FROM " + t);
+      for (String t : new String[]{"hubs","task_catalog","users","shifts","task_offers","backups","callouts","logs","plannings","schade","kwaliteit","lc","trolley","trolley_stock","diensten"}) s.execute("DELETE FROM " + t);
 
       // hubs
       for (JsonElement e : arr(root, "hubs")) { JsonObject o = e.getAsJsonObject(); exec(c, "INSERT INTO hubs (id,naam) VALUES (?,?)", o.get("id").getAsString(), str(o,"naam")); }
@@ -295,6 +301,8 @@ public class Server {
         exec(c, "INSERT INTO lc (hub_id,datum,dagdeel,aantal,vakken) VALUES (?,?,?,?,?::jsonb)", k[0],k[1],k[2],intOf(o,"aantal"),jraw(o,"vakken","[]")); }
       for (Map.Entry<String,JsonElement> en : obj(root,"trolley").entrySet()) { String[] k = en.getKey().split("\\|",3); JsonObject o = en.getValue().getAsJsonObject();
         exec(c, "INSERT INTO trolley (hub_id,datum,dagdeel,stock4,stock5,pendels) VALUES (?,?,?,?,?,?::jsonb)", k[0],k[1],k[2],intOf(o,"stock4"),intOf(o,"stock5"),jraw(o,"pendels","[]")); }
+      for (Map.Entry<String,JsonElement> en : obj(root,"trolleyStock").entrySet()) { JsonObject o = en.getValue().getAsJsonObject();
+        exec(c, "INSERT INTO trolley_stock (hub_id,stock4,stock5) VALUES (?,?,?)", en.getKey(), intOf(o,"stock4"), intOf(o,"stock5")); }
       for (Map.Entry<String,JsonElement> en : obj(root,"diensten").entrySet()) { String[] k = en.getKey().split("\\|",3); JsonObject o = en.getValue().getAsJsonObject();
         exec(c, "INSERT INTO diensten (hub_id,datum,dagdeel,schadecontrole,lc,kwaliteit) VALUES (?,?,?,?::jsonb,?::jsonb,?::jsonb)", k[0],k[1],k[2],jraw(o,"schadecontrole","[]"),jraw(o,"lc","[]"),jraw(o,"kwaliteit","[]")); }
 
