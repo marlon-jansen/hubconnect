@@ -758,18 +758,33 @@
     });
     return best;
   }
-  function getTrolleyStock(hubId) {
-    if (!db.trolleyStock) db.trolleyStock = {};
-    if (!db.trolleyStock[hubId]) { var prev = latestShiftStock(hubId); db.trolleyStock[hubId] = { stock4: prev ? (prev.stock4 || 0) : 0, stock5: prev ? (prev.stock5 || 0) : 0 }; }
-    return db.trolleyStock[hubId];
+  // Voorraad van de meest recente eerdere DAG voor deze hub (voor de dag-overdracht).
+  function prevDayStock(hubId, datum) {
+    if (!db.trolleyStock) return null;
+    var best = null, bestDatum = "";
+    Object.keys(db.trolleyStock).forEach(function (kk) {
+      var p = kk.split("|"); if (p[0] !== hubId) return;
+      if (p[1] < datum && p[1] > bestDatum) { bestDatum = p[1]; best = db.trolleyStock[kk]; }
+    });
+    return best;
   }
-  // Pendels blijven per shift; stock4/stock5 komen uit de doorlopende hub-voorraad.
+  // Voorraad per (hub + dag): AM en PM delen dezelfde dagtelling; elke dag is een momentopname met historie.
+  function getTrolleyStock(hubId, datum) {
+    if (!db.trolleyStock) db.trolleyStock = {};
+    var k = hubId + "|" + datum;
+    if (!db.trolleyStock[k]) {
+      var prev = prevDayStock(hubId, datum) || latestShiftStock(hubId); // overdracht vorige dag, anders migratie
+      db.trolleyStock[k] = { stock4: prev ? (prev.stock4 || 0) : 0, stock5: prev ? (prev.stock5 || 0) : 0 };
+    }
+    return db.trolleyStock[k];
+  }
+  // Pendels blijven per shift; stock4/stock5 komen uit de dagtelling van de hub.
   function getTrolley(hubId, datum, dagdeel) {
     if (!db.trolley) db.trolley = {};
     var k = opKey(hubId, datum, dagdeel);
     if (!db.trolley[k]) db.trolley[k] = { pendels: [] };
     if (!db.trolley[k].pendels) db.trolley[k].pendels = [];
-    var s = getTrolleyStock(hubId);
+    var s = getTrolleyStock(hubId, datum);
     db.trolley[k].stock4 = s.stock4; db.trolley[k].stock5 = s.stock5; // spiegel voor bestaande UI
     return db.trolley[k];
   }
@@ -792,19 +807,19 @@
     var nv = Math.max(0, (p[field] || 0) + (parseInt(delta, 10) || 0)); var applied = nv - (p[field] || 0); p[field] = nv;
     var lay = (field === "in4" || field === "out4") ? "stock4" : "stock5";
     var sign = (field === "in4" || field === "in5") ? 1 : -1;
-    var s = getTrolleyStock(hubId); s[lay] = Math.max(0, (s[lay] || 0) + sign * applied);
+    var s = getTrolleyStock(hubId, datum); s[lay] = Math.max(0, (s[lay] || 0) + sign * applied);
     save();
   }
   function trolleySetStock(hubId, datum, dagdeel, field, value) {
     if (!isSetup(currentUser())) throw new Error("Alleen binnendienst (senior+) mag corrigeren.");
     if (field !== "stock4" && field !== "stock5") return;
-    var s = getTrolleyStock(hubId); s[field] = Math.max(0, parseInt(value, 10) || 0); save();
+    var s = getTrolleyStock(hubId, datum); s[field] = Math.max(0, parseInt(value, 10) || 0); save();
   }
   // Trolley-telling met +/- (kwaliteit tijdens/na de shift, of senior+). Past de doorlopende hub-voorraad aan.
   function trolleyBump(hubId, datum, dagdeel, field, delta) {
     if (!(canOpShift(currentUser(), hubId, datum, dagdeel, "kwaliteit", "Kwaliteit") || isSetup(currentUser()))) throw new Error("Je bent deze shift niet aangewezen voor kwaliteit.");
     if (field !== "stock4" && field !== "stock5") return;
-    var s = getTrolleyStock(hubId); s[field] = Math.max(0, (s[field] || 0) + (parseInt(delta, 10) || 0)); save();
+    var s = getTrolleyStock(hubId, datum); s[field] = Math.max(0, (s[field] || 0) + (parseInt(delta, 10) || 0)); save();
   }
 
   /* ----- LC (laden) ----- */
