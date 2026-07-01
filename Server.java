@@ -17,6 +17,7 @@ import java.util.concurrent.*;
  */
 public class Server {
   static String DB_URL, DB_USER, DB_PASS;
+  static String GATE_USER, GATE_PASS;
   static Connection conn;
   static final Object DBLOCK = new Object(); // serialiseert alle DB-toegang (1 gedeelde verbinding)
   static final Gson GSON = new Gson();
@@ -33,15 +34,31 @@ public class Server {
     DB_USER = env("DB_USER", p.getProperty("user"));
     DB_PASS = env("DB_PASSWORD", p.getProperty("password"));
     if (DB_URL == null) { System.err.println("Geen DB_URL gevonden (env of db.properties)."); System.exit(1); }
+    // Toegangspoort (tijdelijke stopgap): gedeelde HTTP Basic-login vóór de hele app + API.
+    GATE_USER = env("GATE_USER", p.getProperty("gate.user"));
+    GATE_PASS = env("GATE_PASS", p.getProperty("gate.pass"));
+    if (GATE_USER == null) GATE_USER = "hub";
 
     initDb();
 
     HttpServer server = HttpServer.create(new InetSocketAddress(port), 0);
     server.setExecutor(Executors.newCachedThreadPool());
-    server.createContext("/api/state", Server::handleState);
-    server.createContext("/api/version", Server::handleVersion);
-    server.createContext("/api/events", Server::handleEvents);
-    server.createContext("/", ex -> handleStatic(ex, webroot));
+    HttpContext cState   = server.createContext("/api/state", Server::handleState);
+    HttpContext cVersion = server.createContext("/api/version", Server::handleVersion);
+    HttpContext cEvents  = server.createContext("/api/events", Server::handleEvents);
+    HttpContext cStatic  = server.createContext("/", ex -> handleStatic(ex, webroot));
+    if (GATE_PASS != null && !GATE_PASS.isEmpty()) {
+      Authenticator gate = new BasicAuthenticator("HubConnect") {
+        public boolean checkCredentials(String user, String pass) {
+          return constEq(user, GATE_USER) & constEq(pass, GATE_PASS);
+        }
+      };
+      cState.setAuthenticator(gate); cVersion.setAuthenticator(gate);
+      cEvents.setAuthenticator(gate); cStatic.setAuthenticator(gate);
+      System.out.println("Toegangspoort AAN (gebruiker: " + GATE_USER + ").");
+    } else {
+      System.out.println("LET OP: toegangspoort UIT (geen GATE_PASS gezet) - API is publiek bereikbaar.");
+    }
     server.start();
     System.out.println("HubConnect server draait op http://localhost:" + port + "  (webroot: " + webroot + ")");
   }
@@ -414,4 +431,10 @@ public class Server {
   static String query(HttpExchange ex, String key) { String q = ex.getRequestURI().getQuery(); if (q == null) return null; for (String kv : q.split("&")) { String[] p = kv.split("=", 2); if (p[0].equals(key)) return p.length > 1 ? p[1] : ""; } return null; }
   static String esc(String s) { return s.replace("\\", "\\\\").replace("\"", "\\\""); }
   static String env(String k, String def) { String v = System.getenv(k); return (v != null && !v.isEmpty()) ? v : def; }
+  // Constant-time string-vergelijking (tegen timing-aanvallen op de toegangspoort).
+  static boolean constEq(String a, String b) {
+    if (a == null || b == null) return false;
+    byte[] x = a.getBytes(StandardCharsets.UTF_8), y = b.getBytes(StandardCharsets.UTF_8);
+    return java.security.MessageDigest.isEqual(x, y);
+  }
 }
