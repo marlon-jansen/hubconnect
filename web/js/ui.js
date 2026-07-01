@@ -54,6 +54,11 @@
     return ("0" + d.getDate()).slice(-2) + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + d.getFullYear() +
       " " + ("0" + d.getHours()).slice(-2) + ":" + ("0" + d.getMinutes()).slice(-2);
   }
+  function fmtClock(iso) {
+    if (!iso) return "";
+    var d = new Date(iso);
+    return ("0" + d.getHours()).slice(-2) + ":" + ("0" + d.getMinutes()).slice(-2);
+  }
 
   function ymd(d) { return d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2); }
   function mondayOf(d) { d = new Date(d); var dow = (d.getDay() + 6) % 7; d.setDate(d.getDate() - dow); d.setHours(0, 0, 0, 0); return d; }
@@ -184,11 +189,12 @@
             "</div>" +
           "</div>" +
           '<div class="hero-right">' +
-            '<div class="float-card fc1"><div class="fc-top"><span class="fc-av">' + svg("swap", "icon-sm") + '</span><div><b>RuilHub</b><small>shifts &amp; taken ruilen</small></div></div>' +
-              '<div class="fc-badges"><span class="badge am">' + svg("sun", "icon-sm") + 'AM</span><span class="badge n2">' + svg("bolt", "icon-sm") + "N2</span></div></div>" +
-            '<div class="float-card fc2"><div class="fc-top"><span class="fc-av alt">' + svg("shield", "icon-sm") + '</span><div><b>Schadecontrole</b><small>live voortgang</small></div></div>' +
-              '<div class="fc-btn ghost">' + svg("check", "icon-sm") + "12 / 18 bussen</div></div>" +
-            '<div class="float-card fc3"><div class="swap-anim">' + svg("chart") + "</div><b>Dashboard</b><small>realtime overzicht</small></div>" +
+            '<div class="hub-snapshot">' +
+              '<div class="hs-head"><span class="hs-dot"></span><span class="hs-dot"></span><span class="hs-dot"></span><span class="hs-title">HUB Utrecht Ravenswade</span></div>' +
+              '<div class="hs-row"><span class="hs-ico">' + svg("swap", "icon-sm") + '</span><div class="hs-row-txt"><b>RuilHub</b><small>3 open shifts vandaag</small></div><span class="badge am">' + svg("sun", "icon-sm") + "AM</span></div>" +
+              '<div class="hs-row"><span class="hs-ico alt">' + svg("shield", "icon-sm") + '</span><div class="hs-row-txt"><b>Schadecontrole</b><small>12 / 18 bussen gecontroleerd</small></div><span class="hs-pct">67%</span></div>' +
+              '<div class="hs-row"><span class="hs-ico dark">' + svg("chart", "icon-sm") + '</span><div class="hs-row-txt"><b>Senior Dashboard</b><small>Realtime overzicht van de shift</small></div><span class="live-badge hs-live">' + svg("refresh", "icon-sm") + "Live</span></div>" +
+            "</div>" +
           "</div>" +
         "</section>" +
         '<section class="features">' +
@@ -217,7 +223,7 @@
         '<div class="auth-body">' +
           '<form id="loginForm" autocomplete="on">' +
             '<div class="field"><label>E-mailadres</label>' +
-              '<input type="email" name="email" value="hr-" placeholder="hr-1234567@jumbo.com" required></div>' +
+              '<input type="email" name="email" placeholder="naam@jumbo.com" required></div>' +
             '<div class="field"><label>Wachtwoord</label>' +
               pwInput("password", "Wachtwoord of eenmalige code", " required") + "</div>" +
             '<div id="authMsg"></div>' +
@@ -234,8 +240,6 @@
       try { S.login(f.email.value, f.password.value); render(); }
       catch (err) { el("authMsg").innerHTML = '<div class="alert alert-error">' + esc(err.message) + "</div>"; }
     });
-    var em = el("loginForm").email;
-    em.addEventListener("focus", function () { if (em.value === "hr-") setTimeout(function () { em.setSelectionRange(3, 3); }, 0); });
   }
 
   /* ===================================================================
@@ -355,7 +359,7 @@
     return '<div class="panel"><div class="panel-head">' + svg(icon) + "<h3>" + esc(title) + "</h3>" + (extra || "") + "</div>" +
       '<div class="panel-body">' + inner + "</div></div>";
   }
-  function tableScroll(inner) { return '<div class="table-scroll"><table class="table">' + inner + "</table></div>"; }
+  function tableScroll(inner, grid) { return '<div class="table-scroll"><table class="table' + (grid ? " table-grid" : "") + '">' + inner + "</table></div>"; }
   function matchesQ(text) { return !state.q || text.toLowerCase().indexOf(state.q.toLowerCase()) !== -1; }
 
   /* ===================================================================
@@ -893,8 +897,8 @@
         : (busBadge(item.busType) + " " + taskBadge(item.taak));
       var rol = (kind === "backup" || kind === "callout") ? (mineOffer ? "Verzoek" : "Reactie") : (mineOffer ? "Aangeboden" : "Overgenomen");
       return "<tr><td><div class=\"cellname\">" + esc(fmtDate(item.datum)) + "</div><div class=\"cellsub\">" + (mineOffer ? "Door jou" : "Met " + fullName(S.userById(item.aanbiederId))) + "</div></td>" +
-        "<td>" + dagdeelBadge(item.dagdeel) + "</td><td>" + details + "</td><td><span class=\"cellsub\">" + rol + "</span></td>" +
-        "<td>" + statusBadge(item.status) + (item.status === "afgekeurd" && item.reden ? '<div class="cellsub">' + esc(item.reden) + "</div>" : "") + "</td></tr>";
+        '<td data-th="Dagdeel">' + dagdeelBadge(item.dagdeel) + '</td><td data-th="Details">' + details + '</td><td data-th="Soort"><span class="cellsub">' + rol + "</span></td>" +
+        '<td data-th="Status">' + statusBadge(item.status) + (item.status === "afgekeurd" && item.reden ? '<div class="cellsub">' + esc(item.reden) + "</div>" : "") + "</td></tr>";
     }
     function tbl(list, kind, empty) {
       return list.length ? list.map(function (i) { return row(i, kind); }).join("") : '<tr><td colspan="5"><div class="cellsub" style="padding:8px 0">' + empty + "</div></td></tr>";
@@ -1007,12 +1011,6 @@
   function viewStats() {
     var u = S.currentUser();
     var users = S.usersForHub(u.hubId);
-    var tot = { sa: 0, so: 0, ta: 0, to: 0 };
-    users.forEach(function (x) { tot.sa += x.stats.shiftsAangeboden; tot.so += x.stats.shiftsOvergenomen; tot.ta += x.stats.takenAangeboden; tot.to += x.stats.takenOvergenomen; });
-
-    function stat(dir, val, lab) {
-      return '<div class="stat-card"><div class="s-ico ' + dir + '">' + svg(dir === "up" ? "arrowUp" : "arrowDown") + '</div><div class="s-val">' + val + '</div><div class="s-lab">' + esc(lab) + "</div></div>";
-    }
     var sorted = users.slice().sort(function (a, b) { return b.stats[state.statSort] - a.stats[state.statSort]; });
     var rows = sorted.map(function (x) {
       return "<tr><td><div class=\"cellname\">" + fullName(x) + "</div><div class=\"cellsub\">" + esc(S.roleMeta(x.rol).label) + "</div></td>" +
@@ -1029,16 +1027,12 @@
     var upH = svg("arrowUp", "icon-sm");
     var dnH = svg("arrowDown", "icon-sm");
     return '<div class="page-head"><div><h2>Statistieken</h2><p>Telt alleen goedgekeurde ruilingen.</p></div></div>' +
-      '<div class="stat-section"><div class="stat-section-title">' + svg("swap", "icon-sm") + "Shifts</div>" +
-        '<div class="stat-grid">' + stat("up", tot.so, "Overgenomen") + stat("down", tot.sa, "Weggegeven") + "</div></div>" +
-      '<div class="stat-section"><div class="stat-section-title">' + svg("tag", "icon-sm") + "Taken</div>" +
-        '<div class="stat-grid">' + stat("up", tot.to, "Overgenomen") + stat("down", tot.ta, "Weggegeven") + "</div></div>" +
       panel("users", "Per medewerker", tableScroll(
         '<thead><tr><th></th><th class="grp-start grp-shift" colspan="2">Shifts</th><th class="grp-start grp-task" colspan="2">Taken</th></tr>' +
         "<tr><th>Medewerker</th>" +
         '<th class="grp-start"><span class="hcol up">' + upH + "Over</span></th><th><span class=\"hcol down\">" + dnH + "Weg</span></th>" +
         '<th class="grp-start"><span class="hcol up">' + upH + "Over</span></th><th><span class=\"hcol down\">" + dnH + "Weg</span></th></tr></thead><tbody>" +
-        (rows || '<tr><td colspan="5"><div class="cellsub" style="padding:8px 0">Geen gegevens.</div></td></tr>') + "</tbody>"),
+        (rows || '<tr><td colspan="5"><div class="cellsub" style="padding:8px 0">Geen gegevens.</div></td></tr>') + "</tbody>", true),
         '<div style="flex:1"></div><span class="cellsub" style="margin-right:8px">Sorteer:</span>' + sortSel);
   }
   function bindStats() {
@@ -1116,8 +1110,8 @@
 
       return "<tr><td><div class=\"cellname\">" + fullName(x) + (x.id === u.id ? " (jij)" : "") + "</div><div class=\"cellsub\">" + esc(x.email) + "</div>" +
         (showHub ? '<div class="cellsub">HUB ' + esc(hub ? hub.naam : "?") + "</div>" : "") + acct + delBtn + "</td>" +
-        "<td>" + roleCell + "</td><td>" + n2Cell + "</td><td>" + jbtCell + "</td>" +
-        '<td><div class="chips">' + (taskChips || '<span class="cellsub">—</span>') + "</div></td></tr>";
+        '<td data-th="Functie">' + roleCell + '</td><td data-th="Bus">' + n2Cell + '</td><td data-th="JBT">' + jbtCell + "</td>" +
+        '<td data-th="Taken"><div class="chips">' + (taskChips || '<span class="cellsub">—</span>') + "</div></td></tr>";
     }).join("");
 
     var addBtn = canEdit ? '<button class="btn btn-dark btn-sm" id="addUser">' + svg("userPlus", "icon-sm") + "Nieuwe medewerker</button>" : "";
@@ -1135,8 +1129,8 @@
     var hubs = S.db.hubs.slice().sort(function (a, b) { return a.naam.localeCompare(b.naam); });
     var rows = hubs.map(function (h) {
       var count = S.usersForHub(h.id).length;
-      return "<tr><td class=\"cellname\">HUB " + esc(h.naam) + "</td><td class=\"cellsub\">" + count + " medewerker" + (count === 1 ? "" : "s") + "</td>" +
-        (canEdit ? '<td style="text-align:right"><button class="btn btn-ghost btn-sm" data-delhub="' + h.id + '">' + svg("trash", "icon-sm") + "Verwijderen</button></td>" : "<td></td>") + "</tr>";
+      return "<tr><td class=\"cellname\">HUB " + esc(h.naam) + '</td><td class="cellsub" data-th="Medewerkers">' + count + " medewerker" + (count === 1 ? "" : "s") + "</td>" +
+        (canEdit ? '<td data-th="" style="text-align:right"><button class="btn btn-ghost btn-sm" data-delhub="' + h.id + '">' + svg("trash", "icon-sm") + "Verwijderen</button></td>" : "<td></td>") + "</tr>";
     }).join("");
     var extra = canEdit ? '<div style="flex:1"></div><div class="add-inline"><input id="newHub" placeholder="Nieuwe hubnaam"><button class="btn btn-dark btn-sm" id="addHub">' + svg("plus", "icon-sm") + "Toevoegen</button></div>"
       : '<div style="flex:1"></div><span class="locked-note" style="margin:0">' + svg("lock", "icon-sm") + "Alleen-lezen</span>";
@@ -1153,10 +1147,10 @@
         ? '<div class="seg mini type-seg"><button class="' + (!senior ? "active" : "") + '" data-tasktype="' + esc(t) + '|bezorger">Bezorger</button>' +
           '<button class="' + (senior ? "active sr" : "") + '" data-tasktype="' + esc(t) + '|senior">Senior</button></div>'
         : '<span class="badge ' + (senior ? "bd" : "task") + '">' + (senior ? "Senior-taak" : "Bezorger-taak") + "</span>";
-      return "<tr><td class=\"cellname\">" + esc(t) + "</td><td>" + typeCell + "</td>" +
-        (canEdit ? '<td style="text-align:right"><button class="btn btn-ghost btn-sm" data-deltask="' + esc(t) + '">' + svg("trash", "icon-sm") + "Verwijderen</button></td>" : "<td></td>") + "</tr>";
+      return "<tr><td class=\"cellname\">" + esc(t) + '</td><td data-th="Type">' + typeCell + "</td>" +
+        (canEdit ? '<td data-th="" style="text-align:right"><button class="btn btn-ghost btn-sm" data-deltask="' + esc(t) + '">' + svg("trash", "icon-sm") + "Verwijderen</button></td>" : "<td></td>") + "</tr>";
     }).join("");
-    var special = "<tr><td class=\"cellname\">" + esc(S.TASK_JBT) + '</td><td><span class="badge jbt">' + svg("cap", "icon-sm") + "Alleen JBT-trainers</span></td><td></td></tr>";
+    var special = "<tr><td class=\"cellname\">" + esc(S.TASK_JBT) + '</td><td data-th="Type"><span class="badge jbt">' + svg("cap", "icon-sm") + "Alleen JBT-trainers</span></td><td></td></tr>";
     var extra = canEdit
       ? '<div style="flex:1"></div><div class="add-inline"><input id="newTask" placeholder="Nieuwe taak">' +
         '<select id="newTaskType" class="pill-select"><option value="bezorger">Bezorger-taak</option><option value="senior">Senior-taak</option></select>' +
@@ -1212,8 +1206,8 @@
     var body = '<form id="auForm">' +
       '<div class="row2"><div class="field"><label>Voornaam</label><input name="voornaam" required></div>' +
         '<div class="field"><label>Achternaam</label><input name="achternaam" required></div></div>' +
-      '<div class="field"><label>Personeelsnummer</label><div class="prefix-in"><span>hr-</span><input name="num" inputmode="numeric" placeholder="1234567" required></div>' +
-        '<div class="hint">Wordt het e-mailadres hr-&lt;nummer&gt;@jumbo.com</div></div>' +
+      '<div class="field"><label>Personeelsnummer</label><input name="num" inputmode="numeric" placeholder="1234567" required></div>' +
+      '<div class="field"><label>E-mailadres</label><input type="email" name="email" placeholder="naam@jumbo.com" required></div>' +
       '<div class="field"><label>Functie</label><select name="rol">' + roleOpts + "</select></div>" + hubField +
       '<div class="field check-row"><label class="chk"><input type="checkbox" name="n2"> Mag in de N2-bus rijden</label>' +
         '<label class="chk"><input type="checkbox" name="jbt"> JBT-trainer</label></div>' +
@@ -1225,7 +1219,7 @@
         ov.querySelector("#auSubmit").addEventListener("click", function () {
           var f = ov.querySelector("#auForm");
           try {
-            var res = S.createUserByLeader({ voornaam: f.voornaam.value, achternaam: f.achternaam.value, personeelsnummer: f.num.value, rol: f.rol.value, hubId: f.hubId ? f.hubId.value : null, n2: f.n2.checked, jbtTrainer: f.jbt.checked });
+            var res = S.createUserByLeader({ voornaam: f.voornaam.value, achternaam: f.achternaam.value, personeelsnummer: f.num.value, email: f.email.value, rol: f.rol.value, hubId: f.hubId ? f.hubId.value : null, n2: f.n2.checked, jbtTrainer: f.jbt.checked });
             close(); (reRender || renderApp)(); showOtpModal(res.user, res.otp);
           } catch (e) { toast(e.message, "err"); }
         });
@@ -1390,7 +1384,8 @@
     function hasTask(n) { return u.taken && u.taken.indexOf(n) !== -1; }
     var m = [{ id: "ruilhub", name: "RuilHub", icon: "exchange", color: "yellow", group: "Planning", desc: "Shifts en taken ruilen binnen je hub." }];
     if (senior) m.push({ id: "takenplanning", name: "Takenplanning", icon: "clipboardList", color: "blue", group: "Planning", desc: "Weekrooster maken & delen." });
-    if (S.can.seeBeheer(u)) m.push({ id: "personeelsbeheer", name: "Personeelsbeheer", icon: "userCog", color: "teal", group: "Planning", desc: "Medewerkers, functies, taken en hubs." });
+    if (S.can.seeBeheer(u)) m.push({ id: "personeelsbeheer", name: "Personeelsbeheer", icon: "userCog", color: "teal", group: "Beheer", desc: "Medewerkers, functies, taken en hubs." });
+    if (S.can.seeBussenbeheer(u)) m.push({ id: "bussenbeheer", name: "Bussenbeheer", icon: "van", color: "dark", group: "Beheer", desc: "Bussen per shift, met focus op probleembussen." });
     if (senior) m.push({ id: "dashboard", name: "Senior Dashboard", icon: "chart", color: "dark", group: "Proces", desc: "Realtime overzicht van de shift." });
     // Bezorgers zien een procesmodule zodra ze de bijbehorende taak toegewezen krijgen (personeelsbeheer).
     if (senior || hasTask("Schadecontrole")) m.push({ id: "schadecontrole", name: "Schadecontrole", icon: "shield", color: "green", group: "Proces", desc: "Bussen controleren & afvinken." });
@@ -1424,7 +1419,7 @@
         '<span class="tile-name">' + esc(m.name) + "</span>" +
         '<span class="tile-desc">' + esc(m.desc) + "</span></button>";
     }
-    var sections = ["Planning", "Proces"].map(function (g) {
+    var sections = ["Planning", "Beheer", "Proces"].map(function (g) {
       var gm = mods.filter(function (m) { return (m.group || "Proces") === g; });
       if (!gm.length) return "";
       return '<section class="portal-group"><h3 class="portal-group-title">' + esc(g) + "</h3>" +
@@ -1454,6 +1449,7 @@
     if (state.module === "schadecontrole") return renderSchade();
     if (state.module === "kwaliteit") return renderKwaliteit();
     if (state.module === "lc") return renderLC();
+    if (state.module === "bussenbeheer") return renderBussenbeheer();
     var u = S.currentUser();
     var info = {
       takenplanning: { name: "Takenplanning", icon: "clipboardList", desc: "Hier maak je straks het weekrooster (medewerkers × dagen, AM/PM en taken) en download je het als afbeelding voor de groepsapp." },
@@ -1526,7 +1522,7 @@
     el("app").innerHTML = portalHeader(u, true) +
       '<main><div class="page-head" style="margin-top:6px"><div><h2>Takenplanning</h2></div></div>' +
       toolbar + covStrip +
-      '<div class="panel" style="padding:0"><div class="table-scroll"><table class="table plan-table">' + thead + tbody + "</table></div></div></main>";
+      '<div class="panel" style="padding:0"><div class="table-scroll"><table class="table table-grid plan-table">' + thead + tbody + "</table></div></div></main>";
 
     bindModuleHeader();
     document.querySelectorAll("[data-week]").forEach(function (b) {
@@ -1673,12 +1669,12 @@
     var st = S.schadeStats(c.h, c.d, c.dd), spSt = S.steekproefStats(c.h, c.d, c.dd);
 
     function chkCell(b) {
-      return '<td class="sc-chk"><label class="chk-box ' + (b.gecontroleerd ? "on" : "") + (canEdit ? "" : " ro") + '">' +
+      return '<td class="sc-chk" data-th="Gecontroleerd"><label class="chk-box ' + (b.gecontroleerd ? "on" : "") + (canEdit ? "" : " ro") + '">' +
         '<input type="checkbox" ' + (b.gecontroleerd ? "checked" : "") + (canEdit ? "" : " disabled") + ' data-scchk="' + b.id + '">' + svg("check", "icon-sm") + "</label></td>";
     }
     function mistCell(b) {
       var items = [["mist_tolkrol", "Tolkrol"], ["mist_kabels", "Kabels"], ["mist_doekjes", "Doekjes"]];
-      return '<td><div class="chips">' + items.map(function (it) {
+      return '<td data-th="Ontbreekt"><div class="chips">' + items.map(function (it) {
         var on = b[it[0]];
         if (!canEdit) return on ? '<span class="badge st-afgekeurd">' + esc(it[1]) + " mist</span>" : "";
         return '<span class="chip mist-chip ' + (on ? "on" : "") + '" data-scmist="' + b.id + "|" + it[0] + '">' + esc(it[1]) + "</span>";
@@ -1686,13 +1682,13 @@
     }
     function spCell(b) {
       var done = S.steekproefDone(b);
-      return '<td><button class="btn btn-sm sc-sp-btn' + (done ? " done" : "") + '" data-spbus="' + b.id + '"' + (canEdit ? "" : " disabled") + ">" +
+      return '<td data-th="Steekproef"><button class="btn btn-sm sc-sp-btn' + (done ? " done" : "") + '" data-spbus="' + b.id + '"' + (canEdit ? "" : " disabled") + ">" +
         svg(done ? "check" : "clipboard", "icon-sm") + "Steekproef</button></td>";
     }
     var rows = s.buses.length ? s.buses.map(function (b) {
       var dockCell = b.dock ? '<span class="badge dock">' + svg("building", "icon-sm") + "Dock " + esc(b.dock) + "</span>" : '<span class="cellsub">—</span>';
       return "<tr class=\"" + (b.gecontroleerd ? "sc-done" : "") + "\"><td><div class=\"cellname\">Bus " + esc(b.bus || "?") + "</div><div class=\"cellsub\">" + esc(b.naam || "") + (b.kenteken ? " · " + esc(b.kenteken) : "") + "</div></td>" +
-        chkCell(b) + mistCell(b) + spCell(b) + "<td>" + dockCell + "</td></tr>";
+        chkCell(b) + mistCell(b) + spCell(b) + '<td data-th="Dock">' + dockCell + "</td></tr>";
     }).join("") : '<tr><td colspan="5"><div class="cellsub" style="padding:14px">De binnendienst zet de lijst klaar via het dashboard.</div></td></tr>';
     var table = '<div class="panel" style="padding:0"><div class="table-scroll"><table class="table sc-table">' +
       "<thead><tr><th>Bus</th><th>Gecontroleerd</th><th>Ontbreekt</th><th>Steekproef</th><th>Dock</th></tr></thead><tbody>" + rows + "</tbody></table></div></div>";
@@ -1715,8 +1711,8 @@
     function fld(label, name, val, extra) { return '<div class="field"><label>' + label + "</label><input name=\"" + name + "\"" + (extra || "") + ' value="' + esc(val == null ? "" : val) + '"' + (canEdit ? "" : " disabled") + "></div>"; }
     var body = '<form id="spForm">' +
       fld("Naam bezorger", "naam", sp.naam) +
-      fld("hr-nummer", "hr", sp.hr) +
-      fld("Ritnummer (optioneel)", "rit", sp.rit) +
+      fld("hr-nummer", "hr", sp.hr, ' inputmode="numeric" pattern="[0-9]*"') +
+      fld("Ritnummer (optioneel)", "rit", sp.rit, ' inputmode="numeric" pattern="[0-9]*"') +
       fld("Kratten in de bus", "kratten", sp.kratten, ' type="number" inputmode="numeric" min="0"') +
       "</form>";
     openModal({
@@ -1733,6 +1729,39 @@
     });
   }
 
+  /* ---------- Bussenbeheer (overzicht bussen per shift; standaard alleen probleembussen) ---------- */
+  function renderBussenbeheer() {
+    var c = ctx();
+    var s = S.getSchade(c.h, c.d, c.dd);
+    var isSetup = S.isSetup(c.u);
+    if (state.bbAll === undefined) state.bbAll = false;
+    var buses = s.buses.filter(function (b) { return state.bbAll || S.busHeeftProbleem(b); });
+    function mistBadges(b) {
+      var items = [["mist_tolkrol", "Tolkrol"], ["mist_kabels", "Kabels"], ["mist_doekjes", "Doekjes"]];
+      var chips = items.filter(function (it) { return b[it[0]]; }).map(function (it) { return '<span class="badge st-afgekeurd">' + esc(it[1]) + " mist</span>"; }).join("");
+      return chips || '<span class="cellsub">Geen afwijking</span>';
+    }
+    var rows = buses.length ? buses.map(function (b) {
+      var dockCell = isSetup
+        ? '<select data-bbdock="' + b.id + '">' + dockOptions(b.dock) + "</select>"
+        : (b.dock ? '<span class="badge dock">' + svg("building", "icon-sm") + "Dock " + esc(b.dock) + "</span>" : '<span class="cellsub">—</span>');
+      return "<tr><td><div class=\"cellname\">Bus " + esc(b.bus || "?") + "</div><div class=\"cellsub\">" + esc(b.naam || "") + (b.kenteken ? " · " + esc(b.kenteken) : "") + "</div></td>" +
+        '<td data-th="Schadecontrole">' + (b.gecontroleerd ? '<span class="badge st-goedgekeurd">Gecontroleerd</span>' : '<span class="badge st-afwachting">Nog niet</span>') + "</td>" +
+        '<td data-th="Ontbreekt"><div class="chips">' + mistBadges(b) + "</div></td>" +
+        '<td data-th="Steekproef">' + (S.steekproefDone(b) ? '<span class="badge st-goedgekeurd">Gedaan</span>' : '<span class="cellsub">—</span>') + "</td>" +
+        '<td data-th="Dock">' + dockCell + "</td></tr>";
+    }).join("") : '<tr><td colspan="5"><div class="cellsub" style="padding:14px">' + (state.bbAll ? "Nog geen bussen voor deze shift." : "Geen probleembussen voor deze shift.") + "</div></td></tr>";
+    var table = '<div class="panel" style="padding:0"><div class="table-scroll"><table class="table">' +
+      "<thead><tr><th>Bus</th><th>Schadecontrole</th><th>Ontbreekt</th><th>Steekproef</th><th>Dock</th></tr></thead><tbody>" + rows + "</tbody></table></div></div>";
+    var toggle = '<div class="page-head" style="margin:0 0 12px"><div><p class="cellsub" style="margin:0">' +
+      (state.bbAll ? "Alle bussen van deze shift." : "Alleen bussen met een afwijking bij de schadecontrole.") + '</p></div><div class="grow"></div>' +
+      '<label class="chk"><input type="checkbox" id="bbAllToggle"' + (state.bbAll ? " checked" : "") + "> Toon alle bussen</label></div>";
+    el("app").innerHTML = moduleShell("Bussenbeheer", toggle + table);
+    bindModuleHeader(renderBussenbeheer);
+    var t = el("bbAllToggle"); if (t) t.addEventListener("change", function () { state.bbAll = t.checked; renderBussenbeheer(); });
+    if (isSetup) document.querySelectorAll("[data-bbdock]").forEach(function (sl) { sl.addEventListener("change", function () { try { S.schadeSetDock(c.h, c.d, c.dd, sl.getAttribute("data-bbdock"), sl.value); renderBussenbeheer(); } catch (e) { toast(e.message, "err"); } }); });
+  }
+
   /* ---------- Kwaliteit (vak-soort + emballage per vak) ---------- */
   function renderKwaliteit() {
     var c = ctx(), u = c.u;
@@ -1740,9 +1769,9 @@
     function soortOpts(sel) { return S.VAK_SOORTEN.map(function (s) { return '<option value="' + s.id + '"' + (sel === s.id ? " selected" : "") + ">" + esc(s.label) + "</option>"; }).join(""); }
     var rows = S.VAK_NUMMERS.map(function (i) {
       var soort = S.vakSoort(c.h, c.d, c.dd, i), isEmb = soort === "emb5", tot = isEmb ? S.emballageVakTotal(c.h, c.d, c.dd, i) : 0;
-      return '<tr class="' + (isEmb ? "vak-emb" : "") + '"><td class="lc-nr">' + i + "</td>" +
-        "<td>" + (canEdit ? '<select class="lc-in vaksoort-sel" data-vaksoort="' + i + '">' + soortOpts(soort) + "</select>" : '<span class="badge ' + (soort ? "task" : "") + '">' + esc(S.vakSoortLabel(soort)) + "</span>") + "</td>" +
-        "<td>" + (isEmb ? '<button class="btn btn-primary btn-sm" data-embopen="' + i + '">' + svg("tag", "icon-sm") + "Tellen · " + tot + "</button>" : '<span class="cellsub">—</span>') + "</td></tr>";
+      return '<tr class="' + (isEmb ? "vak-emb" : "") + '"><td class="lc-nr cellname">Vak ' + i + "</td>" +
+        '<td data-th="Wat mag erin">' + (canEdit ? '<select class="lc-in vaksoort-sel" data-vaksoort="' + i + '">' + soortOpts(soort) + "</select>" : '<span class="badge ' + (soort ? "task" : "") + '">' + esc(S.vakSoortLabel(soort)) + "</span>") + "</td>" +
+        '<td data-th="Emballage">' + (isEmb ? '<button class="btn btn-primary btn-sm" data-embopen="' + i + '">' + svg("tag", "icon-sm") + "Tellen · " + tot + "</button>" : '<span class="cellsub">—</span>') + "</td></tr>";
     }).join("");
     var table = '<div class="panel" style="padding:0"><div class="table-scroll"><table class="table"><thead><tr><th>Vak</th><th>Wat mag erin</th><th>Emballage</th></tr></thead><tbody>' + rows + "</tbody></table></div></div>";
 
@@ -1827,11 +1856,11 @@
       var busEditable = canLoad && isPM && v.type !== "N2"; // op PM mag de LC alleen diesel-bussen aanpassen
       var busCell = busEditable ? '<input class="lc-in" data-lcbus="' + v.nr + '" placeholder="busnr" value="' + esc(v.bus) + '">' : '<span class="' + (v.bus ? "cellname" : "cellsub") + '">' + (v.bus ? esc(v.bus) : "—") + "</span>";
       var typeBadge = v.type === "N2" ? '<span class="badge n2">' + svg("bolt", "icon-sm") + "N2</span>" : '<span class="badge diesel">' + svg("droplet", "icon-sm") + "Diesel</span>";
-      return "<tr class=\"" + (v.geladen ? "sc-done" : "") + "\"><td class=\"lc-nr\">" + v.nr + "</td>" +
-        '<td class="cellsub">' + (v.vertrek ? esc(v.vertrek) : "—") + "</td><td>" + busCell + "</td>" +
-        '<td class="cellsub">' + (v.rit ? esc(v.rit) : "—") + "</td><td>" + typeBadge + "</td>" +
-        '<td style="text-align:center">' + (v.ze ? '<span class="badge dock">ZE</span>' : "") + "</td>" +
-        '<td class="sc-chk"><label class="chk-box ' + (v.geladen ? "on" : "") + (canLoad ? "" : " ro") + '"><input type="checkbox" ' + (v.geladen ? "checked" : "") + (canLoad ? "" : " disabled") + ' data-lcgel="' + v.nr + '">' + svg("check", "icon-sm") + "</label></td></tr>";
+      return "<tr class=\"" + (v.geladen ? "sc-done" : "") + "\"><td class=\"lc-nr cellname\">Vak " + v.nr + "</td>" +
+        '<td class="cellsub" data-th="Vertrek">' + (v.vertrek ? esc(v.vertrek) : "—") + '</td><td data-th="Bus">' + busCell + "</td>" +
+        '<td class="cellsub" data-th="Rit">' + (v.rit ? esc(v.rit) : "—") + '</td><td data-th="Type">' + typeBadge + "</td>" +
+        '<td data-th="ZE" style="text-align:center">' + (v.ze ? '<span class="badge dock">ZE</span>' : "") + "</td>" +
+        '<td class="sc-chk" data-th="Geladen"><label class="chk-box ' + (v.geladen ? "on" : "") + (canLoad ? "" : " ro") + '"><input type="checkbox" ' + (v.geladen ? "checked" : "") + (canLoad ? "" : " disabled") + ' data-lcgel="' + v.nr + '">' + svg("check", "icon-sm") + "</label></td></tr>";
     }).join("") : '<tr><td colspan="7"><div class="cellsub" style="padding:14px">De binnendienst zet de vakken klaar via het dashboard.</div></td></tr>';
     var table = '<div class="panel" style="padding:0"><div class="table-scroll"><table class="table lc-table">' +
       "<thead><tr><th>Vak</th><th>Vertrek</th><th>Bus</th><th>Rit</th><th>Type</th><th>ZE</th><th>Geladen</th></tr></thead><tbody>" + rows + "</tbody></table></div></div>";
@@ -1901,11 +1930,16 @@
     var ring = function (pct, cls) { return '<div class="dash-ring ' + cls + '" style="--p:' + pct + '"><span>' + pct + "%</span></div>"; };
     var embVakken = S.VAK_NUMMERS.filter(function (i) { return S.vakSoort(c.h, c.d, c.dd, i) === "emb5"; });
     var vakTotals = embVakken.map(function (i) { return '<div class="emb-vaktot"><span>Vak ' + i + ":</span> <b>" + S.emballageVakTotal(c.h, c.d, c.dd, i) + "</b></div>"; }).join("");
+    function recentList(items) { return items.length ? '<ul class="dash-recent">' + items.join("") + "</ul>" : '<div class="cellsub dash-recent-empty">Nog niets recent.</div>'; }
+    function recentItem(icon, label, time) { return '<li class="dash-recent-item">' + svg(icon, "icon-sm") + '<span class="drn">' + esc(label) + "</span>" + (time ? '<span class="drt">' + esc(time) + "</span>" : "") + "</li>"; }
+    var recentGeladen = recentList(S.recentGeladenBussen(c.h, c.d, c.dd).map(function (v) { return recentItem("check", "Bus " + (v.bus || "vak " + v.nr), fmtClock(v.geladenAt)); }));
+    var recentSchade = recentList(S.recentGecontroleerdeBussen(c.h, c.d, c.dd).map(function (b) { return recentItem("check", "Bus " + (b.bus || "?"), fmtClock(b.gecontroleerdAt)); }));
+    var recentPendels = recentList(S.recentPendels(c.h, c.d, c.dd).map(function (p) { return recentItem("inbox", "Pendel " + (p.tijd || "?"), null); }));
     // Laden vóór schadecontrole
     var grid = '<div class="dash-grid">' +
-      tile("Laden", "inbox", "orange", '<div class="dash-row">' + ring(lcS.pct, "o") + '<div><div class="dash-big">' + lcS.done + " / " + lcS.used + '</div><div class="cellsub">vakken geladen</div></div></div>') +
-      tile("Schadecontrole", "shield", "green", '<div class="dash-row">' + ring(sc.pct, "g") + '<div><div class="dash-big">' + sc.done + " / " + sc.total + '</div><div class="cellsub">bussen gecontroleerd</div></div></div>') +
-      tile("Trolley-voorraad", "inbox", "blue", '<div class="dash-stocks"><div><div class="dash-big">' + tr.stock4 + '</div><div class="cellsub">4-laags</div></div><div><div class="dash-big">' + tr.stock5 + '</div><div class="cellsub">5-laags</div></div></div>') +
+      tile("Laden", "inbox", "orange", '<div class="dash-row">' + ring(lcS.pct, "o") + '<div><div class="dash-big">' + lcS.done + " / " + lcS.used + '</div><div class="cellsub">vakken geladen</div></div></div>' + '<div class="dash-recent-title">Recent geladen</div>' + recentGeladen) +
+      tile("Schadecontrole", "shield", "green", '<div class="dash-row">' + ring(sc.pct, "g") + '<div><div class="dash-big">' + sc.done + " / " + sc.total + '</div><div class="cellsub">bussen gecontroleerd</div></div></div>' + '<div class="dash-recent-title">Recent gecontroleerd</div>' + recentSchade) +
+      tile("Trolley-voorraad", "inbox", "blue", '<div class="dash-stocks"><div><div class="dash-big">' + tr.stock4 + '</div><div class="cellsub">4-laags</div></div><div><div class="dash-big">' + tr.stock5 + '</div><div class="cellsub">5-laags</div></div></div>' + '<div class="dash-recent-title">Recente pendels</div>' + recentPendels) +
       tile("Emballage per vak", "tag", "purple", vakTotals ? '<div class="emb-vaktots">' + vakTotals + "</div>" : '<div class="cellsub">Nog niets geteld</div>') +
       "</div>";
     var docks = S.getSchade(c.h, c.d, c.dd).buses.filter(function (b) { return b.dock; });
@@ -1914,11 +1948,17 @@
       var dockList = docks.length ? '<table class="table"><thead><tr><th>Dock</th><th>Bus</th><th>Status</th></tr></thead><tbody>' +
         docks.sort(function (a, b) { return a.dock - b.dock; }).map(function (b) {
           var full = b.gecontroleerd;
-          return "<tr><td class=\"cellname\">Dock " + esc(b.dock) + "</td><td>Bus " + esc(b.bus) + "</td><td>" + (full ? '<span class="badge st-goedgekeurd">Klaar</span>' : '<span class="badge st-afwachting">Nog niet</span>') + "</td></tr>";
+          return "<tr><td class=\"cellname\">Dock " + esc(b.dock) + '</td><td data-th="Bus">Bus ' + esc(b.bus) + '</td><td data-th="Status">' + (full ? '<span class="badge st-goedgekeurd">Klaar</span>' : '<span class="badge st-afwachting">Nog niet</span>') + "</td></tr>";
         }).join("") + "</tbody></table>" : '<div class="cellsub" style="padding:12px">Nog geen bussen aan een dock toegewezen.</div>';
       dockPanel = panel("building", "Klaarzetten voor morgen (docks)", dockList);
     }
-    return todoBanner + grid + dockPanel;
+    var spItems = S.steekproevenList(c.h, c.d, c.dd);
+    var spList = spItems.length ? '<table class="table"><thead><tr><th>Bus</th><th>Naam</th><th>hr-nummer</th><th>Rit</th><th>Kratten</th></tr></thead><tbody>' +
+      spItems.map(function (b) {
+        return "<tr><td class=\"cellname\">Bus " + esc(b.bus || "?") + '</td><td data-th="Naam">' + esc(b.steekproef.naam) + '</td><td data-th="hr-nummer">' + esc(b.steekproef.hr) + '</td><td data-th="Rit">' + esc(b.steekproef.rit || "-") + '</td><td data-th="Kratten">' + esc(b.steekproef.kratten) + "</td></tr>";
+      }).join("") + "</tbody></table>" : '<div class="cellsub" style="padding:12px">Nog geen steekproeven ingevuld.</div>';
+    var spPanel = panel("clipboard", "Steekproeven schadecontrole", spList);
+    return todoBanner + grid + dockPanel + spPanel;
   }
 
   function dashKlaarzetten(c) {
@@ -1937,9 +1977,9 @@
       '<button class="btn btn-ghost btn-sm" id="kzResetLaden">' + svg("trash", "icon-sm") + "Laden leegmaken</button></div></div>";
     var lcRows = lc.vakken.length ? lc.vakken.map(function (v) {
       var inp = function (f, ph, val) { return '<input class="lc-in" data-lcset="' + v.nr + "|" + f + '" placeholder="' + ph + '" value="' + esc(val) + '">'; };
-      return "<tr><td class=\"lc-nr\">" + v.nr + "</td><td>" + inp("vertrek", "tijd", v.vertrek || "") + "</td><td>" + inp("bus", "busnr", v.bus) + "</td><td>" + inp("rit", "rit", v.rit) + "</td>" +
-        '<td><select class="lc-in" data-lcset="' + v.nr + '|type"><option value="diesel"' + (v.type !== "N2" ? " selected" : "") + ">Diesel</option><option value=\"N2\"" + (v.type === "N2" ? " selected" : "") + ">N2</option></select></td>" +
-        '<td style="text-align:center"><input type="checkbox" data-lcze="' + v.nr + '"' + (v.ze ? " checked" : "") + "></td></tr>";
+      return "<tr><td class=\"lc-nr cellname\">Vak " + v.nr + '</td><td data-th="Vertrek">' + inp("vertrek", "tijd", v.vertrek || "") + '</td><td data-th="Bus">' + inp("bus", "busnr", v.bus) + '</td><td data-th="Rit">' + inp("rit", "rit", v.rit) + "</td>" +
+        '<td data-th="Type"><select class="lc-in" data-lcset="' + v.nr + '|type"><option value="diesel"' + (v.type !== "N2" ? " selected" : "") + ">Diesel</option><option value=\"N2\"" + (v.type === "N2" ? " selected" : "") + ">N2</option></select></td>" +
+        '<td data-th="ZE" style="text-align:center"><input type="checkbox" data-lcze="' + v.nr + '"' + (v.ze ? " checked" : "") + "></td></tr>";
     }).join("") : '<tr><td colspan="6"><div class="cellsub" style="padding:12px">Importeer de planning of stel het aantal vakken in.</div></td></tr>';
     var tr = S.getTrolley(c.h, c.d, c.dd);
     var pendelRows = tr.pendels.length ? tr.pendels.map(function (p, i) {
@@ -1961,8 +2001,8 @@
       '<button class="btn btn-ghost btn-sm" id="kzResetSchade">' + svg("trash", "icon-sm") + "Schade leegmaken</button></div></div>";
     var scRows = s.buses.length ? s.buses.map(function (b) {
       return "<tr><td><div class=\"cellname\">Bus " + esc(b.bus || "?") + "</div><div class=\"cellsub\">" + esc(b.naam || "") + (b.kenteken ? " · " + esc(b.kenteken) : "") + "</div></td>" +
-        '<td><select class="lc-in dock-sel" data-dock="' + b.id + '">' + dockOptions(b.dock) + "</select></td>" +
-        '<td style="text-align:right"><button class="pl-x" data-schadedel="' + b.id + '">' + svg("trash", "icon-sm") + "</button></td></tr>";
+        '<td data-th="Dock (morgen)"><select class="lc-in dock-sel" data-dock="' + b.id + '">' + dockOptions(b.dock) + "</select></td>" +
+        '<td data-th="" style="text-align:right"><button class="pl-x" data-schadedel="' + b.id + '">' + svg("trash", "icon-sm") + "</button></td></tr>";
     }).join("") : '<tr><td colspan="3"><div class="cellsub" style="padding:12px">Nog geen bussen. Importeer de planning of voeg toe.</div></td></tr>';
     var schadeBlock = schadeImport + '<div class="kz-section"><div class="kz-h">' + svg("sun", "icon-sm") + "Voorbereiding AM — bussen klaarzetten voor morgen</div>" +
       '<div class="add-inline"><input id="scBus" placeholder="Busnr"><input id="scKent" placeholder="Kenteken"><input id="scNaam" placeholder="Bezorger"><button class="btn btn-dark btn-sm" id="scAdd">' + svg("plus", "icon-sm") + "Bus</button></div>" +

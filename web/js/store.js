@@ -29,7 +29,7 @@
   var TASK_BINNENDIENST = "Binnendienst";
   var TASK_JBT = "JBT-training"; // alleen JBT-trainers, taak tijdens de rit (buiten de catalogus)
 
-  var EMAIL_RE = /^hr-(\d{4,9})@jumbo\.com$/i;
+  var EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
   // Vaste redenen om een shift/taak weg te geven (bezorgers kiezen hieruit; vrij typen kan niet)
   var REASONS = ["Ziekte", "Uitvaart / begrafenis", "Medische afspraak", "Familieomstandigheden", "Vakantie", "Studie / school", "Persoonlijke reden"];
@@ -169,6 +169,7 @@
     seeLog:       function (u) { return level(u) >= 3; },
     seeStats:     function (u) { return level(u) >= 4; },
     seeBeheer:    function (u) { return level(u) >= 4; },   // personeelsbeheer = teamleider+ (senior niet)
+    seeBussenbeheer: function (u) { return level(u) >= 3; }, // bussenbeheer = senior+ (senior mag hier wél bij)
     planning:     function (u) { return level(u) >= 3; },
     editTeam:     function (u) { return level(u) >= 4; },   // N2, taken, jbt, account toevoegen
     editRoles:    function (u) { return level(u) >= 5; },   // functie toewijzen = locatie-manager
@@ -237,8 +238,9 @@
     if (!can.editTeam(me)) throw new Error("Alleen teamleider of hoger mag accounts aanmaken.");
     var num = (data.personeelsnummer || "").replace(/\D/g, "");
     if (num.length < 4) throw new Error("Vul een geldig personeelsnummer in (minimaal 4 cijfers).");
-    var email = ("hr-" + num + "@jumbo.com").toLowerCase();
-    if (userByEmail(email)) throw new Error("Er bestaat al een account met dit personeelsnummer.");
+    var email = (data.email || "").trim().toLowerCase();
+    if (!EMAIL_RE.test(email)) throw new Error("Vul een geldig e-mailadres in.");
+    if (userByEmail(email)) throw new Error("Er bestaat al een account met dit e-mailadres.");
     if (!data.voornaam || !data.achternaam) throw new Error("Vul voor- en achternaam in.");
 
     var rol = data.rol || "bezorger";
@@ -658,11 +660,10 @@
     if (!isSetup(currentUser())) throw new Error("Alleen binnendienst (senior+) mag diensten toewijzen.");
     getDiensten(hubId, datum, dagdeel)[moduleKey] = userIds.slice(); save();
   }
-  function canOpShift(u, hubId, datum, dagdeel, moduleKey, taskName) {
+  function canOpShift(u, hubId, datum, dagdeel, moduleKey) {
     if (isAdmin(u) || level(u) >= 4) return true;
     var d = getDiensten(hubId, datum, dagdeel)[moduleKey] || [];
-    if (d.length) return d.indexOf(u.id) !== -1;
-    return u.taken.indexOf(taskName) !== -1; // terugval als nog niemand is toegewezen
+    return d.indexOf(u.id) !== -1; // alleen uitvoerrecht via expliciete dienst-toewijzing (dashboard), niet via de taak in personeelsbeheer
   }
 
   /* ----- Schadecontrole ----- */
@@ -684,6 +685,8 @@
     return { done: b.filter(steekproefDone).length, total: 5 };
   }
   function newBus(naam, bus, kenteken) { return { id: uid("bus"), naam: (naam || "").trim(), bus: (bus || "").trim(), kenteken: (kenteken || "").trim(), dock: "", gecontroleerd: false, mist_tolkrol: false, mist_kabels: false, mist_doekjes: false, steekproef: null }; }
+  // Probleembus: er mist iets bij de schadecontrole (voor Bussenbeheer).
+  function busHeeftProbleem(b) { return !!(b.mist_tolkrol || b.mist_kabels || b.mist_doekjes); }
   function schadeImportColumns(hubId, datum, dagdeel, busText, kentekenText, naamText) {
     if (!isSetup(currentUser())) throw new Error("Alleen binnendienst (senior+) mag importeren.");
     var s = getSchade(hubId, datum, dagdeel);
@@ -699,7 +702,18 @@
   function schadeToggle(hubId, datum, dagdeel, busId, field) {
     if (!canOpShift(currentUser(), hubId, datum, dagdeel, "schadecontrole", "Schadecontrole")) throw new Error("Je bent deze shift niet aangewezen voor de schadecontrole.");
     var b = getSchade(hubId, datum, dagdeel).buses.filter(function (x) { return x.id === busId; })[0]; if (!b) return;
-    b[field] = !b[field]; save();
+    b[field] = !b[field];
+    if (field === "gecontroleerd") b.gecontroleerdAt = b.gecontroleerd ? now() : null;
+    save();
+  }
+  // Recentst gecontroleerde bussen (voor het dashboard).
+  function recentGecontroleerdeBussen(hubId, datum, dagdeel) {
+    return getSchade(hubId, datum, dagdeel).buses.filter(function (b) { return b.gecontroleerd && b.gecontroleerdAt; })
+      .sort(function (a, b) { return b.gecontroleerdAt.localeCompare(a.gecontroleerdAt); }).slice(0, 3);
+  }
+  // Alle bussen met een ingevulde steekproef (voor het dashboard).
+  function steekproevenList(hubId, datum, dagdeel) {
+    return getSchade(hubId, datum, dagdeel).buses.filter(steekproefDone);
   }
   function schadeSetDock(hubId, datum, dagdeel, busId, dock) {
     if (!isSetup(currentUser())) throw new Error("Alleen binnendienst (senior+) mag een dock toewijzen.");
@@ -799,6 +813,10 @@
     if (!isSetup(currentUser())) throw new Error("Alleen binnendienst (senior+) mag pendels verwijderen.");
     var t = getTrolley(hubId, datum, dagdeel); t.pendels = t.pendels.filter(function (p) { return p.id !== id; }); save();
   }
+  // Recentste pendels (voor het dashboard) — laatst toegevoegd eerst.
+  function recentPendels(hubId, datum, dagdeel) {
+    return getTrolley(hubId, datum, dagdeel).pendels.slice(-3).reverse();
+  }
   // LC verwerkt de trolley-veranderingen per pendel met +/- (past de doorlopende voorraad aan).
   function pendelBump(hubId, datum, dagdeel, id, field, delta) {
     if (!canOpShift(currentUser(), hubId, datum, dagdeel, "lc", "LC")) throw new Error("Je bent deze shift niet aangewezen als LC.");
@@ -857,7 +875,14 @@
   function lcToggleGeladen(hubId, datum, dagdeel, nr) {
     if (!canOpShift(currentUser(), hubId, datum, dagdeel, "lc", "LC")) throw new Error("Je bent deze shift niet aangewezen als LC.");
     var vk = getLC(hubId, datum, dagdeel).vakken.filter(function (x) { return x.nr === nr; })[0]; if (!vk) return;
-    vk.geladen = !vk.geladen; save();
+    vk.geladen = !vk.geladen;
+    vk.geladenAt = vk.geladen ? now() : null;
+    save();
+  }
+  // Recentst geladen bussen (voor het dashboard).
+  function recentGeladenBussen(hubId, datum, dagdeel) {
+    return getLC(hubId, datum, dagdeel).vakken.filter(function (v) { return v.geladen && v.geladenAt; })
+      .sort(function (a, b) { return b.geladenAt.localeCompare(a.geladenAt); }).slice(0, 3);
   }
   function lcImportColumns(hubId, datum, dagdeel, busText, ritText, typeText) {
     if (!isSetup(currentUser())) throw new Error("Alleen binnendienst (senior+) mag importeren.");
@@ -972,10 +997,10 @@
     isSunday: isSunday, dagdelenVoor: dagdelenVoor, isSetup: isSetup, canOpShift: canOpShift,
     getDiensten: getDiensten, setDienst: setDienst, importSheet: importSheet,
     getSchade: getSchade, schadeImportColumns: schadeImportColumns, schadeAddBus: schadeAddBus, schadeToggle: schadeToggle, schadeSetDock: schadeSetDock, schadeRemove: schadeRemove, schadeReset: schadeReset, schadeStats: schadeStats,
-    setBusSteekproef: setBusSteekproef, steekproefDone: steekproefDone, steekproefStats: steekproefStats,
+    setBusSteekproef: setBusSteekproef, steekproefDone: steekproefDone, steekproefStats: steekproefStats, steekproevenList: steekproevenList, recentGecontroleerdeBussen: recentGecontroleerdeBussen, busHeeftProbleem: busHeeftProbleem,
     getKwaliteit: getKwaliteit, vakSoort: vakSoort, setVakSoort: setVakSoort, emballageSet: emballageSet, emballageVakTotal: emballageVakTotal, clearEmbVak: clearEmbVak,
-    getTrolley: getTrolley, addPendelPlan: addPendelPlan, removePendel: removePendel, pendelBump: pendelBump, trolleySetStock: trolleySetStock, trolleyBump: trolleyBump,
-    getLC: getLC, lcSetAantal: lcSetAantal, lcSetupVak: lcSetupVak, lcSetBus: lcSetBus, lcToggleGeladen: lcToggleGeladen, lcImportColumns: lcImportColumns, lcReset: lcReset, lcStats: lcStats,
+    getTrolley: getTrolley, addPendelPlan: addPendelPlan, removePendel: removePendel, pendelBump: pendelBump, trolleySetStock: trolleySetStock, trolleyBump: trolleyBump, recentPendels: recentPendels,
+    getLC: getLC, lcSetAantal: lcSetAantal, lcSetupVak: lcSetupVak, lcSetBus: lcSetBus, lcToggleGeladen: lcToggleGeladen, lcImportColumns: lcImportColumns, lcReset: lcReset, lcStats: lcStats, recentGeladenBussen: recentGeladenBussen,
     shiftsForHub: shiftsForHub, taskOffersForHub: taskOffersForHub, backupsForHub: backupsForHub, calloutsForHub: calloutsForHub,
     logsForHub: logsForHub, usersForHub: usersForHub, manageableUsers: manageableUsers,
     pendingForApprover: pendingForApprover, pendingCount: pendingCount
