@@ -18,6 +18,22 @@
 
   /* ---------- helpers ---------- */
   function el(id) { return document.getElementById(id); }
+  // Wachtwoord tonen/verbergen (oogje) — één globale delegatie voor alle wachtwoordvelden.
+  document.addEventListener("click", function (e) {
+    var btn = e.target.closest ? e.target.closest(".pw-eye") : null;
+    if (!btn) return;
+    var inp = btn.parentNode.querySelector("input");
+    if (!inp) return;
+    var show = inp.type === "password";
+    inp.type = show ? "text" : "password";
+    btn.classList.toggle("on", show);
+  });
+  // Wachtwoordveld met oogje. extra = losse attributen (bv. ' required').
+  function pwInput(name, placeholder, extra) {
+    return '<div class="pw-wrap"><input type="password" name="' + name + '"' +
+      (placeholder ? ' placeholder="' + placeholder + '"' : "") + (extra || "") + ">" +
+      '<button type="button" class="pw-eye" tabindex="-1" aria-label="Toon wachtwoord">' + svg("eye", "icon-sm") + "</button></div>";
+  }
   function esc(s) {
     return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
@@ -74,6 +90,7 @@
     settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8 2 2 0 1 1-2.8 2.8 1.6 1.6 0 0 0-2.7 1.1 2 2 0 1 1-4 0 1.6 1.6 0 0 0-2.7-1.1 2 2 0 1 1-2.8-2.8A1.6 1.6 0 0 0 2.6 15a2 2 0 1 1 0-4 1.6 1.6 0 0 0 1.1-2.7 2 2 0 1 1 2.8-2.8A1.6 1.6 0 0 0 9.2 6.6a2 2 0 1 1 4 0 1.6 1.6 0 0 0 2.7-1.1 2 2 0 1 1 2.8 2.8A1.6 1.6 0 0 0 21.4 11a2 2 0 1 1 0 4z"/>',
     plus: '<path d="M12 5v14M5 12h14"/>',
     search: '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>',
+    eye: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>',
     inbox: '<path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5 5h14l3 7v6a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-6z"/>',
     lock: '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
     key: '<circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.5 12.5 21 2M16 7l3 3M14 9l2 2"/>',
@@ -202,7 +219,7 @@
             '<div class="field"><label>E-mailadres</label>' +
               '<input type="email" name="email" value="hr-" placeholder="hr-1234567@jumbo.com" required></div>' +
             '<div class="field"><label>Wachtwoord</label>' +
-              '<input type="password" name="password" placeholder="Wachtwoord of eenmalige code" required></div>' +
+              pwInput("password", "Wachtwoord of eenmalige code", " required") + "</div>" +
             '<div id="authMsg"></div>' +
             '<button class="btn btn-primary btn-block" type="submit">' + svg("arrowRight") + "Inloggen</button>" +
           "</form>" +
@@ -231,8 +248,8 @@
         '<div class="auth-body">' +
           '<div class="alert alert-info">Je logde in met een eenmalige code. Stel nu een persoonlijk wachtwoord in om verder te gaan.</div>' +
           '<form id="pwForm">' +
-            '<div class="field"><label>Nieuw wachtwoord</label><input type="password" name="p1" placeholder="Min. 4 tekens" required></div>' +
-            '<div class="field"><label>Herhaal wachtwoord</label><input type="password" name="p2" required></div>' +
+            '<div class="field"><label>Nieuw wachtwoord</label>' + pwInput("p1", "Min. 4 tekens", " required") + "</div>" +
+            '<div class="field"><label>Herhaal wachtwoord</label>' + pwInput("p2", "", " required") + "</div>" +
             '<div id="pwMsg"></div>' +
             '<button class="btn btn-primary btn-block" type="submit">' + svg("check") + "Opslaan en doorgaan</button>" +
           "</form>" +
@@ -1084,6 +1101,8 @@
         if (canEdit) return '<span class="chip' + sr + " " + (on ? "on" : "") + '" data-utask="' + x.id + "|" + esc(t) + '">' + esc(t) + "</span>";
         return on ? '<span class="chip on' + sr + '">' + esc(t) + "</span>" : "";
       }).join("");
+      // Teamleider/locatiemanager hebben geen bus/JBT/taken-opties nodig.
+      if (S.level(x) >= 4) { n2Cell = '<span class="cellsub">—</span>'; jbtCell = '<span class="cellsub">—</span>'; taskChips = ""; }
       var acct = "";
       if (x.mustSetPassword && x.otp) {
         acct = '<div class="otp-line">' + svg("key", "icon-sm") + "Eenmalige code: <code>" + esc(x.otp) + "</code>" +
@@ -1330,9 +1349,9 @@
       "</div>" +
       '<div class="prof-divider">Wachtwoord wijzigen</div>' +
       '<form id="cpForm">' +
-        '<div class="field"><label>Huidig wachtwoord</label><input type="password" name="old" required></div>' +
-        '<div class="field"><label>Nieuw wachtwoord</label><input type="password" name="n1" placeholder="Min. 4 tekens" required></div>' +
-        '<div class="field"><label>Herhaal nieuw wachtwoord</label><input type="password" name="n2" required></div>' +
+        '<div class="field"><label>Huidig wachtwoord</label>' + pwInput("old", "", " required") + "</div>" +
+        '<div class="field"><label>Nieuw wachtwoord</label>' + pwInput("n1", "Min. 4 tekens", " required") + "</div>" +
+        '<div class="field"><label>Herhaal nieuw wachtwoord</label>' + pwInput("n2", "", " required") + "</div>" +
         '<div id="cpMsg"></div>' +
       "</form>";
     openModal({
@@ -1380,9 +1399,10 @@
     return m;
   }
 
-  function portalHeader(u) {
+  function portalHeader(u, showBack) {
     var hub = S.hubById(u.hubId);
     return '<header class="app-header portal-header"><div class="app-header-inner">' +
+      (showBack ? '<button class="btn btn-icon portal-btn" data-portal title="Naar het menu">' + svg("grid", "icon-sm") + "</button>" : "") +
       '<div class="brand"><span class="logo-badge">' + logo(40) + "</span>" +
         '<div><div class="app-name">' + PORTAL + '</div><div class="app-sub">Bezorgservice · HUB ' + esc(hub ? hub.naam : "?") + "</div></div></div>" +
       '<div class="header-spacer"></div>' +
@@ -1442,9 +1462,8 @@
       lc: { name: "Laadproces", icon: "inbox", desc: "Hier komt het laadproces: vakken (1–40) koppelen aan bussen en ritnummers, importeren in de ochtend en handmatig invullen in de middag." }
     }[state.module] || { name: "Module", icon: "grid", desc: "" };
 
-    el("app").innerHTML = portalHeader(u) +
-      '<main><button class="btn btn-ghost back-portal" data-portal>' + svg("arrowLeft", "icon-sm") + "Naar de Hub</button>" +
-      '<div class="page-head" style="margin-top:14px"><div><h2>' + esc(info.name) + "</h2></div></div>" +
+    el("app").innerHTML = portalHeader(u, true) +
+      '<main><div class="page-head" style="margin-top:6px"><div><h2>' + esc(info.name) + "</h2></div></div>" +
       '<div class="panel" style="padding:30px;text-align:center">' +
         '<div class="empty" style="padding:30px 10px">' + svg(info.icon) + "<h3>" + esc(info.name) + " — in aanbouw</h3><p style=\"max-width:520px;margin:0 auto\">" + esc(info.desc) + "</p>" +
         '<div style="margin-top:18px"><span class="badge st-afwachting">Volgende fase</span></div></div></div></main>';
@@ -1504,9 +1523,8 @@
       '<button class="btn btn-primary btn-sm" id="plDownload">' + svg("download", "icon-sm") + "Afbeelding</button>" +
       "</div>";
 
-    el("app").innerHTML = portalHeader(u) +
-      '<main><button class="btn btn-ghost back-portal" data-portal>' + svg("arrowLeft", "icon-sm") + "Naar de Hub</button>" +
-      '<div class="page-head" style="margin-top:14px"><div><h2>Takenplanning</h2></div></div>' +
+    el("app").innerHTML = portalHeader(u, true) +
+      '<main><div class="page-head" style="margin-top:6px"><div><h2>Takenplanning</h2></div></div>' +
       toolbar + covStrip +
       '<div class="panel" style="padding:0"><div class="table-scroll"><table class="table plan-table">' + thead + tbody + "</table></div></div></main>";
 
@@ -1607,9 +1625,8 @@
      =================================================================== */
   function moduleShell(title, content, opts) {
     opts = opts || {};
-    return portalHeader(S.currentUser()) +
-      '<main><button class="btn btn-ghost back-portal" data-portal>' + svg("arrowLeft", "icon-sm") + "Naar de Hub</button>" +
-      '<div class="page-head" style="margin-top:14px"><div><h2>' + esc(title) + "</h2></div>" +
+    return portalHeader(S.currentUser(), true) +
+      '<main><div class="page-head" style="margin-top:6px"><div><h2>' + esc(title) + "</h2></div>" +
       '<div class="grow"></div><span class="live-badge">' + svg("refresh", "icon-sm") + "Live</span></div>" +
       (opts.noShift ? "" : shiftBar()) + content + "</main>";
   }

@@ -168,13 +168,13 @@
   var can = {
     seeLog:       function (u) { return level(u) >= 3; },
     seeStats:     function (u) { return level(u) >= 4; },
-    seeBeheer:    function (u) { return level(u) >= 3; },
+    seeBeheer:    function (u) { return level(u) >= 4; },   // personeelsbeheer = teamleider+ (senior niet)
     planning:     function (u) { return level(u) >= 3; },
     editTeam:     function (u) { return level(u) >= 4; },   // N2, taken, jbt, account toevoegen
     editRoles:    function (u) { return level(u) >= 5; },   // functie toewijzen = locatie-manager
     editHubs:     function (u) { return level(u) >= 5; },   // hubs = locatie-manager
     editCatalog:  function (u) { return level(u) >= 4; },   // takenlijst = teamleider+
-    resetData:    function (u) { return level(u) >= 5; },
+    resetData:    function (u) { return isAdmin(u); },   // alle gegevens wissen = alleen beheerder
     approveTask:  function (u) { return level(u) >= 3; },
     approveBackup:function (u) { return level(u) >= 3; },
     approveShift: function (u, shift) {
