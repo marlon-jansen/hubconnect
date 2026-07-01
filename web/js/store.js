@@ -533,6 +533,22 @@
     var t = userById(targetId); if (!t) return;
     var i = t.taken.indexOf(taak); if (i === -1) t.taken.push(taak); else t.taken.splice(i, 1); save();
   }
+  function removeUser(targetId) {
+    var me = currentUser();
+    if (!can.editTeam(me)) throw new Error("Alleen teamleider of hoger mag medewerkers verwijderen.");
+    var t = userById(targetId); if (!t) throw new Error("Medewerker niet gevonden.");
+    if (t.id === me.id) throw new Error("Je kunt jezelf niet verwijderen.");
+    if (t.hidden) throw new Error("Deze gebruiker kan niet verwijderd worden.");
+    if (!isAdmin(me) && level(t) >= level(me)) throw new Error("Je kunt alleen medewerkers met een lagere functie verwijderen.");
+    db.users = db.users.filter(function (u) { return u.id !== targetId; });
+    // opruimen: eigen ruilitems weg, en 'overgenomen door' terugzetten naar open
+    ["shifts", "taskOffers", "backups", "callouts"].forEach(function (key) {
+      if (!Array.isArray(db[key])) return;
+      db[key] = db[key].filter(function (x) { return x.aanbiederId !== targetId; });
+      db[key].forEach(function (x) { if (x.overnemerId === targetId) { x.overnemerId = null; if (x.status === "in-afwachting") x.status = "open"; } });
+    });
+    save();
+  }
   function addHub(naam) {
     if (!can.editHubs(currentUser())) throw new Error("Alleen een locatie-manager mag hubs beheren.");
     naam = (naam || "").trim(); if (!naam) throw new Error("Vul een hubnaam in.");
@@ -617,8 +633,12 @@
     { id: "leeg4", label: "Lege 4-laags" },
     { id: "koel4", label: "Koelboxen (4-laags)" },
     { id: "kratten5", label: "Kratten (5-laags)" },
-    { id: "emb5", label: "Emballage (5-laags)" }
+    { id: "emb5", label: "Emballage (5-laags)" },
+    { id: "overig", label: "Overig" }
   ];
+  // Vaste vakindeling (nummering met gaten: 14 en 15 bestaan niet) + standaard-soort per vak. Blijft aanpasbaar.
+  var VAK_NUMMERS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 16, 17, 18];
+  var VAK_STANDAARD = { 1: "leeg5", 2: "kratten5", 3: "kratten5", 4: "koel4", 5: "koel4", 6: "koel4", 7: "koel4", 8: "emb5", 9: "emb5", 10: "emb5", 11: "emb5", 12: "leeg5", 13: "leeg5", 16: "overig", 17: "leeg4", 18: "leeg4" };
   function vakSoortLabel(id) { var s = VAK_SOORTEN.filter(function (x) { return x.id === id; })[0]; return s ? s.label : "—"; }
   function reload() { refresh(); }
   function splitLines(t) { return (t || "").split(/\r?\n/).map(function (x) { return x.trim(); }); }
@@ -647,22 +667,23 @@
 
   /* ----- Schadecontrole ----- */
   function getSchade(hubId, datum, dagdeel) { if (!db.schade) db.schade = {}; var k = opKey(hubId, datum, dagdeel); if (!db.schade[k]) db.schade[k] = { buses: [], steekproeven: [] }; if (!db.schade[k].steekproeven) db.schade[k].steekproeven = []; return db.schade[k]; }
-  function steekproevenVan(hubId, datum, dagdeel) { var s = getSchade(hubId, datum, dagdeel); while (s.steekproeven.length < 5) s.steekproeven.push({ naam: "", hr: "", rit: "", kratten: "" }); return s.steekproeven; }
-  function setSteekproef(hubId, datum, dagdeel, idx, data) {
+  // Steekproef per bus: gele knop op de busregel opent naam/hr/rit/kratten (standaard 5 steekproeven).
+  function setBusSteekproef(hubId, datum, dagdeel, busId, data) {
     if (!canOpShift(currentUser(), hubId, datum, dagdeel, "schadecontrole", "Schadecontrole")) throw new Error("Je bent deze shift niet aangewezen voor de schadecontrole.");
-    var arr = steekproevenVan(hubId, datum, dagdeel); var sp = arr[idx]; if (!sp) return;
-    if (data.naam !== undefined) sp.naam = data.naam.trim();
-    if (data.hr !== undefined) sp.hr = data.hr.trim();
-    if (data.rit !== undefined) sp.rit = data.rit.trim();
-    if (data.kratten !== undefined) sp.kratten = data.kratten;
+    var b = getSchade(hubId, datum, dagdeel).buses.filter(function (x) { return x.id === busId; })[0]; if (!b) return;
+    if (!b.steekproef) b.steekproef = { naam: "", hr: "", rit: "", kratten: "" };
+    if (data.naam !== undefined) b.steekproef.naam = data.naam.trim();
+    if (data.hr !== undefined) b.steekproef.hr = data.hr.trim();
+    if (data.rit !== undefined) b.steekproef.rit = data.rit.trim();
+    if (data.kratten !== undefined) b.steekproef.kratten = data.kratten;
     save();
   }
+  function steekproefDone(b) { return !!(b && b.steekproef && b.steekproef.naam && b.steekproef.kratten !== "" && b.steekproef.kratten != null); }
   function steekproefStats(hubId, datum, dagdeel) {
-    var arr = steekproevenVan(hubId, datum, dagdeel);
-    var done = arr.filter(function (s) { return s.naam && s.kratten !== "" && s.kratten != null; }).length;
-    return { done: done, total: 5 };
+    var b = getSchade(hubId, datum, dagdeel).buses;
+    return { done: b.filter(steekproefDone).length, total: 5 };
   }
-  function newBus(naam, bus, kenteken) { return { id: uid("bus"), naam: (naam || "").trim(), bus: (bus || "").trim(), kenteken: (kenteken || "").trim(), dock: "", schade: false, tolkrol: false, kabels: false, doekjes: false }; }
+  function newBus(naam, bus, kenteken) { return { id: uid("bus"), naam: (naam || "").trim(), bus: (bus || "").trim(), kenteken: (kenteken || "").trim(), dock: "", gecontroleerd: false, mist_tolkrol: false, mist_kabels: false, mist_doekjes: false, steekproef: null }; }
   function schadeImportColumns(hubId, datum, dagdeel, busText, kentekenText, naamText) {
     if (!isSetup(currentUser())) throw new Error("Alleen binnendienst (senior+) mag importeren.");
     var s = getSchade(hubId, datum, dagdeel);
@@ -694,13 +715,14 @@
   function schadeReset(hubId, datum, dagdeel) { if (!isSetup(currentUser())) throw new Error("Geen rechten."); db.schade[opKey(hubId, datum, dagdeel)] = { buses: [] }; save(); }
   function schadeStats(hubId, datum, dagdeel) {
     var b = getSchade(hubId, datum, dagdeel).buses;
-    var done = b.filter(function (x) { return x.schade && x.tolkrol && x.kabels && x.doekjes; }).length;
+    var done = b.filter(function (x) { return x.gecontroleerd; }).length;
     return { total: b.length, done: done, pct: b.length ? Math.round(done / b.length * 100) : 0 };
   }
 
   /* ----- Kwaliteit: vak-soort + emballage per vak ----- */
   function getKwaliteit(hubId, datum, dagdeel) { if (!db.kwaliteit) db.kwaliteit = {}; var k = opKey(hubId, datum, dagdeel); if (!db.kwaliteit[k]) db.kwaliteit[k] = { emballage: {}, soort: {} }; if (!db.kwaliteit[k].soort) db.kwaliteit[k].soort = {}; return db.kwaliteit[k]; }
-  function vakSoort(hubId, datum, dagdeel, vak) { return getKwaliteit(hubId, datum, dagdeel).soort[vak] || ""; }
+  function vakSoortOf(k, vak) { var s = k.soort[vak]; return (s === undefined || s === null) ? (VAK_STANDAARD[vak] || "") : s; }
+  function vakSoort(hubId, datum, dagdeel, vak) { return vakSoortOf(getKwaliteit(hubId, datum, dagdeel), vak); }
   function setVakSoort(hubId, datum, dagdeel, vak, soortId) {
     if (!(canOpShift(currentUser(), hubId, datum, dagdeel, "kwaliteit", "Kwaliteit") || isSetup(currentUser()))) throw new Error("Je bent deze shift niet aangewezen voor kwaliteit.");
     var k = getKwaliteit(hubId, datum, dagdeel); k.soort[vak] = soortId || "";
@@ -710,7 +732,7 @@
   function emballageSet(hubId, datum, dagdeel, vak, idx, value) {
     if (!canOpShift(currentUser(), hubId, datum, dagdeel, "kwaliteit", "Kwaliteit")) throw new Error("Je bent deze shift niet aangewezen voor kwaliteit.");
     var k = getKwaliteit(hubId, datum, dagdeel);
-    if (k.soort[vak] !== "emb5") throw new Error("Dit vak is niet ingesteld op emballage.");
+    if (vakSoortOf(k, vak) !== "emb5") throw new Error("Dit vak is niet ingesteld op emballage.");
     if (!k.emballage[vak]) { k.emballage[vak] = []; for (var i = 0; i < EMB_TROLLEYS; i++) k.emballage[vak].push(0); }
     k.emballage[vak][idx] = Math.max(0, parseInt(value, 10) || 0); save();
   }
@@ -718,22 +740,62 @@
     var arr = getKwaliteit(hubId, datum, dagdeel).emballage[vak] || [];
     return arr.reduce(function (a, b) { return a + (b || 0); }, 0);
   }
+  // Binnendienst kan een emballagevak leeghalen (staat los van de trolley-telling).
+  function clearEmbVak(hubId, datum, dagdeel, vak) {
+    if (!isSetup(currentUser())) throw new Error("Alleen binnendienst (senior+) mag een vak leeghalen.");
+    var k = getKwaliteit(hubId, datum, dagdeel); delete k.emballage[vak]; save();
+  }
 
-  /* ----- Trolley-voorraad (LC vult via pendels; senior+ kan corrigeren) ----- */
-  function getTrolley(hubId, datum, dagdeel) { if (!db.trolley) db.trolley = {}; var k = opKey(hubId, datum, dagdeel); if (!db.trolley[k]) db.trolley[k] = { stock4: 0, stock5: 0, pendels: [] }; return db.trolley[k]; }
-  function addPendel(hubId, datum, dagdeel, m) {
-    if (!canOpShift(currentUser(), hubId, datum, dagdeel, "lc", "LC")) throw new Error("Je bent deze shift niet aangewezen als LC.");
+  /* ----- Trolley-voorraad (loopt door per hub: draagt over naar volgende dagdeel én dag) ----- */
+  function trolleyOrd(datum, dagdeel) { return datum + (dagdeel === "AM" ? "0" : "1"); }
+  function latestTrolleyBefore(hubId, datum, dagdeel) {
+    if (!db.trolley) return null;
+    var curOrd = trolleyOrd(datum, dagdeel), best = null, bestOrd = "";
+    Object.keys(db.trolley).forEach(function (kk) {
+      var p = kk.split("|"); if (p[0] !== hubId) return;
+      var o = trolleyOrd(p[1], p[2]);
+      if (o < curOrd && o > bestOrd) { bestOrd = o; best = db.trolley[kk]; }
+    });
+    return best;
+  }
+  function getTrolley(hubId, datum, dagdeel) {
+    if (!db.trolley) db.trolley = {};
+    var k = opKey(hubId, datum, dagdeel);
+    if (!db.trolley[k]) { var prev = latestTrolleyBefore(hubId, datum, dagdeel); db.trolley[k] = { stock4: prev ? prev.stock4 : 0, stock5: prev ? prev.stock5 : 0, pendels: [] }; }
+    if (!db.trolley[k].pendels) db.trolley[k].pendels = [];
+    return db.trolley[k];
+  }
+  // Binnendienst plant een pendel (met geplande aankomsttijd) klaar voor deze shift.
+  function addPendelPlan(hubId, datum, dagdeel, tijd) {
+    if (!isSetup(currentUser())) throw new Error("Alleen binnendienst (senior+) mag pendels klaarzetten.");
     var t = getTrolley(hubId, datum, dagdeel);
-    var in4 = parseInt(m.in4, 10) || 0, out4 = parseInt(m.out4, 10) || 0, in5 = parseInt(m.in5, 10) || 0, out5 = parseInt(m.out5, 10) || 0;
-    if (!(in4 || out4 || in5 || out5)) throw new Error("Vul minimaal één aantal in.");
-    t.stock4 = Math.max(0, t.stock4 + in4 - out4);
-    t.stock5 = Math.max(0, t.stock5 + in5 - out5);
-    t.pendels.unshift({ id: uid("pen"), in4: in4, out4: out4, in5: in5, out5: out5, by: currentUser().id, ts: now() });
+    t.pendels.push({ id: uid("pen"), tijd: (tijd || "").trim(), in4: 0, out4: 0, in5: 0, out5: 0 });
+    save();
+  }
+  function removePendel(hubId, datum, dagdeel, id) {
+    if (!isSetup(currentUser())) throw new Error("Alleen binnendienst (senior+) mag pendels verwijderen.");
+    var t = getTrolley(hubId, datum, dagdeel); t.pendels = t.pendels.filter(function (p) { return p.id !== id; }); save();
+  }
+  // LC verwerkt de trolley-veranderingen per pendel met +/- (past de doorlopende voorraad aan).
+  function pendelBump(hubId, datum, dagdeel, id, field, delta) {
+    if (!canOpShift(currentUser(), hubId, datum, dagdeel, "lc", "LC")) throw new Error("Je bent deze shift niet aangewezen als LC.");
+    if (["in4", "out4", "in5", "out5"].indexOf(field) === -1) return;
+    var t = getTrolley(hubId, datum, dagdeel); var p = t.pendels.filter(function (x) { return x.id === id; })[0]; if (!p) return;
+    var nv = Math.max(0, (p[field] || 0) + (parseInt(delta, 10) || 0)); var applied = nv - (p[field] || 0); p[field] = nv;
+    var lay = (field === "in4" || field === "out4") ? "stock4" : "stock5";
+    var sign = (field === "in4" || field === "in5") ? 1 : -1;
+    t[lay] = Math.max(0, (t[lay] || 0) + sign * applied);
     save();
   }
   function trolleySetStock(hubId, datum, dagdeel, field, value) {
     if (!isSetup(currentUser())) throw new Error("Alleen binnendienst (senior+) mag corrigeren.");
     var t = getTrolley(hubId, datum, dagdeel); t[field] = Math.max(0, parseInt(value, 10) || 0); save();
+  }
+  // Trolley-telling met +/- (kwaliteit tijdens/na de shift, of senior+).
+  function trolleyBump(hubId, datum, dagdeel, field, delta) {
+    if (!(canOpShift(currentUser(), hubId, datum, dagdeel, "kwaliteit", "Kwaliteit") || isSetup(currentUser()))) throw new Error("Je bent deze shift niet aangewezen voor kwaliteit.");
+    if (field !== "stock4" && field !== "stock5") return;
+    var t = getTrolley(hubId, datum, dagdeel); t[field] = Math.max(0, (t[field] || 0) + (parseInt(delta, 10) || 0)); save();
   }
 
   /* ----- LC (laden) ----- */
@@ -784,8 +846,9 @@
   function lcReset(hubId, datum, dagdeel) { if (!isSetup(currentUser())) throw new Error("Geen rechten."); db.lc[opKey(hubId, datum, dagdeel)] = { vakken: [], aantal: 0 }; save(); }
 
   // Volledige planning-sheet importeren (plak met kopregel). Vult schade + LC automatisch.
-  function importSheet(hubId, datum, dagdeel, text) {
+  function importSheet(hubId, datum, dagdeel, text, part) {
     if (!isSetup(currentUser())) throw new Error("Alleen binnendienst (senior+) mag importeren.");
+    var doSchade = part !== "laden", doLaden = part !== "schade";
     var lines = (text || "").split(/\r?\n/).filter(function (l) { return l.trim(); });
     if (lines.length < 2) throw new Error("Plak de hele sheet inclusief de kopregel.");
     function cells(l) { return l.indexOf("\t") !== -1 ? l.split("\t") : l.split(/ {2,}|;|,/); }
@@ -821,14 +884,16 @@
       var ze = /ze/i.test(type) || tokHas(opmText, "ze");
       if (!bus && !rit) continue; // lege regel
       // schade alleen voor regels met een echte bus
-      if (bus) schade.buses.push(newBus(naam, bus, kent));
+      if (bus && doSchade) schade.buses.push(newBus(naam, bus, kent));
       // lc-vak — ritnummer is altijd aan het vaknummer gekoppeld, ook zonder bus
-      while (lc.vakken.length < volg) lc.vakken.push(newVak(lc.vakken.length + 1));
-      var vk = lc.vakken[volg - 1];
-      if (vk) { vk.bus = bus; vk.rit = rit; vk.vertrek = vertrek; vk.type = n2 ? "N2" : "diesel"; vk.ze = ze; }
+      if (doLaden) {
+        while (lc.vakken.length < volg) lc.vakken.push(newVak(lc.vakken.length + 1));
+        var vk = lc.vakken[volg - 1];
+        if (vk) { vk.bus = bus; vk.rit = rit; vk.vertrek = vertrek; vk.type = n2 ? "N2" : "diesel"; vk.ze = ze; }
+      }
       n++;
     }
-    lc.aantal = lc.vakken.length;
+    if (doLaden) lc.aantal = lc.vakken.length;
     save();
     return n;
   }
@@ -875,16 +940,16 @@
     offerTask: offerTask, withdrawTask: withdrawTask, claimTask: claimTask, decideTask: decideTask,
     offerBackup: offerBackup, withdrawBackup: withdrawBackup, claimBackup: claimBackup, decideBackup: decideBackup,
     offerCallout: offerCallout, withdrawCallout: withdrawCallout, claimCallout: claimCallout, decideCallout: decideCallout,
-    setUserRole: setUserRole, setUserN2: setUserN2, setUserJbt: setUserJbt, setUserHub: setUserHub, toggleUserTask: toggleUserTask,
+    setUserRole: setUserRole, setUserN2: setUserN2, setUserJbt: setUserJbt, setUserHub: setUserHub, toggleUserTask: toggleUserTask, removeUser: removeUser,
     addHub: addHub, removeHub: removeHub, addCatalogTask: addCatalogTask, removeCatalogTask: removeCatalogTask,
     planningFor: planningFor, planById: planById, setPlanCell: setPlanCell, addPlanRow: addPlanRow, removePlanRow: removePlanRow,
-    reload: reload, DOCKS: DOCKS, EMB_TROLLEYS: EMB_TROLLEYS, EMB_VAKKEN: EMB_VAKKEN, VAK_SOORTEN: VAK_SOORTEN, vakSoortLabel: vakSoortLabel,
+    reload: reload, DOCKS: DOCKS, EMB_TROLLEYS: EMB_TROLLEYS, EMB_VAKKEN: EMB_VAKKEN, VAK_NUMMERS: VAK_NUMMERS, VAK_SOORTEN: VAK_SOORTEN, vakSoortLabel: vakSoortLabel,
     isSunday: isSunday, dagdelenVoor: dagdelenVoor, isSetup: isSetup, canOpShift: canOpShift,
     getDiensten: getDiensten, setDienst: setDienst, importSheet: importSheet,
     getSchade: getSchade, schadeImportColumns: schadeImportColumns, schadeAddBus: schadeAddBus, schadeToggle: schadeToggle, schadeSetDock: schadeSetDock, schadeRemove: schadeRemove, schadeReset: schadeReset, schadeStats: schadeStats,
-    steekproevenVan: steekproevenVan, setSteekproef: setSteekproef, steekproefStats: steekproefStats,
-    getKwaliteit: getKwaliteit, vakSoort: vakSoort, setVakSoort: setVakSoort, emballageSet: emballageSet, emballageVakTotal: emballageVakTotal,
-    getTrolley: getTrolley, addPendel: addPendel, trolleySetStock: trolleySetStock,
+    setBusSteekproef: setBusSteekproef, steekproefDone: steekproefDone, steekproefStats: steekproefStats,
+    getKwaliteit: getKwaliteit, vakSoort: vakSoort, setVakSoort: setVakSoort, emballageSet: emballageSet, emballageVakTotal: emballageVakTotal, clearEmbVak: clearEmbVak,
+    getTrolley: getTrolley, addPendelPlan: addPendelPlan, removePendel: removePendel, pendelBump: pendelBump, trolleySetStock: trolleySetStock, trolleyBump: trolleyBump,
     getLC: getLC, lcSetAantal: lcSetAantal, lcSetupVak: lcSetupVak, lcSetBus: lcSetBus, lcToggleGeladen: lcToggleGeladen, lcImportColumns: lcImportColumns, lcReset: lcReset, lcStats: lcStats,
     shiftsForHub: shiftsForHub, taskOffersForHub: taskOffersForHub, backupsForHub: backupsForHub, calloutsForHub: calloutsForHub,
     logsForHub: logsForHub, usersForHub: usersForHub, manageableUsers: manageableUsers,

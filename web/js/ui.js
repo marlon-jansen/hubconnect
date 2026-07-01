@@ -143,7 +143,8 @@
     return { overlay: ov, close: close };
   }
 
-  function act(fn, okMsg) { try { fn(); toast(okMsg, "ok"); renderApp(); } catch (e) { toast(e.message, "err"); } }
+  var reRender = null; // welke render-functie het huidige scherm opnieuw tekent (ruilhub of los menu-item)
+  function act(fn, okMsg) { try { fn(); toast(okMsg, "ok"); (reRender || renderApp)(); } catch (e) { toast(e.message, "err"); } }
 
   /* ===================================================================
      LANDING
@@ -255,12 +256,12 @@
     ];
     if (S.can.isApprover(u)) items.push({ id: "approvals", label: "Goedkeuren", icon: "checkCircle", count: S.pendingCount(u) });
     if (S.can.seeStats(u)) items.push({ id: "stats", label: "Statistieken", icon: "chart" });
-    if (S.can.seeBeheer(u)) items.push({ id: "beheer", label: "Beheren", icon: "userCog" });
     if (S.can.seeLog(u)) items.push({ id: "log", label: "Historie", icon: "history" });
     return items;
   }
 
   function renderApp() {
+    reRender = renderApp;
     var u = S.currentUser();
     var hub = S.hubById(u.hubId);
     var items = navItems(u);
@@ -1031,7 +1032,7 @@
   /* ===================================================================
      BEHEREN
      =================================================================== */
-  function viewBeheer() {
+  function viewBeheer(embedded) {
     var u = S.currentUser();
     var tabs = [{ id: "team", label: "Medewerkers" }, { id: "hubs", label: "Hubs" }, { id: "tasks", label: "Taken" }];
     if (S.can.resetData(u)) tabs.push({ id: "data", label: "Gegevens" });
@@ -1042,7 +1043,16 @@
     }).join("") + "</div>";
 
     var body = state.beheerTab === "team" ? beheerTeam() : (state.beheerTab === "hubs" ? beheerHubs() : (state.beheerTab === "tasks" ? beheerTasks() : beheerData()));
-    return '<div class="page-head"><div><h2>Beheren</h2><p>Medewerkers, functies, taken en hubs.</p></div></div>' + seg + body;
+    var head = embedded ? "" : '<div class="page-head"><div><h2>Beheren</h2><p>Medewerkers, functies, taken en hubs.</p></div></div>';
+    return head + seg + body;
+  }
+
+  // Personeelsbeheer als los menu-item (onder "Planning"). Hergebruikt de beheer-view.
+  function renderPersoneelsbeheer() {
+    reRender = renderPersoneelsbeheer;
+    el("app").innerHTML = moduleShell("Personeelsbeheer", viewBeheer(true), { noShift: true });
+    bindModuleHeader();
+    bindBeheer();
   }
 
   function beheerTeam() {
@@ -1081,9 +1091,12 @@
       } else if (canEdit) {
         acct = '<button class="link-btn" data-regen="' + x.id + '">' + svg("key", "icon-sm") + "Reset wachtwoord</button>";
       }
+      var delBtn = (canEdit && x.id !== u.id && !x.hidden && S.level(x) < S.level(u))
+        ? '<div><button class="link-btn danger" data-deluser="' + x.id + '">' + svg("trash", "icon-sm") + "Verwijderen</button></div>"
+        : "";
 
       return "<tr><td><div class=\"cellname\">" + fullName(x) + (x.id === u.id ? " (jij)" : "") + "</div><div class=\"cellsub\">" + esc(x.email) + "</div>" +
-        (showHub ? '<div class="cellsub">HUB ' + esc(hub ? hub.naam : "?") + "</div>" : "") + acct + "</td>" +
+        (showHub ? '<div class="cellsub">HUB ' + esc(hub ? hub.naam : "?") + "</div>" : "") + acct + delBtn + "</td>" +
         "<td>" + roleCell + "</td><td>" + n2Cell + "</td><td>" + jbtCell + "</td>" +
         '<td><div class="chips">' + (taskChips || '<span class="cellsub">—</span>') + "</div></td></tr>";
     }).join("");
@@ -1134,22 +1147,28 @@
   }
 
   function beheerData() {
-    return '<div class="panel"><div class="panel-head">' + svg("shield") + "<h3>Gegevens &amp; prototype</h3></div>" +
-      '<div style="padding:18px"><p style="margin:0 0 14px;color:var(--ink-soft);font-weight:600">Lokaal prototype: alle gegevens staan in deze browser (localStorage). ' +
-      'Andere apparaten zien deze gegevens niet. Voor echt gedeeld gebruik is een online versie met server nodig.</p>' +
-      '<button class="btn btn-red" id="resetData">' + svg("trash", "icon-sm") + "Alle gegevens wissen &amp; demo herstellen</button></div></div>";
+    return '<div class="panel"><div class="panel-head">' + svg("shield") + "<h3>Gegevens</h3></div>" +
+      '<div style="padding:18px"><p style="margin:0 0 14px;color:var(--ink-soft);font-weight:600">Alle gegevens staan centraal in de database op de server en worden realtime gedeeld met alle apparaten.</p>' +
+      '<button class="btn btn-red" id="resetData">' + svg("trash", "icon-sm") + "Alle gegevens wissen &amp; opnieuw beginnen</button></div></div>";
   }
 
   function bindBeheer() {
-    document.querySelectorAll("[data-btab]").forEach(function (b) { b.addEventListener("click", function () { state.beheerTab = b.getAttribute("data-btab"); renderMain(); }); });
+    document.querySelectorAll("[data-btab]").forEach(function (b) { b.addEventListener("click", function () { state.beheerTab = b.getAttribute("data-btab"); (reRender || renderMain)(); }); });
     var ts = el("teamSearch");
-    if (ts) ts.addEventListener("input", function () { state.teamQ = ts.value; var m = el("main"); m.innerHTML = viewBeheer(); bindBeheer(); var n = el("teamSearch"); if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); } });
+    if (ts) ts.addEventListener("input", function () { state.teamQ = ts.value; (reRender || renderMain)(); var n = el("teamSearch"); if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); } });
     document.querySelectorAll("[data-role]").forEach(function (s) { s.addEventListener("change", function () { act(function () { S.setUserRole(s.getAttribute("data-role"), s.value); }, "Functie bijgewerkt."); }); });
     document.querySelectorAll("[data-n2]").forEach(function (c) { c.addEventListener("change", function () { act(function () { S.setUserN2(c.getAttribute("data-n2"), c.checked); }, "N2-bevoegdheid bijgewerkt."); }); });
     document.querySelectorAll("[data-tasktype]").forEach(function (b) { b.addEventListener("click", function () { var p = b.getAttribute("data-tasktype").split("|"); act(function () { S.setTaskType(p[0], p[1]); }, "Taaktype bijgewerkt."); }); });
     document.querySelectorAll("[data-jbt]").forEach(function (c) { c.addEventListener("click", function () { var id = c.getAttribute("data-jbt"); var t = S.userById(id); act(function () { S.setUserJbt(id, !t.jbtTrainer); }, "JBT-trainer bijgewerkt."); }); });
     document.querySelectorAll("[data-utask]").forEach(function (c) { c.addEventListener("click", function () { var p = c.getAttribute("data-utask").split("|"); act(function () { S.toggleUserTask(p[0], p[1]); }, "Taken bijgewerkt."); }); });
-    document.querySelectorAll("[data-regen]").forEach(function (b) { b.addEventListener("click", function () { var id = b.getAttribute("data-regen"); try { var otp = S.regenerateOtp(id); showOtpModal(S.userById(id), otp); renderApp(); } catch (e) { toast(e.message, "err"); } }); });
+    document.querySelectorAll("[data-regen]").forEach(function (b) { b.addEventListener("click", function () { var id = b.getAttribute("data-regen"); try { var otp = S.regenerateOtp(id); showOtpModal(S.userById(id), otp); (reRender || renderApp)(); } catch (e) { toast(e.message, "err"); } }); });
+    document.querySelectorAll("[data-deluser]").forEach(function (b) { b.addEventListener("click", function () {
+      var id = b.getAttribute("data-deluser"); var t = S.userById(id); if (!t) return;
+      openModal({ title: "Medewerker verwijderen?", icon: "trash",
+        body: '<p style="margin:0;color:var(--ink-soft);font-weight:600">Weet je zeker dat je <b>' + fullName(t) + "</b> wilt verwijderen? Het account en de openstaande ruilverzoeken van deze persoon worden verwijderd. Dit kan niet ongedaan worden gemaakt.</p>",
+        foot: '<button class="btn btn-ghost" data-close>Annuleren</button><button class="btn btn-red" id="cdu">' + svg("trash", "icon-sm") + "Verwijderen</button>",
+        onMount: function (ov, close) { ov.querySelector("#cdu").addEventListener("click", function () { try { S.removeUser(id); close(); (reRender || renderApp)(); toast("Medewerker verwijderd.", "ok"); } catch (e) { toast(e.message, "err"); } }); } });
+    }); });
     var ah = el("addHub"); if (ah) ah.addEventListener("click", function () { act(function () { S.addHub(el("newHub").value); }, "Hub toegevoegd."); });
     document.querySelectorAll("[data-delhub]").forEach(function (b) { b.addEventListener("click", function () { act(function () { S.removeHub(b.getAttribute("data-delhub")); }, "Hub verwijderd."); }); });
     var at = el("addTask"); if (at) at.addEventListener("click", function () { var ty = el("newTaskType") ? el("newTaskType").value : "bezorger"; act(function () { S.addCatalogTask(el("newTask").value, ty); }, "Taak toegevoegd."); });
@@ -1157,9 +1176,9 @@
     var au = el("addUser"); if (au) au.addEventListener("click", openAddUser);
     var rd = el("resetData"); if (rd) rd.addEventListener("click", function () {
       openModal({ title: "Weet je het zeker?", icon: "trash",
-        body: '<p style="margin:0;color:var(--ink-soft);font-weight:600">Alle accounts, ruilingen en de historie worden gewist en de demo-gegevens hersteld. Dit kan niet ongedaan worden gemaakt.</p>',
+        body: '<p style="margin:0;color:var(--ink-soft);font-weight:600">Alle accounts, ruilingen en de historie in de database worden gewist en alleen de basisgegevens (hubs + takenlijst) worden opnieuw aangemaakt. Dit kan niet ongedaan worden gemaakt.</p>',
         foot: '<button class="btn btn-ghost" data-close>Annuleren</button><button class="btn btn-red" id="cr">' + svg("trash", "icon-sm") + "Wissen</button>",
-        onMount: function (ov, close) { ov.querySelector("#cr").addEventListener("click", function () { S.resetDemo(); close(); authScreen = "landing"; render(); toast("Demo hersteld.", "ok"); }); } });
+        onMount: function (ov, close) { ov.querySelector("#cr").addEventListener("click", function () { S.resetDemo(); close(); authScreen = "landing"; render(); toast("Gegevens gewist.", "ok"); }); } });
     });
   }
 
@@ -1188,7 +1207,7 @@
           var f = ov.querySelector("#auForm");
           try {
             var res = S.createUserByLeader({ voornaam: f.voornaam.value, achternaam: f.achternaam.value, personeelsnummer: f.num.value, rol: f.rol.value, hubId: f.hubId ? f.hubId.value : null, n2: f.n2.checked, jbtTrainer: f.jbt.checked });
-            close(); renderApp(); showOtpModal(res.user, res.otp);
+            close(); (reRender || renderApp)(); showOtpModal(res.user, res.otp);
           } catch (e) { toast(e.message, "err"); }
         });
       }
@@ -1348,14 +1367,16 @@
      PORTAAL (keuzemenu)
      =================================================================== */
   function portalModules(u) {
-    var m = [{ id: "ruilhub", name: "RuilHub", icon: "exchange", color: "yellow", desc: "Shifts en taken ruilen binnen je hub." }];
-    if (S.level(u) >= 3) {
-      m.push({ id: "dashboard", name: "Dashboard", icon: "chart", color: "dark", desc: "Realtime overzicht van de shift." });
-      m.push({ id: "takenplanning", name: "Takenplanning", icon: "clipboardList", color: "blue", desc: "Weekrooster maken & delen." });
-      m.push({ id: "schadecontrole", name: "Schadecontrole", icon: "shield", color: "green", desc: "Bussen controleren & afvinken." });
-      m.push({ id: "kwaliteit", name: "Kwaliteit", icon: "award", color: "purple", desc: "Emballage tellen per vak." });
-      m.push({ id: "lc", name: "Laadproces", icon: "inbox", color: "orange", desc: "Ritten koppelen aan bussen & trolleys." });
-    }
+    var senior = S.level(u) >= 3;
+    function hasTask(n) { return u.taken && u.taken.indexOf(n) !== -1; }
+    var m = [{ id: "ruilhub", name: "RuilHub", icon: "exchange", color: "yellow", group: "Planning", desc: "Shifts en taken ruilen binnen je hub." }];
+    if (senior) m.push({ id: "takenplanning", name: "Takenplanning", icon: "clipboardList", color: "blue", group: "Planning", desc: "Weekrooster maken & delen." });
+    if (S.can.seeBeheer(u)) m.push({ id: "personeelsbeheer", name: "Personeelsbeheer", icon: "userCog", color: "teal", group: "Planning", desc: "Medewerkers, functies, taken en hubs." });
+    if (senior) m.push({ id: "dashboard", name: "Senior Dashboard", icon: "chart", color: "dark", group: "Proces", desc: "Realtime overzicht van de shift." });
+    // Bezorgers zien een procesmodule zodra ze de bijbehorende taak toegewezen krijgen (personeelsbeheer).
+    if (senior || hasTask("Schadecontrole")) m.push({ id: "schadecontrole", name: "Schadecontrole", icon: "shield", color: "green", group: "Proces", desc: "Bussen controleren & afvinken." });
+    if (senior || hasTask("Kwaliteit")) m.push({ id: "kwaliteit", name: "Kwaliteit", icon: "award", color: "purple", group: "Proces", desc: "Emballage tellen per vak." });
+    if (senior || hasTask("LC") || hasTask("Laden")) m.push({ id: "lc", name: "Laadproces", icon: "inbox", color: "orange", group: "Proces", desc: "Ritten koppelen aan bussen & trolleys." });
     return m;
   }
 
@@ -1377,16 +1398,22 @@
   function renderPortal() {
     var u = S.currentUser();
     var mods = portalModules(u);
-    var tiles = mods.map(function (m) {
+    function tileHTML(m) {
       return '<button class="tile tile-' + m.color + '" data-module="' + m.id + '">' +
         '<span class="tile-ico">' + svg(m.icon, "icon-lg") + "</span>" +
         '<span class="tile-name">' + esc(m.name) + "</span>" +
         '<span class="tile-desc">' + esc(m.desc) + "</span></button>";
+    }
+    var sections = ["Planning", "Proces"].map(function (g) {
+      var gm = mods.filter(function (m) { return (m.group || "Proces") === g; });
+      if (!gm.length) return "";
+      return '<section class="portal-group"><h3 class="portal-group-title">' + esc(g) + "</h3>" +
+        '<div class="tile-grid">' + gm.map(tileHTML).join("") + "</div></section>";
     }).join("");
     el("app").innerHTML = portalHeader(u) +
       '<main class="portal-main">' +
         '<div class="portal-welcome"><h2>Hoi ' + esc(u.voornaam) + " 👋</h2><p>Waar wil je mee aan de slag?</p></div>" +
-        '<div class="tile-grid">' + tiles + "</div>" +
+        sections +
       "</main>";
     el("app").querySelector("[data-logout]").addEventListener("click", function () { S.logout(); authScreen = "landing"; render(); });
     el("app").querySelector("[data-profile]").addEventListener("click", openProfile);
@@ -1402,6 +1429,7 @@
      =================================================================== */
   function renderModulePage() {
     if (state.module === "takenplanning") return renderPlanning();
+    if (state.module === "personeelsbeheer") return renderPersoneelsbeheer();
     if (state.module === "dashboard") return renderDashboard();
     if (state.module === "schadecontrole") return renderSchade();
     if (state.module === "kwaliteit") return renderKwaliteit();
@@ -1411,7 +1439,7 @@
       takenplanning: { name: "Takenplanning", icon: "clipboardList", desc: "Hier maak je straks het weekrooster (medewerkers × dagen, AM/PM en taken) en download je het als afbeelding voor de groepsapp." },
       schadecontrole: { name: "Schadecontrole", icon: "shield", desc: "Hier komt de schadecontrole: bussen importeren uit de planning (busnummer + kenteken) en per bus afvinken (schadecontrole, tolkrol, kabeltjes, doekjes). De binnendienst volgt de voortgang live." },
       kwaliteit: { name: "Kwaliteit", icon: "award", desc: "Hier komt de kwaliteitsmodule: emballage/kratten tellen en de trolley-teller (4- en 5-laags), met live overzicht voor de binnendienst." },
-      lc: { name: "LC — Laden", icon: "inbox", desc: "Hier komt het laadproces: vakken (1–40) koppelen aan bussen en ritnummers, importeren in de ochtend en handmatig invullen in de middag." }
+      lc: { name: "Laadproces", icon: "inbox", desc: "Hier komt het laadproces: vakken (1–40) koppelen aan bussen en ritnummers, importeren in de ochtend en handmatig invullen in de middag." }
     }[state.module] || { name: "Module", icon: "grid", desc: "" };
 
     el("app").innerHTML = portalHeader(u) +
@@ -1605,8 +1633,8 @@
     return '<div class="shiftbar"><div class="seg"><button data-opday="-1">' + svg("arrowLeft", "icon-sm") + "</button>" +
       '<button class="active" style="cursor:default;text-transform:capitalize">' + svg("calendar", "icon-sm") + esc(lbl) + "</button>" +
       '<button data-opday="1">' + svg("arrowRight", "icon-sm") + "</button></div>" +
-      '<div class="seg"><button data-opshift="AM" class="' + (state.opShift === "AM" ? "active" : "") + '">' + svg("sun", "icon-sm") + "AM</button>" +
-      (sun ? "" : '<button data-opshift="PM" class="' + (state.opShift === "PM" ? "active" : "") + '">' + svg("moon", "icon-sm") + "PM</button>") + "</div>" +
+      '<div class="seg"><button data-opshift="AM" class="am-btn ' + (state.opShift === "AM" ? "active" : "") + '">' + svg("sun", "icon-sm") + "AM</button>" +
+      (sun ? "" : '<button data-opshift="PM" class="pm-btn ' + (state.opShift === "PM" ? "active" : "") + '">' + svg("moon", "icon-sm") + "PM</button>") + "</div>" +
       (sun ? '<span class="cellsub">Zondag heeft alleen een AM-shift</span>' : "") + "</div>";
   }
   function bindShiftBar(rer) {
@@ -1625,37 +1653,67 @@
     var c = ctx(), u = c.u;
     var s = S.getSchade(c.h, c.d, c.dd);
     var canEdit = S.canOpShift(u, c.h, c.d, c.dd, "schadecontrole", "Schadecontrole");
-    var st = S.schadeStats(c.h, c.d, c.dd);
-    function chk(b, f) {
-      return '<td class="sc-chk"><label class="chk-box ' + (b[f] ? "on" : "") + (canEdit ? "" : " ro") + '">' +
-        '<input type="checkbox" ' + (b[f] ? "checked" : "") + (canEdit ? "" : " disabled") + ' data-schade="' + b.id + "|" + f + '">' + svg("check", "icon-sm") + "</label></td>";
+    var st = S.schadeStats(c.h, c.d, c.dd), spSt = S.steekproefStats(c.h, c.d, c.dd);
+
+    function chkCell(b) {
+      return '<td class="sc-chk"><label class="chk-box ' + (b.gecontroleerd ? "on" : "") + (canEdit ? "" : " ro") + '">' +
+        '<input type="checkbox" ' + (b.gecontroleerd ? "checked" : "") + (canEdit ? "" : " disabled") + ' data-scchk="' + b.id + '">' + svg("check", "icon-sm") + "</label></td>";
+    }
+    function mistCell(b) {
+      var items = [["mist_tolkrol", "Tolkrol"], ["mist_kabels", "Kabels"], ["mist_doekjes", "Doekjes"]];
+      return '<td><div class="chips">' + items.map(function (it) {
+        var on = b[it[0]];
+        if (!canEdit) return on ? '<span class="badge st-afgekeurd">' + esc(it[1]) + " mist</span>" : "";
+        return '<span class="chip mist-chip ' + (on ? "on" : "") + '" data-scmist="' + b.id + "|" + it[0] + '">' + esc(it[1]) + "</span>";
+      }).join("") + "</div></td>";
+    }
+    function spCell(b) {
+      var done = S.steekproefDone(b);
+      return '<td><button class="btn btn-sm sc-sp-btn' + (done ? " done" : "") + '" data-spbus="' + b.id + '"' + (canEdit ? "" : " disabled") + ">" +
+        svg(done ? "check" : "clipboard", "icon-sm") + "Steekproef</button></td>";
     }
     var rows = s.buses.length ? s.buses.map(function (b) {
-      var full = b.schade && b.tolkrol && b.kabels && b.doekjes;
       var dockCell = b.dock ? '<span class="badge dock">' + svg("building", "icon-sm") + "Dock " + esc(b.dock) + "</span>" : '<span class="cellsub">—</span>';
-      return "<tr class=\"" + (full ? "sc-done" : "") + "\"><td><div class=\"cellname\">Bus " + esc(b.bus || "?") + "</div><div class=\"cellsub\">" + esc(b.naam || "") + (b.kenteken ? " · " + esc(b.kenteken) : "") + "</div></td>" +
-        chk(b, "schade") + chk(b, "tolkrol") + chk(b, "kabels") + chk(b, "doekjes") + "<td>" + dockCell + "</td></tr>";
-    }).join("") : '<tr><td colspan="6"><div class="cellsub" style="padding:14px">De binnendienst zet de lijst klaar via het dashboard.</div></td></tr>';
+      return "<tr class=\"" + (b.gecontroleerd ? "sc-done" : "") + "\"><td><div class=\"cellname\">Bus " + esc(b.bus || "?") + "</div><div class=\"cellsub\">" + esc(b.naam || "") + (b.kenteken ? " · " + esc(b.kenteken) : "") + "</div></td>" +
+        chkCell(b) + mistCell(b) + spCell(b) + "<td>" + dockCell + "</td></tr>";
+    }).join("") : '<tr><td colspan="5"><div class="cellsub" style="padding:14px">De binnendienst zet de lijst klaar via het dashboard.</div></td></tr>';
     var table = '<div class="panel" style="padding:0"><div class="table-scroll"><table class="table sc-table">' +
-      "<thead><tr><th>Bus</th><th>Gecontroleerd</th><th>Tolkrol</th><th>Kabels</th><th>Doekjes</th><th>Dock</th></tr></thead><tbody>" + rows + "</tbody></table></div></div>";
+      "<thead><tr><th>Bus</th><th>Gecontroleerd</th><th>Ontbreekt</th><th>Steekproef</th><th>Dock</th></tr></thead><tbody>" + rows + "</tbody></table></div></div>";
 
-    // 5 steekproeven: naam + hr-nummer + (optioneel) ritnummer + aantal kratten
-    var sp = S.steekproevenVan(c.h, c.d, c.dd), spSt = S.steekproefStats(c.h, c.d, c.dd);
-    var spRows = sp.slice(0, 5).map(function (x, i) {
-      var done = x.naam && x.kratten !== "" && x.kratten != null;
-      function inp(f, ph, val, type) { return '<input class="lc-in" data-sp="' + i + "|" + f + '" placeholder="' + ph + '"' + (type ? ' type="' + type + '" inputmode="numeric"' : "") + ' value="' + esc(val == null ? "" : val) + '"' + (canEdit ? "" : " disabled") + ">"; }
-      return '<div class="sp-card' + (done ? " done" : "") + '"><div class="sp-nr">' + (i + 1) + (done ? " " + svg("check", "icon-sm") : "") + "</div>" +
-        '<div class="sp-fields">' + inp("naam", "Naam bezorger", x.naam) + inp("hr", "hr-nummer", x.hr) + inp("rit", "Ritnummer (optioneel)", x.rit) +
-        '<label class="sp-kr">Kratten in de bus <input class="lc-in" data-sp="' + i + '|kratten" type="number" inputmode="numeric" min="0" value="' + esc(x.kratten == null ? "" : x.kratten) + '"' + (canEdit ? "" : " disabled") + "></label></div></div>";
-    }).join("");
-    var spSection = '<div class="page-head" style="margin:22px 0 6px"><div><h2 style="font-size:18px">Steekproeven</h2></div></div>' +
+    el("app").innerHTML = moduleShell("Schadecontrole",
+      opProgress(st.done, st.total, "bussen gecontroleerd") +
       opProgress(spSt.done, spSt.total, "steekproeven gedaan") +
-      '<div class="sp-grid">' + spRows + "</div>";
-
-    el("app").innerHTML = moduleShell("Schadecontrole", opProgress(st.done, st.total, "bussen klaar") + table + spSection);
+      table);
     bindModuleHeader(renderSchade);
-    document.querySelectorAll("[data-schade]").forEach(function (el2) { el2.addEventListener("change", function () { var p = el2.getAttribute("data-schade").split("|"); try { S.schadeToggle(c.h, c.d, c.dd, p[0], p[1]); renderSchade(); } catch (e) { toast(e.message, "err"); } }); });
-    document.querySelectorAll("[data-sp]").forEach(function (inp) { inp.addEventListener("change", function () { var p = inp.getAttribute("data-sp").split("|"); var d = {}; d[p[1]] = inp.value; try { S.setSteekproef(c.h, c.d, c.dd, parseInt(p[0], 10), d); renderSchade(); } catch (e) { toast(e.message, "err"); } }); });
+    document.querySelectorAll("[data-scchk]").forEach(function (cb) { cb.addEventListener("change", function () { try { S.schadeToggle(c.h, c.d, c.dd, cb.getAttribute("data-scchk"), "gecontroleerd"); renderSchade(); } catch (e) { toast(e.message, "err"); } }); });
+    document.querySelectorAll("[data-scmist]").forEach(function (ch) { ch.addEventListener("click", function () { var p = ch.getAttribute("data-scmist").split("|"); try { S.schadeToggle(c.h, c.d, c.dd, p[0], p[1]); renderSchade(); } catch (e) { toast(e.message, "err"); } }); });
+    document.querySelectorAll("[data-spbus]").forEach(function (b) { b.addEventListener("click", function () { openSteekproef(c, b.getAttribute("data-spbus")); }); });
+  }
+
+  // Steekproef-modal per bus (zelfde velden als voorheen: naam, hr, rit, kratten).
+  function openSteekproef(c, busId) {
+    var b = S.getSchade(c.h, c.d, c.dd).buses.filter(function (x) { return x.id === busId; })[0]; if (!b) return;
+    var canEdit = S.canOpShift(S.currentUser(), c.h, c.d, c.dd, "schadecontrole", "Schadecontrole");
+    var sp = b.steekproef || { naam: "", hr: "", rit: "", kratten: "" };
+    function fld(label, name, val, extra) { return '<div class="field"><label>' + label + "</label><input name=\"" + name + "\"" + (extra || "") + ' value="' + esc(val == null ? "" : val) + '"' + (canEdit ? "" : " disabled") + "></div>"; }
+    var body = '<form id="spForm">' +
+      fld("Naam bezorger", "naam", sp.naam) +
+      fld("hr-nummer", "hr", sp.hr) +
+      fld("Ritnummer (optioneel)", "rit", sp.rit) +
+      fld("Kratten in de bus", "kratten", sp.kratten, ' type="number" inputmode="numeric" min="0"') +
+      "</form>";
+    openModal({
+      title: "Steekproef · Bus " + esc(b.bus || "?"), icon: "clipboard", body: body,
+      foot: canEdit ? '<button class="btn btn-ghost" data-close>Annuleren</button><button class="btn btn-primary" id="spSave">' + svg("check") + "Opslaan</button>"
+                    : '<button class="btn btn-ghost" data-close>Sluiten</button>',
+      onMount: function (ov, close) {
+        var sv = ov.querySelector("#spSave");
+        if (sv) sv.addEventListener("click", function () {
+          var f = ov.querySelector("#spForm");
+          try { S.setBusSteekproef(c.h, c.d, c.dd, busId, { naam: f.naam.value, hr: f.hr.value, rit: f.rit.value, kratten: f.kratten.value }); close(); renderSchade(); } catch (e) { toast(e.message, "err"); }
+        });
+      }
+    });
   }
 
   /* ---------- Kwaliteit (vak-soort + emballage per vak) ---------- */
@@ -1663,32 +1721,65 @@
     var c = ctx(), u = c.u;
     var canEdit = S.canOpShift(u, c.h, c.d, c.dd, "kwaliteit", "Kwaliteit");
     function soortOpts(sel) { return S.VAK_SOORTEN.map(function (s) { return '<option value="' + s.id + '"' + (sel === s.id ? " selected" : "") + ">" + esc(s.label) + "</option>"; }).join(""); }
-    var rows = "";
-    for (var i = 1; i <= S.EMB_VAKKEN; i++) {
+    var rows = S.VAK_NUMMERS.map(function (i) {
       var soort = S.vakSoort(c.h, c.d, c.dd, i), isEmb = soort === "emb5", tot = isEmb ? S.emballageVakTotal(c.h, c.d, c.dd, i) : 0;
-      rows += '<tr class="' + (isEmb ? "vak-emb" : "") + '"><td class="lc-nr">' + i + "</td>" +
+      return '<tr class="' + (isEmb ? "vak-emb" : "") + '"><td class="lc-nr">' + i + "</td>" +
         "<td>" + (canEdit ? '<select class="lc-in vaksoort-sel" data-vaksoort="' + i + '">' + soortOpts(soort) + "</select>" : '<span class="badge ' + (soort ? "task" : "") + '">' + esc(S.vakSoortLabel(soort)) + "</span>") + "</td>" +
         "<td>" + (isEmb ? '<button class="btn btn-primary btn-sm" data-embopen="' + i + '">' + svg("tag", "icon-sm") + "Tellen · " + tot + "</button>" : '<span class="cellsub">—</span>') + "</td></tr>";
-    }
+    }).join("");
     var table = '<div class="panel" style="padding:0"><div class="table-scroll"><table class="table"><thead><tr><th>Vak</th><th>Wat mag erin</th><th>Emballage</th></tr></thead><tbody>' + rows + "</tbody></table></div></div>";
-    el("app").innerHTML = moduleShell("Kwaliteit", table);
+
+    // Trolley-voorraad tellen met +/- (K3) — symbolen van het Laadproces-tab
+    var tr = S.getTrolley(c.h, c.d, c.dd);
+    function counter(field, n) {
+      return '<div class="tro-counter"><div class="tro-lab">' + svg(n === 5 ? "layers5" : "layers4", "icon-sm") + n + "-laags</div>" +
+        '<div class="tro-ctrl">' +
+          (canEdit ? '<button class="tro-btn" data-troll="' + field + '|-1">&minus;</button>' : "") +
+          '<span class="tro-val">' + (tr[field] || 0) + "</span>" +
+          (canEdit ? '<button class="tro-btn" data-troll="' + field + '|1">+</button>' : "") +
+        "</div></div>";
+    }
+    var trolleyPanel = panel("inbox", "Trolley-voorraad tellen", '<div class="tro-row">' + counter("stock5", 5) + counter("stock4", 4) + "</div>");
+
+    el("app").innerHTML = moduleShell("Kwaliteit", table + trolleyPanel);
     bindModuleHeader(renderKwaliteit);
     document.querySelectorAll("[data-vaksoort]").forEach(function (s) { s.addEventListener("change", function () { try { S.setVakSoort(c.h, c.d, c.dd, parseInt(s.getAttribute("data-vaksoort"), 10), s.value); renderKwaliteit(); } catch (e) { toast(e.message, "err"); } }); });
     document.querySelectorAll("[data-embopen]").forEach(function (b) { b.addEventListener("click", function () { openEmbVak(c, parseInt(b.getAttribute("data-embopen"), 10)); }); });
+    document.querySelectorAll("[data-troll]").forEach(function (b) { b.addEventListener("click", function () { var p = b.getAttribute("data-troll").split("|"); try { S.trolleyBump(c.h, c.d, c.dd, p[0], parseInt(p[1], 10)); renderKwaliteit(); } catch (e) { toast(e.message, "err"); } }); });
   }
   function openEmbVak(c, vak) {
     var canEdit = S.canOpShift(S.currentUser(), c.h, c.d, c.dd, "kwaliteit", "Kwaliteit");
     var arr = S.getKwaliteit(c.h, c.d, c.dd).emballage[vak] || [];
     var trolleys = "";
-    for (var t = 0; t < S.EMB_TROLLEYS; t++) { trolleys += '<div class="emb-trolley"><div class="emb-tnr">Trolley ' + (t + 1) + '</div><input type="number" min="0" inputmode="numeric" class="emb-in" data-emb="' + vak + "|" + t + '" value="' + (arr[t] || 0) + '"' + (canEdit ? "" : " disabled") + "></div>"; }
+    for (var t = 0; t < S.EMB_TROLLEYS; t++) {
+      trolleys += '<div class="emb-trolley"><div class="emb-tnr">Trolley ' + (t + 1) + "</div>" +
+        '<div class="emb-ctrl">' +
+          (canEdit ? '<button class="emb-btn" data-embbump="' + vak + "|" + t + '|-1">&minus;</button>' : "") +
+          '<input type="number" min="0" inputmode="numeric" class="emb-in" data-emb="' + vak + "|" + t + '" value="' + (arr[t] || 0) + '"' + (canEdit ? "" : " disabled") + ">" +
+          (canEdit ? '<button class="emb-btn" data-embbump="' + vak + "|" + t + '|1">+</button>' : "") +
+        "</div></div>";
+    }
+    function refreshTotal(ov) { ov.querySelector(".emb-total").textContent = S.emballageVakTotal(c.h, c.d, c.dd, vak) + " kratjes"; }
+    var canClear = S.level(S.currentUser()) >= 3;
     openModal({
       title: "Vak " + vak + " — emballage", icon: "tag",
       body: '<div class="emb-rack"><div class="emb-rack-h">14 trolleys <span class="emb-total">' + S.emballageVakTotal(c.h, c.d, c.dd, vak) + " kratjes</span></div><div class=\"emb-grid\">" + trolleys + "</div></div>",
-      onMount: function (ov) {
+      foot: (canClear ? '<button class="btn btn-red" id="embClear">' + svg("trash", "icon-sm") + "Vak leeghalen</button>" : "") + '<button class="btn btn-primary" data-close>Klaar</button>',
+      onMount: function (ov, close) {
+        var ec = ov.querySelector("#embClear");
+        if (ec) ec.addEventListener("click", function () { try { S.clearEmbVak(c.h, c.d, c.dd, vak); if (close) close(); renderKwaliteit(); toast("Vak leeggehaald.", "ok"); } catch (e) { toast(e.message, "err"); } });
         ov.querySelectorAll("[data-emb]").forEach(function (inp) {
           inp.addEventListener("change", function () {
             var p = inp.getAttribute("data-emb").split("|");
-            try { S.emballageSet(c.h, c.d, c.dd, p[0], parseInt(p[1], 10), inp.value); ov.querySelector(".emb-total").textContent = S.emballageVakTotal(c.h, c.d, c.dd, vak) + " kratjes"; renderKwaliteit(); } catch (e) { toast(e.message, "err"); }
+            try { S.emballageSet(c.h, c.d, c.dd, p[0], parseInt(p[1], 10), inp.value); refreshTotal(ov); renderKwaliteit(); } catch (e) { toast(e.message, "err"); }
+          });
+        });
+        ov.querySelectorAll("[data-embbump]").forEach(function (btn) {
+          btn.addEventListener("click", function () {
+            var p = btn.getAttribute("data-embbump").split("|");
+            var input = ov.querySelector('[data-emb="' + p[0] + "|" + p[1] + '"]');
+            var nv = Math.max(0, (parseInt(input.value, 10) || 0) + parseInt(p[2], 10));
+            try { S.emballageSet(c.h, c.d, c.dd, p[0], parseInt(p[1], 10), nv); input.value = nv; refreshTotal(ov); renderKwaliteit(); } catch (e) { toast(e.message, "err"); }
           });
         });
       }
@@ -1701,27 +1792,15 @@
     var lc = S.getLC(c.h, c.d, c.dd);
     var tr = S.getTrolley(c.h, c.d, c.dd);
     var canLoad = S.canOpShift(u, c.h, c.d, c.dd, "lc", "LC");
+    var canSetup = S.level(u) >= 3;
     var isPM = c.dd === "PM";
     var st = S.lcStats(c.h, c.d, c.dd);
+    if (!state.lcTab) state.lcTab = "laden";
+    var seg = '<div class="seg" style="margin-bottom:16px">' +
+      '<button data-lctab="laden" class="' + (state.lcTab === "laden" ? "active" : "") + '">Laden</button>' +
+      '<button data-lctab="pendels" class="' + (state.lcTab === "pendels" ? "active" : "") + '">Pendels</button></div>';
 
-    var pendel = canLoad ? '<div class="panel"><div class="panel-head">' + svg("inbox") + "<h3>Pendel — trolleys</h3>" +
-      '<span class="cellsub" style="margin-left:auto">Op de hub: ' + tr.stock4 + " (4-laags) · " + tr.stock5 + " (5-laags)</span></div>" +
-      '<div class="pendel-form">' +
-        '<div class="pendel-col">' + layerLabel(4) +
-          '<label class="pendel-in"><span class="dir in">' + svg("arrowDown", "icon-sm") + "binnen</span><input type=\"number\" min=\"0\" id=\"pIn4\" value=\"0\"></label>" +
-          '<label class="pendel-in"><span class="dir out">' + svg("arrowUp", "icon-sm") + "retour</span><input type=\"number\" min=\"0\" id=\"pOut4\" value=\"0\"></label></div>" +
-        '<div class="pendel-col">' + layerLabel(5) +
-          '<label class="pendel-in"><span class="dir in">' + svg("arrowDown", "icon-sm") + "binnen</span><input type=\"number\" min=\"0\" id=\"pIn5\" value=\"0\"></label>" +
-          '<label class="pendel-in"><span class="dir out">' + svg("arrowUp", "icon-sm") + "retour</span><input type=\"number\" min=\"0\" id=\"pOut5\" value=\"0\"></label></div>" +
-        '<button class="btn btn-primary" id="pAdd">' + svg("plus", "icon-sm") + "Pendel toevoegen</button>" +
-      "</div>" +
-      (tr.pendels.length ? '<div class="pendel-list">' + tr.pendels.map(function (p, idx) {
-        return '<div class="pendel-row"><span class="pendel-nr">#' + (tr.pendels.length - idx) + "</span>" +
-          '<span class="pendel-bit in">' + svg("arrowDown", "icon-sm") + (p.in4 + p.in5) + " in</span>" +
-          '<span class="pendel-bit out">' + svg("arrowUp", "icon-sm") + (p.out4 + p.out5) + " retour</span>" +
-          '<span class="cellsub">4: +' + p.in4 + "/-" + p.out4 + " · 5: +" + p.in5 + "/-" + p.out5 + "</span></div>";
-      }).join("") + "</div>" : "") + "</div>" : "";
-
+    // ----- LADEN -----
     var rows = lc.vakken.length ? lc.vakken.map(function (v) {
       var busCell = (canLoad && isPM) ? '<input class="lc-in" data-lcbus="' + v.nr + '" placeholder="busnr" value="' + esc(v.bus) + '">' : '<span class="' + (v.bus ? "cellname" : "cellsub") + '">' + (v.bus ? esc(v.bus) : "—") + "</span>";
       var typeBadge = v.type === "N2" ? '<span class="badge n2">' + svg("bolt", "icon-sm") + "N2</span>" : '<span class="badge diesel">' + svg("droplet", "icon-sm") + "Diesel</span>";
@@ -1733,12 +1812,42 @@
     }).join("") : '<tr><td colspan="7"><div class="cellsub" style="padding:14px">De binnendienst zet de vakken klaar via het dashboard.</div></td></tr>';
     var table = '<div class="panel" style="padding:0"><div class="table-scroll"><table class="table lc-table">' +
       "<thead><tr><th>Vak</th><th>Vertrek</th><th>Bus</th><th>Rit</th><th>Type</th><th>ZE</th><th>Geladen</th></tr></thead><tbody>" + rows + "</tbody></table></div></div>";
+    var ladenBody = opProgress(st.done, st.used, "vakken geladen") + table;
 
-    el("app").innerHTML = moduleShell("LC — Laden", opProgress(st.done, st.used, "vakken geladen") + pendel + table);
+    // ----- PENDELS -----
+    function ctl(id, field, val) {
+      return '<div class="pen-ctl">' +
+        (canLoad ? '<button class="pen-btn" data-penbump="' + id + "|" + field + '|-1">&minus;</button>' : "") +
+        '<span class="pen-val">' + (val || 0) + "</span>" +
+        (canLoad ? '<button class="pen-btn" data-penbump="' + id + "|" + field + '|1">+</button>' : "") + "</div>";
+    }
+    function layBlock(p, n) {
+      return '<div class="pen-lay">' + layerLabel(n) +
+        '<div class="pen-rows"><span class="pen-r"><em>binnen</em>' + ctl(p.id, "in" + n, p["in" + n]) + "</span>" +
+        '<span class="pen-r"><em>retour</em>' + ctl(p.id, "out" + n, p["out" + n]) + "</span></div></div>";
+    }
+    var pendelList = tr.pendels.length ? tr.pendels.map(function (p, i) {
+      return '<div class="pen-card"><div class="pen-head">' + svg("van", "icon-sm") + "<b>Pendel " + (i + 1) + "</b>" +
+        (p.tijd ? '<span class="pen-tijd">aankomst ' + esc(p.tijd) + "</span>" : "") +
+        (canSetup ? '<button class="pen-x" data-pendeldel="' + p.id + '" title="Verwijderen">' + svg("x", "icon-sm") + "</button>" : "") + "</div>" +
+        '<div class="pen-grid">' + layBlock(p, 4) + layBlock(p, 5) + "</div></div>";
+    }).join("") : '<div class="cellsub" style="padding:12px">Nog geen pendels klaargezet.</div>';
+    var addForm = canSetup ? '<div class="toolbar"><div class="add-inline"><input id="penTijd" type="time" class="lc-in" style="max-width:130px">' +
+      '<button class="btn btn-dark btn-sm" id="penAdd">' + svg("plus", "icon-sm") + "Pendel toevoegen</button></div></div>" : "";
+    var stockBar = '<div class="panel" style="padding:14px;margin-bottom:14px"><b>Op de hub:</b> ' + tr.stock4 + " trolleys (4-laags) · " + tr.stock5 + " (5-laags)</div>";
+    var pendelsBody = stockBar + addForm + '<div class="pen-list">' + pendelList + "</div>";
+
+    el("app").innerHTML = moduleShell("Laadproces", seg + (state.lcTab === "pendels" ? pendelsBody : ladenBody));
     bindModuleHeader(renderLC);
-    document.querySelectorAll("[data-lcbus]").forEach(function (inp) { inp.addEventListener("change", function () { try { S.lcSetBus(c.h, c.d, c.dd, parseInt(inp.getAttribute("data-lcbus"), 10), inp.value); } catch (e) { toast(e.message, "err"); } }); });
-    document.querySelectorAll("[data-lcgel]").forEach(function (cb) { cb.addEventListener("change", function () { try { S.lcToggleGeladen(c.h, c.d, c.dd, parseInt(cb.getAttribute("data-lcgel"), 10)); renderLC(); } catch (e) { toast(e.message, "err"); } }); });
-    var pa = el("pAdd"); if (pa) pa.addEventListener("click", function () { try { S.addPendel(c.h, c.d, c.dd, { in4: el("pIn4").value, out4: el("pOut4").value, in5: el("pIn5").value, out5: el("pOut5").value }); toast("Pendel toegevoegd.", "ok"); renderLC(); } catch (e) { toast(e.message, "err"); } });
+    document.querySelectorAll("[data-lctab]").forEach(function (b) { b.addEventListener("click", function () { state.lcTab = b.getAttribute("data-lctab"); renderLC(); }); });
+    if (state.lcTab === "laden") {
+      document.querySelectorAll("[data-lcbus]").forEach(function (inp) { inp.addEventListener("change", function () { try { S.lcSetBus(c.h, c.d, c.dd, parseInt(inp.getAttribute("data-lcbus"), 10), inp.value); } catch (e) { toast(e.message, "err"); } }); });
+      document.querySelectorAll("[data-lcgel]").forEach(function (cb) { cb.addEventListener("change", function () { try { S.lcToggleGeladen(c.h, c.d, c.dd, parseInt(cb.getAttribute("data-lcgel"), 10)); renderLC(); } catch (e) { toast(e.message, "err"); } }); });
+    } else {
+      var pa = el("penAdd"); if (pa) pa.addEventListener("click", function () { try { S.addPendelPlan(c.h, c.d, c.dd, el("penTijd").value); renderLC(); } catch (e) { toast(e.message, "err"); } });
+      document.querySelectorAll("[data-pendeldel]").forEach(function (b) { b.addEventListener("click", function () { try { S.removePendel(c.h, c.d, c.dd, b.getAttribute("data-pendeldel")); renderLC(); } catch (e) { toast(e.message, "err"); } }); });
+      document.querySelectorAll("[data-penbump]").forEach(function (b) { b.addEventListener("click", function () { var p = b.getAttribute("data-penbump").split("|"); try { S.pendelBump(c.h, c.d, c.dd, p[0], p[1], parseInt(p[2], 10)); renderLC(); } catch (e) { toast(e.message, "err"); } }); });
+    }
   }
 
   /* ---------- Senior-dashboard ---------- */
@@ -1749,7 +1858,7 @@
     var tabs = [["overzicht", "Overzicht"], ["klaarzetten", "Klaarzetten"], ["diensten", "Diensten"]];
     var seg = '<div class="seg" style="margin:14px 0 16px;flex-wrap:wrap">' + tabs.map(function (t) { return '<button data-dashtab="' + t[0] + '" class="' + (state.dashTab === t[0] ? "active" : "") + '">' + t[1] + "</button>"; }).join("") + "</div>";
     var body = state.dashTab === "klaarzetten" ? dashKlaarzetten(c) : state.dashTab === "diensten" ? dashDiensten(c) : dashOverzicht(c);
-    el("app").innerHTML = moduleShell("Dashboard", seg + body);
+    el("app").innerHTML = moduleShell("Senior Dashboard", seg + body);
     bindModuleHeader(renderDashboard);
     document.querySelectorAll("[data-dashtab]").forEach(function (b) { b.addEventListener("click", function () { state.dashTab = b.getAttribute("data-dashtab"); renderDashboard(); }); });
     if (state.dashTab === "klaarzetten") bindDashKlaarzetten(c);
@@ -1768,7 +1877,8 @@
 
     function tile(title, icon, color, inner) { return '<div class="dash-card dash-' + color + '"><div class="dash-h">' + svg(icon, "icon-sm") + esc(title) + "</div>" + inner + "</div>"; }
     var ring = function (pct, cls) { return '<div class="dash-ring ' + cls + '" style="--p:' + pct + '"><span>' + pct + "%</span></div>"; };
-    var vakTotals = ""; for (var i = 1; i <= S.EMB_VAKKEN; i++) { var t = S.emballageVakTotal(c.h, c.d, c.dd, i); if (t) vakTotals += '<span class="emb-vaktot">Vak ' + i + " <b>" + t + "</b></span>"; }
+    var embVakken = S.VAK_NUMMERS.filter(function (i) { return S.vakSoort(c.h, c.d, c.dd, i) === "emb5"; });
+    var vakTotals = embVakken.map(function (i) { return '<div class="emb-vaktot"><span>Vak ' + i + ":</span> <b>" + S.emballageVakTotal(c.h, c.d, c.dd, i) + "</b></div>"; }).join("");
     // Laden vóór schadecontrole
     var grid = '<div class="dash-grid">' +
       tile("Laden", "inbox", "orange", '<div class="dash-row">' + ring(lcS.pct, "o") + '<div><div class="dash-big">' + lcS.done + " / " + lcS.used + '</div><div class="cellsub">vakken geladen</div></div></div>') +
@@ -1781,7 +1891,7 @@
     if (isPM) { // bussen klaarzetten voor morgen is een PM-taak
       var dockList = docks.length ? '<table class="table"><thead><tr><th>Dock</th><th>Bus</th><th>Status</th></tr></thead><tbody>' +
         docks.sort(function (a, b) { return a.dock - b.dock; }).map(function (b) {
-          var full = b.schade && b.tolkrol && b.kabels && b.doekjes;
+          var full = b.gecontroleerd;
           return "<tr><td class=\"cellname\">Dock " + esc(b.dock) + "</td><td>Bus " + esc(b.bus) + "</td><td>" + (full ? '<span class="badge st-goedgekeurd">Klaar</span>' : '<span class="badge st-afwachting">Nog niet</span>') + "</td></tr>";
         }).join("") + "</tbody></table>" : '<div class="cellsub" style="padding:12px">Nog geen bussen aan een dock toegewezen.</div>';
       dockPanel = panel("building", "Klaarzetten voor morgen (docks)", dockList);
@@ -1790,48 +1900,52 @@
   }
 
   function dashKlaarzetten(c) {
-    var isPM = c.dd === "PM";
     var lc = S.getLC(c.h, c.d, c.dd);
     var s = S.getSchade(c.h, c.d, c.dd);
+    if (!state.kzTab) state.kzTab = "laden";
+    var seg = '<div class="kz-subtabs"><span class="kz-subtabs-lbl">Klaarzetten voor:</span><div class="seg seg-sub">' +
+      '<button data-kztab="laden" class="' + (state.kzTab === "laden" ? "active" : "") + '">Laadproces</button>' +
+      '<button data-kztab="schade" class="' + (state.kzTab === "schade" ? "active" : "") + '">Schadecontrole</button></div></div>';
 
-    var importBlock = '<div class="kz-section"><div class="kz-h">' + svg("download", "icon-sm") + "Hele planning importeren</div>" +
-      '<p class="cellsub" style="margin:0 0 8px">Plak de volledige planning-sheet (mét kopregel). Het systeem vult schadecontrole én laden automatisch en herkent N2/ZE.</p>' +
-      '<textarea id="kzSheet" rows="5" class="kz-sheet" placeholder="Plak hier de hele Excel-sheet…"></textarea>' +
-      '<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"><button class="btn btn-primary btn-sm" id="kzImport">' + svg("check", "icon-sm") + "Importeren</button>" +
-      '<button class="btn btn-ghost btn-sm" id="kzResetAll">' + svg("trash", "icon-sm") + "Alles leegmaken</button></div></div>";
-
-    // Laden klaarzetten
+    // ---- Laadproces ----
+    var ladenImport = '<div class="kz-section"><div class="kz-h">' + svg("download", "icon-sm") + "Laadproces importeren</div>" +
+      '<p class="cellsub" style="margin:0 0 8px">Plak de planning-sheet (mét kopregel). Vult de laadvakken en herkent N2/ZE.</p>' +
+      '<textarea id="kzSheetLaden" rows="5" class="kz-sheet" placeholder="Plak hier de sheet…"></textarea>' +
+      '<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"><button class="btn btn-primary btn-sm" id="kzImportLaden">' + svg("check", "icon-sm") + "Importeren</button>" +
+      '<button class="btn btn-ghost btn-sm" id="kzResetLaden">' + svg("trash", "icon-sm") + "Laden leegmaken</button></div></div>";
     var lcRows = lc.vakken.length ? lc.vakken.map(function (v) {
       var inp = function (f, ph, val) { return '<input class="lc-in" data-lcset="' + v.nr + "|" + f + '" placeholder="' + ph + '" value="' + esc(val) + '">'; };
       return "<tr><td class=\"lc-nr\">" + v.nr + "</td><td>" + inp("vertrek", "tijd", v.vertrek || "") + "</td><td>" + inp("bus", "busnr", v.bus) + "</td><td>" + inp("rit", "rit", v.rit) + "</td>" +
         '<td><select class="lc-in" data-lcset="' + v.nr + '|type"><option value="diesel"' + (v.type !== "N2" ? " selected" : "") + ">Diesel</option><option value=\"N2\"" + (v.type === "N2" ? " selected" : "") + ">N2</option></select></td>" +
         '<td style="text-align:center"><input type="checkbox" data-lcze="' + v.nr + '"' + (v.ze ? " checked" : "") + "></td></tr>";
     }).join("") : '<tr><td colspan="6"><div class="cellsub" style="padding:12px">Importeer de planning of stel het aantal vakken in.</div></td></tr>';
-    var ladenBlock = '<div class="kz-section"><div class="kz-h">' + svg("inbox", "icon-sm") + "Laden klaarzetten</div>" +
+    var ladenBlock = ladenImport + '<div class="kz-section"><div class="kz-h">' + svg("inbox", "icon-sm") + "Laden klaarzetten</div>" +
       '<div class="lc-setup"><label>Aantal vakken</label><input type="number" min="0" max="60" id="lcAantal" value="' + (lc.aantal || lc.vakken.length) + '"><button class="btn btn-dark btn-sm" id="lcSetAantal">' + svg("check", "icon-sm") + "Instellen</button></div>" +
       '<div class="panel" style="padding:0;margin-top:10px"><div class="table-scroll"><table class="table lc-table"><thead><tr><th>Vak</th><th>Vertrek</th><th>Bus</th><th>Rit</th><th>Type</th><th>ZE</th></tr></thead><tbody>' + lcRows + "</tbody></table></div></div></div>";
 
-    // Schade klaarzetten (alleen PM nodig)
-    var schadeBlock;
-    if (!isPM) {
-      schadeBlock = '<div class="kz-section"><div class="kz-h">' + svg("shield", "icon-sm") + "Schadecontrole klaarzetten</div>" +
-        '<div class="cellsub" style="padding:6px 0">Voor een AM-shift hoeven er geen bussen klaargezet te worden.</div></div>';
-    } else {
-      var scRows = s.buses.length ? s.buses.map(function (b) {
-        return "<tr><td><div class=\"cellname\">Bus " + esc(b.bus || "?") + "</div><div class=\"cellsub\">" + esc(b.naam || "") + (b.kenteken ? " · " + esc(b.kenteken) : "") + "</div></td>" +
-          '<td><select class="lc-in dock-sel" data-dock="' + b.id + '">' + dockOptions(b.dock) + "</select></td>" +
-          '<td style="text-align:right"><button class="pl-x" data-schadedel="' + b.id + '">' + svg("trash", "icon-sm") + "</button></td></tr>";
-      }).join("") : '<tr><td colspan="3"><div class="cellsub" style="padding:12px">Nog geen bussen. Importeer de planning of voeg toe.</div></td></tr>';
-      schadeBlock = '<div class="kz-section"><div class="kz-h">' + svg("shield", "icon-sm") + "Schadecontrole klaarzetten</div>" +
-        '<div class="add-inline"><input id="scBus" placeholder="Busnr"><input id="scKent" placeholder="Kenteken"><input id="scNaam" placeholder="Bezorger"><button class="btn btn-dark btn-sm" id="scAdd">' + svg("plus", "icon-sm") + "Bus</button></div>" +
-        '<div class="panel" style="padding:0;margin-top:10px"><div class="table-scroll"><table class="table"><thead><tr><th>Bus</th><th>Dock (morgen)</th><th></th></tr></thead><tbody>' + scRows + "</tbody></table></div></div></div>";
-    }
+    // ---- Schadecontrole (Voorbereiding AM) ----
+    var schadeImport = '<div class="kz-section"><div class="kz-h">' + svg("download", "icon-sm") + "Schadecontrole importeren</div>" +
+      '<p class="cellsub" style="margin:0 0 8px">Plak de planning-sheet. Vult de bussen voor de schadecontrole.</p>' +
+      '<textarea id="kzSheetSchade" rows="5" class="kz-sheet" placeholder="Plak hier de sheet…"></textarea>' +
+      '<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"><button class="btn btn-primary btn-sm" id="kzImportSchade">' + svg("check", "icon-sm") + "Importeren</button>" +
+      '<button class="btn btn-ghost btn-sm" id="kzResetSchade">' + svg("trash", "icon-sm") + "Schade leegmaken</button></div></div>";
+    var scRows = s.buses.length ? s.buses.map(function (b) {
+      return "<tr><td><div class=\"cellname\">Bus " + esc(b.bus || "?") + "</div><div class=\"cellsub\">" + esc(b.naam || "") + (b.kenteken ? " · " + esc(b.kenteken) : "") + "</div></td>" +
+        '<td><select class="lc-in dock-sel" data-dock="' + b.id + '">' + dockOptions(b.dock) + "</select></td>" +
+        '<td style="text-align:right"><button class="pl-x" data-schadedel="' + b.id + '">' + svg("trash", "icon-sm") + "</button></td></tr>";
+    }).join("") : '<tr><td colspan="3"><div class="cellsub" style="padding:12px">Nog geen bussen. Importeer de planning of voeg toe.</div></td></tr>';
+    var schadeBlock = schadeImport + '<div class="kz-section"><div class="kz-h">' + svg("sun", "icon-sm") + "Voorbereiding AM — bussen klaarzetten voor morgen</div>" +
+      '<div class="add-inline"><input id="scBus" placeholder="Busnr"><input id="scKent" placeholder="Kenteken"><input id="scNaam" placeholder="Bezorger"><button class="btn btn-dark btn-sm" id="scAdd">' + svg("plus", "icon-sm") + "Bus</button></div>" +
+      '<div class="panel" style="padding:0;margin-top:10px"><div class="table-scroll"><table class="table"><thead><tr><th>Bus</th><th>Dock (morgen)</th><th></th></tr></thead><tbody>' + scRows + "</tbody></table></div></div></div>";
 
-    return importBlock + ladenBlock + schadeBlock;
+    return seg + (state.kzTab === "schade" ? schadeBlock : ladenBlock);
   }
   function bindDashKlaarzetten(c) {
-    var im = el("kzImport"); if (im) im.addEventListener("click", function () { try { var n = S.importSheet(c.h, c.d, c.dd, el("kzSheet").value); toast(n + " ritten geïmporteerd.", "ok"); renderDashboard(); } catch (e) { toast(e.message, "err"); } });
-    var ra = el("kzResetAll"); if (ra) ra.addEventListener("click", function () { try { S.lcReset(c.h, c.d, c.dd); S.schadeReset(c.h, c.d, c.dd); renderDashboard(); } catch (e) { toast(e.message, "err"); } });
+    document.querySelectorAll("[data-kztab]").forEach(function (b) { b.addEventListener("click", function () { state.kzTab = b.getAttribute("data-kztab"); renderDashboard(); }); });
+    var il = el("kzImportLaden"); if (il) il.addEventListener("click", function () { try { var n = S.importSheet(c.h, c.d, c.dd, el("kzSheetLaden").value, "laden"); toast(n + " ritten geïmporteerd.", "ok"); renderDashboard(); } catch (e) { toast(e.message, "err"); } });
+    var rl = el("kzResetLaden"); if (rl) rl.addEventListener("click", function () { try { S.lcReset(c.h, c.d, c.dd); renderDashboard(); } catch (e) { toast(e.message, "err"); } });
+    var isc = el("kzImportSchade"); if (isc) isc.addEventListener("click", function () { try { var n = S.importSheet(c.h, c.d, c.dd, el("kzSheetSchade").value, "schade"); toast(n + " bussen geïmporteerd.", "ok"); renderDashboard(); } catch (e) { toast(e.message, "err"); } });
+    var rsc = el("kzResetSchade"); if (rsc) rsc.addEventListener("click", function () { try { S.schadeReset(c.h, c.d, c.dd); renderDashboard(); } catch (e) { toast(e.message, "err"); } });
     var sa = el("lcSetAantal"); if (sa) sa.addEventListener("click", function () { try { S.lcSetAantal(c.h, c.d, c.dd, el("lcAantal").value); renderDashboard(); } catch (e) { toast(e.message, "err"); } });
     document.querySelectorAll("[data-lcset]").forEach(function (inp) { inp.addEventListener("change", function () { var p = inp.getAttribute("data-lcset").split("|"); var data = {}; data[p[1]] = inp.value; try { S.lcSetupVak(c.h, c.d, c.dd, parseInt(p[0], 10), data); } catch (e) { toast(e.message, "err"); } }); });
     document.querySelectorAll("[data-lcze]").forEach(function (cb) { cb.addEventListener("change", function () { try { S.lcSetupVak(c.h, c.d, c.dd, parseInt(cb.getAttribute("data-lcze"), 10), { ze: cb.checked }); } catch (e) { toast(e.message, "err"); } }); });
@@ -1852,7 +1966,7 @@
       var who = (d[key] && d[key].length) ? fullName(S.userById(d[key][0])) : '<span class="cellsub">niemand</span>';
       return '<div class="dienst-block"><div class="dienst-h">' + esc(label) + ' <span class="dienst-who">' + who + "</span></div><div class=\"chips\">" + (chips || '<span class="cellsub">Geen geschikte medewerkers.</span>') + "</div></div>";
     }
-    return panel("users", "Wie doet wat deze shift", block("schadecontrole", "Schadecontrole", "Schadecontrole") + block("lc", "LC — Laden", "LC") + block("kwaliteit", "Kwaliteit", "Kwaliteit"));
+    return panel("users", "Wie doet wat deze shift", block("schadecontrole", "Schadecontrole", "Schadecontrole") + block("lc", "Laadproces", "LC") + block("kwaliteit", "Kwaliteit", "Kwaliteit"));
   }
   function bindDashDiensten(c) {
     document.querySelectorAll("[data-dienst]").forEach(function (ch) {
