@@ -137,7 +137,7 @@ svg { display: block; }
 .avatar { width: 34px; height: 34px; border-radius: 50%; background: var(--ink); color: var(--jumbo-yellow); display: grid; place-items: center; font-weight: 900; font-size: 13px; }
 
 /* Logo */
-.logo-mark { height: 34px; display: block; }
+.logo-mark { height: 34px; width: auto; display: block; }
 
 /* Nav */
 .app-nav { background: #fff; border-bottom: 1px solid var(--line); position: sticky; top: 55px; z-index: 20; }
