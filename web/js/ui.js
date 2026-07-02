@@ -170,46 +170,109 @@
   function renderLanding() {
     var loggedIn = !!S.currentUser();
     var cta = loggedIn ? "Verder naar de hub" : "Inloggen";
+
+    // Module-rail (Apple-stijl kaarten, horizontaal snappen)
+    var railCards = [
+      { icon: "exchange", cls: "yellow", naam: "RuilHub", txt: "Shift kwijt? Geruild in twee tikken — met goedkeuring van de teamleider." },
+      { icon: "clipboardList", cls: "blue", naam: "Takenplanning", txt: "Het weekrooster als afbeelding, klaar voor de groepsapp." },
+      { icon: "chart", cls: "dark", naam: "Senior Dashboard", txt: "Alles klaarzetten en live meekijken met de hele shift." },
+      { icon: "inbox", cls: "orange", naam: "Laadproces", txt: "Vakken, bussen en pendels — afvinken terwijl je laadt." },
+      { icon: "shield", cls: "green", naam: "Schadecontrole", txt: "Elke bus gecontroleerd, met steekproeven en opmerkingen." },
+      { icon: "award", cls: "purple", naam: "Kwaliteit", txt: "Emballage per vak en de trolley-voorraad per dag." }
+    ].map(function (m, i) {
+      return '<div class="l2-card l2-card-' + m.cls + ' reveal" style="--rd:' + (i * 60) + 'ms">' +
+        '<span class="l2-card-ico">' + svg(m.icon, "icon-lg") + "</span>" +
+        "<h3>" + esc(m.naam) + "</h3><p>" + esc(m.txt) + "</p></div>";
+    }).join("");
+
     el("app").innerHTML =
-      '<div class="landing">' +
-        '<div class="landing-bg"></div>' +
-        '<header class="landing-top">' +
-          '<div class="brand"><span class="logo-badge">' + logo(40) + '</span><div><div class="app-name">' + PORTAL + '</div><div class="app-sub">Jumbo Bezorgservice</div></div></div>' +
-          '<button class="btn btn-dark" data-go="login">' + svg("arrowRight") + cta + "</button></header>" +
-        '<section class="hero">' +
-          '<div class="hero-left">' +
-            '<div class="eyebrow">' + svg("grid", "icon-sm") + " Eén platform voor je hub</div>" +
-            '<h1>Alles voor je hub,<br><span class="hl">op één plek.</span></h1>' +
-            '<p class="lead">' + PORTAL + " brengt het shiftbeheer en de dagelijkse operatie van de bezorgservice samen: shifts en taken ruilen, de takenplanning, schadecontrole, het laadproces en kwaliteit — overzichtelijk en realtime per hub.</p>" +
-            '<div class="hero-cta">' +
-              '<button class="btn btn-primary btn-lg" data-go="login">' + svg("arrowRight") + cta + "</button>" +
-              '<span class="hero-note">' + svg("shield", "icon-sm") + " Veilig &amp; per hub afgeschermd</span>" +
-            "</div>" +
-          "</div>" +
-          '<div class="hero-right">' +
-            '<div class="hub-snapshot">' +
-              '<div class="hs-head"><span class="hs-dot"></span><span class="hs-dot"></span><span class="hs-dot"></span><span class="hs-title">HUB Utrecht Ravenswade</span></div>' +
-              '<div class="hs-row"><span class="hs-ico">' + svg("swap", "icon-sm") + '</span><div class="hs-row-txt"><b>RuilHub</b><small>3 open shifts vandaag</small></div><span class="badge am">' + svg("sun", "icon-sm") + "AM</span></div>" +
-              '<div class="hs-row"><span class="hs-ico alt">' + svg("shield", "icon-sm") + '</span><div class="hs-row-txt"><b>Schadecontrole</b><small>12 / 18 bussen gecontroleerd</small></div><span class="hs-pct">67%</span></div>' +
-              '<div class="hs-row"><span class="hs-ico dark">' + svg("chart", "icon-sm") + '</span><div class="hs-row-txt"><b>Senior Dashboard</b><small>Realtime overzicht van de shift</small></div><span class="live-badge hs-live">' + svg("refresh", "icon-sm") + "Live</span></div>" +
-            "</div>" +
+      '<div class="l2">' +
+        // vaste, doorschijnende navbalk
+        '<header class="l2-nav" id="l2Nav"><div class="l2-nav-in">' +
+          '<span class="logo-badge">' + logo(30) + "</span>" +
+          '<span class="l2-nav-name">' + PORTAL + "</span>" +
+          '<div class="grow"></div>' +
+          '<button class="btn btn-dark btn-sm" data-go="login">' + cta + "</button>" +
+        "</div></header>" +
+
+        // HERO — groot, gecentreerd, gefaseerd in beeld
+        '<section class="l2-hero">' +
+          '<p class="l2-kicker reveal">Jumbo Bezorgservice</p>' +
+          '<h1 class="reveal" style="--rd:80ms">' + PORTAL + ".</h1>" +
+          '<p class="l2-sub reveal" style="--rd:160ms">Alles voor je hub.<br>Op één plek.</p>' +
+          '<div class="l2-cta reveal" style="--rd:240ms">' +
+            '<button class="btn btn-primary btn-lg" data-go="login">' + svg("arrowRight") + cta + "</button>" +
+            '<button class="l2-more" data-scrollto=".l2-mods">Ontdek de modules <span class="l2-chev">↓</span></button>' +
           "</div>" +
         "</section>" +
-        '<section class="features">' +
-          feature("swap", "RuilHub", "Shifts en taken ruilen binnen je hub.") +
-          feature("clipboardList", "Takenplanning", "Weekrooster maken en delen als afbeelding.") +
-          feature("shield", "Operatie", "Schadecontrole, laden en kwaliteit — live.") +
-          feature("chart", "Dashboard", "Realtime overzicht voor de binnendienst.") +
+
+        // MODULES — horizontale snap-rail
+        '<section class="l2-mods">' +
+          '<h2 class="l2-h2 reveal">Eén hub.<br><span class="l2-dim">Zes gereedschappen.</span></h2>' +
+          '<div class="l2-rail" id="l2Rail">' + railCards + "</div>" +
         "</section>" +
+
+        // REALTIME — donkere sectie met animerende voortgang
+        '<section class="l2-dark">' +
+          '<h2 class="l2-h2 reveal">Realtime.<br><span class="l2-dim2">Voor de hele shift.</span></h2>' +
+          '<p class="l2-dark-sub reveal" style="--rd:80ms">Wat de vloer afvinkt, ziet de binnendienst meteen. En andersom.</p>' +
+          '<div class="l2-live reveal" style="--rd:160ms">' +
+            '<div class="l2-live-row"><span class="l2-live-lab">' + svg("inbox", "icon-sm") + 'Laden</span><div class="l2-bar"><span data-bar="78"></span></div><b class="l2-live-val" data-count="78" data-suffix="%">0%</b></div>' +
+            '<div class="l2-live-row"><span class="l2-live-lab">' + svg("shield", "icon-sm") + 'Schadecontrole</span><div class="l2-bar g"><span data-bar="67"></span></div><b class="l2-live-val" data-count="67" data-suffix="%">0%</b></div>' +
+            '<div class="l2-live-row"><span class="l2-live-lab">' + svg("award", "icon-sm") + 'Emballage</span><div class="l2-bar p"><span data-bar="45"></span></div><b class="l2-live-val" data-count="45" data-suffix="%">0%</b></div>' +
+            '<div class="l2-live-foot"><span class="live-badge">' + svg("refresh", "icon-sm") + 'Live</span><span>ververst elke 3 seconden</span></div>' +
+          "</div>" +
+        "</section>" +
+
+        // AFSLUITER
+        '<section class="l2-final">' +
+          '<h2 class="l2-h2 reveal">Klaar voor je shift?</h2>' +
+          '<div class="reveal" style="--rd:100ms"><button class="btn btn-primary btn-lg" data-go="login">' + svg("arrowRight") + cta + "</button></div>" +
+          '<p class="l2-note reveal" style="--rd:180ms">' + svg("shield", "icon-sm") + " Veilig &amp; per hub afgeschermd</p>" +
+        "</section>" +
+
         '<footer class="landing-foot">' + PORTAL + " · Jumbo Bezorgservice</footer>" +
       "</div>";
+
     document.querySelectorAll("[data-go=login]").forEach(function (b) { b.addEventListener("click", function () {
       if (S.currentUser()) { state.showLanding = false; state.module = null; render(); } // al ingelogd → direct de hub in
       else { authScreen = "login"; render(); }
     }); });
+    initLandingFx();
   }
-  function feature(icon, t, d) {
-    return '<div class="feat"><div class="feat-ico">' + svg(icon) + "</div><h3>" + esc(t) + "</h3><p>" + esc(d) + "</p></div>";
+
+  // Scroll-effecten van de landing: reveals, tellers, balken, nav-schaduw.
+  function initLandingFx() {
+    var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    var reveals = document.querySelectorAll(".l2 .reveal");
+    if (reduce || !("IntersectionObserver" in window)) {
+      reveals.forEach(function (n) { n.classList.add("in"); });
+      document.querySelectorAll(".l2 [data-bar]").forEach(function (s) { s.style.width = s.getAttribute("data-bar") + "%"; });
+      document.querySelectorAll(".l2 [data-count]").forEach(function (n) { n.textContent = n.getAttribute("data-count") + (n.getAttribute("data-suffix") || ""); });
+    } else {
+      var io = new IntersectionObserver(function (entries) {
+        entries.forEach(function (en) {
+          if (!en.isIntersecting) return;
+          en.target.classList.add("in");
+          // balken + tellers binnen dit blok starten zodra het blok in beeld komt
+          en.target.querySelectorAll("[data-bar]").forEach(function (s) { s.style.width = s.getAttribute("data-bar") + "%"; });
+          en.target.querySelectorAll("[data-count]").forEach(function (n) {
+            var end = parseInt(n.getAttribute("data-count"), 10), suf = n.getAttribute("data-suffix") || "", t0 = null;
+            function tick(t) { if (!t0) t0 = t; var p = Math.min(1, (t - t0) / 900); n.textContent = Math.round(end * (1 - Math.pow(1 - p, 3))) + suf; if (p < 1) requestAnimationFrame(tick); }
+            requestAnimationFrame(tick);
+          });
+          io.unobserve(en.target);
+        });
+      }, { threshold: 0.25 });
+      reveals.forEach(function (n) { io.observe(n); });
+    }
+    // zachte scroll naar de modules
+    document.querySelectorAll(".l2 [data-scrollto]").forEach(function (b) {
+      b.addEventListener("click", function () { var t = document.querySelector(b.getAttribute("data-scrollto")); if (t) t.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" }); });
+    });
+    // navbalk krijgt schaduw zodra je scrolt
+    var nav = el("l2Nav");
+    if (nav) { var onScroll = function () { nav.classList.toggle("scrolled", window.scrollY > 8); }; window.addEventListener("scroll", onScroll, { passive: true }); onScroll(); }
   }
 
   /* ===================================================================
