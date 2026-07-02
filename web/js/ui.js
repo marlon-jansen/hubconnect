@@ -1773,15 +1773,18 @@
 
     // Trolley-voorraad tellen met +/- (K3) — symbolen van het Laadproces-tab
     var tr = S.getTrolley(c.h, c.d, c.dd);
+    var future = S.isFutureDay(c.d);            // vooruit tellen mag niet — alleen op de dag zelf
+    var canCount = canEdit && !future;
     function counter(field, n) {
       return '<div class="tro-counter"><div class="tro-lab">' + svg(n === 5 ? "layers5" : "layers4", "icon-sm") + n + "-laags</div>" +
         '<div class="tro-ctrl">' +
-          (canEdit ? '<button class="tro-btn" data-troll="' + field + '|-1">&minus;</button>' : "") +
+          (canCount ? '<button class="tro-btn" data-troll="' + field + '|-1">&minus;</button>' : "") +
           '<span class="tro-val">' + (tr[field] || 0) + "</span>" +
-          (canEdit ? '<button class="tro-btn" data-troll="' + field + '|1">+</button>' : "") +
+          (canCount ? '<button class="tro-btn" data-troll="' + field + '|1">+</button>' : "") +
         "</div></div>";
     }
-    var trolleyPanel = panel("inbox", "Trolley-voorraad tellen", '<div class="tro-row">' + counter("stock5", 5) + counter("stock4", 4) + "</div>");
+    var futureHint = future ? '<div class="alert" style="margin-bottom:12px">' + svg("calendar", "icon-sm") + " Dit is een toekomstige dag — trolleys tel je alleen op de dag zelf. De getoonde stand is de overdracht van de laatste telling." + "</div>" : "";
+    var trolleyPanel = panel("inbox", "Trolley-voorraad tellen", futureHint + '<div class="tro-row">' + counter("stock5", 5) + counter("stock4", 4) + "</div>");
 
     if (!state.kwTab) state.kwTab = "vakken";
     var seg = '<div class="seg" style="margin-bottom:16px">' +
