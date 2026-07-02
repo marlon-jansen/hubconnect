@@ -645,6 +645,8 @@
   function reload() { refresh(); }
   function splitLines(t) { return (t || "").split(/\r?\n/).map(function (x) { return x.trim(); }); }
   function opKey(hubId, datum, dagdeel) { return hubId + "|" + datum + "|" + dagdeel; }
+  function todayYmd() { var d = new Date(); return d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2); }
+  function isFutureDay(datum) { return datum > todayYmd(); }
   function isSunday(datum) { return new Date(datum + "T00:00:00").getDay() === 0; }
   function dagdelenVoor(datum) { return isSunday(datum) ? ["AM"] : ["AM", "PM"]; }
   function isSetup(u) { return isAdmin(u) || level(u) >= 3; } // binnendienst/senior+ regelt de setup via dashboard
@@ -838,12 +840,14 @@
   }
   function trolleySetStock(hubId, datum, dagdeel, field, value) {
     if (!isSetup(currentUser())) throw new Error("Alleen binnendienst (senior+) mag corrigeren.");
+    if (isFutureDay(datum)) throw new Error("Je kunt trolleys niet vooruit tellen — alleen op de dag zelf.");
     if (field !== "stock4" && field !== "stock5") return;
     var s = markCounted(hubId, datum); s[field] = Math.max(0, parseInt(value, 10) || 0); save();
   }
   // Trolley-telling met +/- (kwaliteit tijdens/na de shift, of senior+). Past de doorlopende hub-voorraad aan.
   function trolleyBump(hubId, datum, dagdeel, field, delta) {
     if (!(canOpShift(currentUser(), hubId, datum, dagdeel, "kwaliteit", "Kwaliteit") || isSetup(currentUser()))) throw new Error("Je bent deze shift niet aangewezen voor kwaliteit.");
+    if (isFutureDay(datum)) throw new Error("Je kunt trolleys niet vooruit tellen — alleen op de dag zelf.");
     if (field !== "stock4" && field !== "stock5") return;
     var s = markCounted(hubId, datum); s[field] = Math.max(0, (s[field] || 0) + (parseInt(delta, 10) || 0)); save();
   }
@@ -1002,7 +1006,7 @@
     addHub: addHub, removeHub: removeHub, addCatalogTask: addCatalogTask, removeCatalogTask: removeCatalogTask,
     planningFor: planningFor, planById: planById, setPlanCell: setPlanCell, addPlanRow: addPlanRow, removePlanRow: removePlanRow,
     reload: reload, DOCKS: DOCKS, EMB_TROLLEYS: EMB_TROLLEYS, EMB_VAKKEN: EMB_VAKKEN, VAK_NUMMERS: VAK_NUMMERS, VAK_SOORTEN: VAK_SOORTEN, vakSoortLabel: vakSoortLabel,
-    isSunday: isSunday, dagdelenVoor: dagdelenVoor, isSetup: isSetup, canOpShift: canOpShift,
+    isSunday: isSunday, dagdelenVoor: dagdelenVoor, isFutureDay: isFutureDay, todayYmd: todayYmd, isSetup: isSetup, canOpShift: canOpShift,
     getDiensten: getDiensten, setDienst: setDienst, importSheet: importSheet,
     getSchade: getSchade, schadeImportColumns: schadeImportColumns, schadeAddBus: schadeAddBus, schadeToggle: schadeToggle, schadeSetDock: schadeSetDock, schadeRemove: schadeRemove, schadeReset: schadeReset, schadeStats: schadeStats,
     setBusSteekproef: setBusSteekproef, steekproefDone: steekproefDone, steekproefStats: steekproefStats, steekproevenList: steekproevenList, recentGecontroleerdeBussen: recentGecontroleerdeBussen, busHeeftProbleem: busHeeftProbleem,
