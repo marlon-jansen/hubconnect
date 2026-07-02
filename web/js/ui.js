@@ -171,7 +171,7 @@
     var loggedIn = !!S.currentUser();
     var cta = loggedIn ? "Verder naar de hub" : "Inloggen";
 
-    // Module-rail (Apple-stijl kaarten, horizontaal snappen)
+    // Module-rail: gekleurde kaarten, horizontaal snappen
     var railCards = [
       { icon: "exchange", cls: "yellow", naam: "RuilHub", txt: "Shift kwijt? Geruild in twee tikken — met goedkeuring van de teamleider." },
       { icon: "clipboardList", cls: "blue", naam: "Takenplanning", txt: "Het weekrooster als afbeelding, klaar voor de groepsapp." },
@@ -185,6 +185,31 @@
         "<h3>" + esc(m.naam) + "</h3><p>" + esc(m.txt) + "</p></div>";
     }).join("");
 
+    // doorlopende marquee-band met de modulenamen (2x voor naadloze loop)
+    var marqItems = "RuilHub · Takenplanning · Senior Dashboard · Laadproces · Schadecontrole · Kwaliteit · Bussenbeheer · ";
+    var marq = '<span>' + esc(marqItems) + "</span><span aria-hidden=\"true\">" + esc(marqItems) + "</span>";
+
+    // telefoon-mockup in de hero (kantelt mee met muis/scroll)
+    var phone =
+      '<div class="l2-phone-wrap reveal" style="--rd:300ms"><div class="l2-phone" id="l2Phone">' +
+        '<div class="l2-ph-head"><span class="logo-badge">' + logo(20) + '</span><span>' + PORTAL + '</span><span class="l2-ph-live">' + svg("refresh", "icon-sm") + "Live</span></div>" +
+        '<div class="l2-ph-hi">Hoi Alex 👋</div>' +
+        '<div class="l2-ph-tiles">' +
+          '<div class="l2-ph-tile t-yellow">' + svg("exchange", "icon-sm") + "<b>RuilHub</b><small>3 open shifts</small></div>" +
+          '<div class="l2-ph-tile t-dark">' + svg("chart", "icon-sm") + "<b>Dashboard</b><small>live overzicht</small></div>" +
+          '<div class="l2-ph-tile t-green">' + svg("shield", "icon-sm") + "<b>Schade</b><small>12/18 bussen</small></div>" +
+          '<div class="l2-ph-tile t-orange">' + svg("inbox", "icon-sm") + "<b>Laden</b><small>vak 8 · rit 214</small></div>" +
+        "</div>" +
+      "</div></div>";
+
+    // probeer-het-zelf demo: bussen aftikken, voortgang loopt live op
+    var demoRows = [["Bus 214", "Dock 3"], ["Bus 87", "Dock 1"], ["Bus 153", "Dock 5"], ["Bus 66", "Dock 2"]].map(function (b, i) {
+      return '<div class="l2-demo-row" data-democheck tabindex="0">' +
+        '<span class="l2-demo-chk">' + svg("check", "icon-sm") + "</span>" +
+        '<span class="l2-demo-bus"><b>' + b[0] + "</b><small>" + b[1] + "</small></span>" +
+        '<span class="badge dock">' + svg("van", "icon-sm") + "Klaar voor controle</span></div>";
+    }).join("");
+
     el("app").innerHTML =
       '<div class="l2">' +
         // vaste, doorschijnende navbalk
@@ -195,22 +220,48 @@
           '<button class="btn btn-dark btn-sm" data-go="login">' + cta + "</button>" +
         "</div></header>" +
 
-        // HERO — groot, gecentreerd, gefaseerd in beeld
-        '<section class="l2-hero">' +
+        // HERO — geel, groot, met telefoon-mockup
+        '<section class="l2-hero" id="l2Hero">' +
+          '<div class="l2-hero-blob b1"></div><div class="l2-hero-blob b2"></div>' +
           '<p class="l2-kicker reveal">Jumbo Bezorgservice</p>' +
           '<h1 class="reveal" style="--rd:80ms">' + PORTAL + ".</h1>" +
           '<p class="l2-sub reveal" style="--rd:160ms">Alles voor je hub.<br>Op één plek.</p>' +
           '<div class="l2-cta reveal" style="--rd:240ms">' +
-            '<button class="btn btn-primary btn-lg" data-go="login">' + svg("arrowRight") + cta + "</button>" +
+            '<button class="btn btn-dark btn-lg" data-go="login">' + svg("arrowRight") + cta + "</button>" +
             '<button class="l2-more" data-scrollto=".l2-mods">Ontdek de modules <span class="l2-chev">↓</span></button>' +
+          "</div>" + phone +
+        "</section>" +
+
+        // MARQUEE — doorlopende band
+        '<div class="l2-marq" aria-hidden="true"><div class="l2-marq-track">' + marq + "</div></div>" +
+
+        // MODULES — horizontale snap-rail met gekleurde kaarten
+        '<section class="l2-mods">' +
+          '<h2 class="l2-h2 reveal">Eén hub.<br><span class="l2-dim">Zes gereedschappen.</span></h2>' +
+          '<p class="l2-mods-hint reveal" style="--rd:80ms">' + svg("arrowRight", "icon-sm") + " swipe door de modules</p>" +
+          '<div class="l2-rail" id="l2Rail">' + railCards + "</div>" +
+        "</section>" +
+
+        // PROBEER HET ZELF — interactieve mini-demo
+        '<section class="l2-demo">' +
+          '<h2 class="l2-h2 reveal">Probeer het zelf.</h2>' +
+          '<p class="l2-demo-sub reveal" style="--rd:80ms">Tik de bussen af zoals bij de schadecontrole — de voortgang loopt live mee.</p>' +
+          '<div class="l2-demo-card reveal" style="--rd:160ms">' +
+            '<div class="l2-demo-top"><span class="l2-demo-title">' + svg("shield", "icon-sm") + 'Schadecontrole · AM</span>' +
+              '<span class="l2-demo-pct" id="l2DemoPct">0%</span></div>' +
+            '<div class="l2-bar demo"><span id="l2DemoBar"></span></div>' +
+            demoRows +
+            '<div class="l2-demo-done" id="l2DemoDone">' + svg("check", "icon-sm") + "Alle bussen gecontroleerd — de binnendienst ziet het meteen! 🎉</div>" +
           "</div>" +
         "</section>" +
 
-        // MODULES — horizontale snap-rail
-        '<section class="l2-mods">' +
-          '<h2 class="l2-h2 reveal">Eén hub.<br><span class="l2-dim">Zes gereedschappen.</span></h2>' +
-          '<div class="l2-rail" id="l2Rail">' + railCards + "</div>" +
-        "</section>" +
+        // STATS — gele band met tellers
+        '<section class="l2-stats"><div class="l2-stats-in reveal">' +
+          '<div class="l2-stat"><b data-count="13">0</b><span>hubs</span></div>' +
+          '<div class="l2-stat"><b data-count="6">0</b><span>modules</span></div>' +
+          '<div class="l2-stat"><b data-count="3" data-suffix="s">0</b><span>realtime</span></div>' +
+          '<div class="l2-stat"><b data-count="1">0</b><span>plek</span></div>' +
+        "</div></section>" +
 
         // REALTIME — donkere sectie met animerende voortgang
         '<section class="l2-dark">' +
@@ -224,10 +275,10 @@
           "</div>" +
         "</section>" +
 
-        // AFSLUITER
+        // AFSLUITER — geel
         '<section class="l2-final">' +
           '<h2 class="l2-h2 reveal">Klaar voor je shift?</h2>' +
-          '<div class="reveal" style="--rd:100ms"><button class="btn btn-primary btn-lg" data-go="login">' + svg("arrowRight") + cta + "</button></div>" +
+          '<div class="reveal" style="--rd:100ms"><button class="btn btn-dark btn-lg" data-go="login">' + svg("arrowRight") + cta + "</button></div>" +
           '<p class="l2-note reveal" style="--rd:180ms">' + svg("shield", "icon-sm") + " Veilig &amp; per hub afgeschermd</p>" +
         "</section>" +
 
@@ -273,6 +324,39 @@
     // navbalk krijgt schaduw zodra je scrolt
     var nav = el("l2Nav");
     if (nav) { var onScroll = function () { nav.classList.toggle("scrolled", window.scrollY > 8); }; window.addEventListener("scroll", onScroll, { passive: true }); onScroll(); }
+
+    // demo: bussen aftikken → voortgang loopt live mee
+    var demoRows = document.querySelectorAll("[data-democheck]");
+    function demoUpdate() {
+      var done = document.querySelectorAll("[data-democheck].on").length, total = demoRows.length;
+      var pct = total ? Math.round(done / total * 100) : 0;
+      var bar = el("l2DemoBar"), val = el("l2DemoPct"), fin = el("l2DemoDone");
+      if (bar) bar.style.width = pct + "%";
+      if (val) val.textContent = pct + "%";
+      if (fin) fin.classList.toggle("show", pct === 100);
+    }
+    demoRows.forEach(function (r) {
+      function flip() { r.classList.toggle("on"); demoUpdate(); }
+      r.addEventListener("click", flip);
+      r.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); flip(); } });
+    });
+
+    // telefoon-mockup: kantelt mee met de muis (desktop) en scroll (mobiel)
+    var phone = el("l2Phone"), hero = el("l2Hero");
+    if (phone && hero && !reduce) {
+      hero.addEventListener("pointermove", function (e) {
+        if (e.pointerType !== "mouse") return;
+        var r = hero.getBoundingClientRect();
+        var dx = (e.clientX - r.left) / r.width - 0.5, dy = (e.clientY - r.top) / r.height - 0.5;
+        phone.style.transform = "rotateY(" + (dx * 10) + "deg) rotateX(" + (-dy * 8) + "deg)";
+      });
+      hero.addEventListener("pointerleave", function () { phone.style.transform = ""; });
+      // subtiele parallax bij scrollen
+      window.addEventListener("scroll", function () {
+        var y = window.scrollY;
+        if (y < window.innerHeight) phone.style.transform = "translateY(" + (y * -0.06) + "px)";
+      }, { passive: true });
+    }
   }
 
   /* ===================================================================
