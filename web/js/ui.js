@@ -128,11 +128,7 @@
   /* ---------- Jumbo logo (huisstijl wordmark) ---------- */
   function logo(h) {
     h = h || 36;
-    return '<svg class="logo-mark" height="' + h + '" viewBox="0 0 348 96" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Jumbo">' +
-      '<g font-family="Arial Black, Arial, Nunito Sans, sans-serif" font-weight="900" font-size="84" letter-spacing="-2">' +
-        '<text x="14" y="74" fill="#1d1d1b">JUMBO</text>' +
-        '<text x="8" y="68" fill="#febe10">JUMBO</text>' +
-      '</g></svg>';
+    return '<img class="logo-mark" src="img/jumbo-logo.svg?v=30" alt="Jumbo" style="height:' + h + 'px" />';
   }
 
   /* ---------- toast ---------- */
