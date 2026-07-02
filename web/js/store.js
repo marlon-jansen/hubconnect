@@ -776,14 +776,17 @@
   }
   // Een dag "telt mee" voor de overdracht zodra er echt op geteld is (counted). Bestaande dagen
   // van vóór deze fix hebben geen vlag (counted === undefined) en gelden als geteld (behoud).
-  function isCountedDay(e) { return !!e && e.counted !== false; }
+  // Een dag telt alleen als "geteld" als het NIET in de toekomst ligt én expliciet geteld is.
+  // Toekomstige dagen zijn per definitie nooit geteld → ze tonen altijd de live overdracht
+  // (zelfhelend: oude bevroren toekomstdagen verdwijnen vanzelf).
+  function isCountedDay(e, datum) { if (isFutureDay(datum)) return false; return !!e && e.counted !== false; }
   // Voorraad van de meest recente eerdere GETELDE dag voor deze hub (voor de dag-overdracht).
   function prevDayStock(hubId, datum) {
     if (!db.trolleyStock) return null;
     var best = null, bestDatum = "";
     Object.keys(db.trolleyStock).forEach(function (kk) {
       var p = kk.split("|"); if (p[0] !== hubId) return;
-      if (!isCountedDay(db.trolleyStock[kk])) return; // niet-getelde (seed-)dagen dragen niet over
+      if (!isCountedDay(db.trolleyStock[kk], p[1])) return; // niet-getelde/toekomstige dagen dragen niet over
       if (p[1] < datum && p[1] > bestDatum) { bestDatum = p[1]; best = db.trolleyStock[kk]; }
     });
     return best;
@@ -795,7 +798,7 @@
     if (!db.trolleyStock) db.trolleyStock = {};
     var k = hubId + "|" + datum;
     var e = db.trolleyStock[k];
-    if (isCountedDay(e)) return e; // deze dag is expliciet geteld → eigen momentopname
+    if (isCountedDay(e, datum)) return e; // deze dag is (niet-toekomstig én) expliciet geteld → eigen momentopname
     var prev = prevDayStock(hubId, datum) || latestShiftStock(hubId); // overdracht vorige getelde dag, anders migratie
     db.trolleyStock[k] = { stock4: prev ? (prev.stock4 || 0) : 0, stock5: prev ? (prev.stock5 || 0) : 0, counted: false };
     return db.trolleyStock[k];
