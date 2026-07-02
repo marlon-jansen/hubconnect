@@ -168,19 +168,21 @@
      LANDING
      =================================================================== */
   function renderLanding() {
+    var loggedIn = !!S.currentUser();
+    var cta = loggedIn ? "Verder naar de hub" : "Inloggen";
     el("app").innerHTML =
       '<div class="landing">' +
         '<div class="landing-bg"></div>' +
         '<header class="landing-top">' +
           '<div class="brand"><span class="logo-badge">' + logo(40) + '</span><div><div class="app-name">' + PORTAL + '</div><div class="app-sub">Jumbo Bezorgservice</div></div></div>' +
-          '<button class="btn btn-dark" data-go="login">' + svg("arrowRight") + "Inloggen</button></header>" +
+          '<button class="btn btn-dark" data-go="login">' + svg("arrowRight") + cta + "</button></header>" +
         '<section class="hero">' +
           '<div class="hero-left">' +
             '<div class="eyebrow">' + svg("grid", "icon-sm") + " Eén platform voor je hub</div>" +
             '<h1>Alles voor je hub,<br><span class="hl">op één plek.</span></h1>' +
             '<p class="lead">' + PORTAL + " brengt het shiftbeheer en de dagelijkse operatie van de bezorgservice samen: shifts en taken ruilen, de takenplanning, schadecontrole, het laadproces en kwaliteit — overzichtelijk en realtime per hub.</p>" +
             '<div class="hero-cta">' +
-              '<button class="btn btn-primary btn-lg" data-go="login">' + svg("arrowRight") + "Inloggen</button>" +
+              '<button class="btn btn-primary btn-lg" data-go="login">' + svg("arrowRight") + cta + "</button>" +
               '<span class="hero-note">' + svg("shield", "icon-sm") + " Veilig &amp; per hub afgeschermd</span>" +
             "</div>" +
           "</div>" +
@@ -201,7 +203,10 @@
         "</section>" +
         '<footer class="landing-foot">' + PORTAL + " · Jumbo Bezorgservice</footer>" +
       "</div>";
-    document.querySelectorAll("[data-go=login]").forEach(function (b) { b.addEventListener("click", function () { authScreen = "login"; render(); }); });
+    document.querySelectorAll("[data-go=login]").forEach(function (b) { b.addEventListener("click", function () {
+      if (S.currentUser()) { state.showLanding = false; state.module = null; render(); } // al ingelogd → direct de hub in
+      else { authScreen = "login"; render(); }
+    }); });
   }
   function feature(icon, t, d) {
     return '<div class="feat"><div class="feat-ico">' + svg(icon) + "</div><h3>" + esc(t) + "</h3><p>" + esc(d) + "</p></div>";
@@ -293,7 +298,7 @@
     el("app").innerHTML =
       '<header class="app-header"><div class="app-header-inner">' +
         '<button class="btn btn-icon portal-btn" data-portal title="Naar de Hub">' + svg("grid", "icon-sm") + "</button>" +
-        '<div class="brand"><span class="logo-badge">' + logo(40) + "</span>" +
+        '<div class="brand" data-home role="button" title="Naar de voorpagina"><span class="logo-badge">' + logo(40) + "</span>" +
           '<div><div class="app-name">' + APP + '</div><div class="app-sub">Shifts &amp; taken ruilen</div></div></div>' +
         '<div class="header-spacer"></div>' +
         '<div class="user-chip">' +
@@ -313,6 +318,7 @@
     el("app").querySelector("[data-logout]").addEventListener("click", function () { S.logout(); authScreen = "landing"; render(); });
     el("app").querySelector("[data-profile]").addEventListener("click", openProfile);
     var pb = el("app").querySelector("[data-portal]"); if (pb) pb.addEventListener("click", gotoPortal);
+    var hm = el("app").querySelector("[data-home]"); if (hm) hm.addEventListener("click", gotoLanding);
     renderMain();
   }
 
@@ -1366,6 +1372,7 @@
     var u = S.currentUser();
     if (u) {
       if (u.mustSetPassword) renderForcePassword(u);
+      else if (state.showLanding) renderLanding();   // ingelogd, maar bewust naar de voorpagina (logo-klik)
       else if (!state.module) renderPortal();
       else if (state.module === "ruilhub") renderApp();
       else renderModulePage();
@@ -1395,7 +1402,7 @@
     var hub = S.hubById(u.hubId);
     return '<header class="app-header portal-header"><div class="app-header-inner">' +
       (showBack ? '<button class="btn btn-icon portal-btn" data-portal title="Naar het menu">' + svg("grid", "icon-sm") + "</button>" : "") +
-      '<div class="brand"><span class="logo-badge">' + logo(40) + "</span>" +
+      '<div class="brand" data-home role="button" title="Naar de voorpagina"><span class="logo-badge">' + logo(40) + "</span>" +
         '<div><div class="app-name">' + PORTAL + '</div><div class="app-sub">Bezorgservice · HUB ' + esc(hub ? hub.naam : "?") + "</div></div></div>" +
       '<div class="header-spacer"></div>' +
       '<div class="user-chip">' +
@@ -1429,12 +1436,14 @@
       "</main>";
     el("app").querySelector("[data-logout]").addEventListener("click", function () { S.logout(); authScreen = "landing"; render(); });
     el("app").querySelector("[data-profile]").addEventListener("click", openProfile);
+    var hm = el("app").querySelector("[data-home]"); if (hm) hm.addEventListener("click", gotoLanding);
     document.querySelectorAll("[data-module]").forEach(function (b) {
       b.addEventListener("click", function () { state.module = b.getAttribute("data-module"); state.view = "shifts"; state.viewOnly = false; render(); });
     });
   }
 
-  function gotoPortal() { state.module = null; state.viewOnly = false; render(); }
+  function gotoPortal() { state.module = null; state.viewOnly = false; state.showLanding = false; render(); }
+  function gotoLanding() { state.showLanding = true; render(); } // logo-klik: naar de voorpagina (blijft ingelogd)
 
   /* ===================================================================
      MODULE-PAGINA (operationeel — in aanbouw)
@@ -1463,6 +1472,7 @@
     el("app").querySelector("[data-logout]").addEventListener("click", function () { S.logout(); authScreen = "landing"; render(); });
     el("app").querySelector("[data-profile]").addEventListener("click", openProfile);
     el("app").querySelector("[data-portal]").addEventListener("click", gotoPortal);
+    var hm2 = el("app").querySelector("[data-home]"); if (hm2) hm2.addEventListener("click", gotoLanding);
   }
 
   /* ===================================================================
@@ -1632,6 +1642,7 @@
     el("app").querySelector("[data-logout]").addEventListener("click", function () { S.logout(); authScreen = "landing"; render(); });
     el("app").querySelector("[data-profile]").addEventListener("click", openProfile);
     el("app").querySelector("[data-portal]").addEventListener("click", gotoPortal);
+    var hm = el("app").querySelector("[data-home]"); if (hm) hm.addEventListener("click", gotoLanding);
     var vb = el("app").querySelector("[data-voback]"); if (vb) vb.addEventListener("click", function () { state.viewOnly = false; state.module = "dashboard"; render(); });
     if (rerender) bindShiftBar(rerender);
   }
