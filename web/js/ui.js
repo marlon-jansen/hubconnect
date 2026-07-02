@@ -1622,8 +1622,7 @@
     var badge = vo
       ? '<span class="live-badge vo-badge">' + svg("shield", "icon-sm") + "Alleen bekijken</span>"
       : '<span class="live-badge">' + svg("refresh", "icon-sm") + "Live</span>";
-    var voBar = vo ? '<div class="vo-bar"><button class="btn btn-ghost btn-sm" data-voback>' + svg("arrowLeft", "icon-sm") + "Terug naar dashboard</button>" +
-      '<span class="cellsub">Je bekijkt deze taak mee zoals de uitvoerder — wijzigen kan hier niet.</span></div>' : "";
+    var voBar = vo ? '<div class="vo-bar"><button class="btn btn-ghost btn-sm" data-voback>' + svg("arrowLeft", "icon-sm") + "Terug naar dashboard</button></div>" : "";
     return portalHeader(S.currentUser(), true) +
       '<main><div class="page-head" style="margin-top:6px"><div><h2>' + esc(title) + "</h2></div>" +
       '<div class="grow"></div>' + badge + "</div>" +
@@ -1936,7 +1935,7 @@
     var todoBanner = todo.length ? '<div class="todo-banner">' + svg("alertTri", "icon-sm") + "<div><b>Nog te doen:</b> " + todo.map(esc).join(" · ") + ' <button class="link-btn" data-dashtab="klaarzetten">Naar klaarzetten</button></div></div>' : "";
 
     function tile(title, icon, color, inner, mod) {
-      var view = mod ? '<button class="btn btn-ghost btn-sm dash-view" data-viewmod="' + mod + '">' + svg("arrowRight", "icon-sm") + "Bekijk voortgang</button>" : "";
+      var view = mod ? '<button class="btn btn-sm dash-view" data-viewmod="' + mod + '">' + svg("arrowRight", "icon-sm") + "Bekijk voortgang</button>" : "";
       return '<div class="dash-card dash-' + color + '"><div class="dash-h">' + svg(icon, "icon-sm") + esc(title) + "</div>" + inner + view + "</div>";
     }
     var ring = function (pct, cls) { return '<div class="dash-ring ' + cls + '" style="--p:' + pct + '"><span>' + pct + "%</span></div>"; };
