@@ -772,26 +772,34 @@
     });
     return best;
   }
-  // Voorraad van de meest recente eerdere DAG voor deze hub (voor de dag-overdracht).
+  // Een dag "telt mee" voor de overdracht zodra er echt op geteld is (counted). Bestaande dagen
+  // van vóór deze fix hebben geen vlag (counted === undefined) en gelden als geteld (behoud).
+  function isCountedDay(e) { return !!e && e.counted !== false; }
+  // Voorraad van de meest recente eerdere GETELDE dag voor deze hub (voor de dag-overdracht).
   function prevDayStock(hubId, datum) {
     if (!db.trolleyStock) return null;
     var best = null, bestDatum = "";
     Object.keys(db.trolleyStock).forEach(function (kk) {
       var p = kk.split("|"); if (p[0] !== hubId) return;
+      if (!isCountedDay(db.trolleyStock[kk])) return; // niet-getelde (seed-)dagen dragen niet over
       if (p[1] < datum && p[1] > bestDatum) { bestDatum = p[1]; best = db.trolleyStock[kk]; }
     });
     return best;
   }
   // Voorraad per (hub + dag): AM en PM delen dezelfde dagtelling; elke dag is een momentopname met historie.
+  // Een dag die nog niet geteld is, toont LIVE de overdracht van de meest recente getelde eerdere dag
+  // (wordt telkens herberekend, niet bevroren) — zodat een latere telling van gisteren doorwerkt naar vandaag.
   function getTrolleyStock(hubId, datum) {
     if (!db.trolleyStock) db.trolleyStock = {};
     var k = hubId + "|" + datum;
-    if (!db.trolleyStock[k]) {
-      var prev = prevDayStock(hubId, datum) || latestShiftStock(hubId); // overdracht vorige dag, anders migratie
-      db.trolleyStock[k] = { stock4: prev ? (prev.stock4 || 0) : 0, stock5: prev ? (prev.stock5 || 0) : 0 };
-    }
+    var e = db.trolleyStock[k];
+    if (isCountedDay(e)) return e; // deze dag is expliciet geteld → eigen momentopname
+    var prev = prevDayStock(hubId, datum) || latestShiftStock(hubId); // overdracht vorige getelde dag, anders migratie
+    db.trolleyStock[k] = { stock4: prev ? (prev.stock4 || 0) : 0, stock5: prev ? (prev.stock5 || 0) : 0, counted: false };
     return db.trolleyStock[k];
   }
+  // Markeer de dag als daadwerkelijk geteld (eigen momentopname vanaf nu).
+  function markCounted(hubId, datum) { var s = getTrolleyStock(hubId, datum); s.counted = true; return s; }
   // Pendels blijven per shift; stock4/stock5 komen uit de dagtelling van de hub.
   function getTrolley(hubId, datum, dagdeel) {
     if (!db.trolley) db.trolley = {};
@@ -825,19 +833,19 @@
     var nv = Math.max(0, (p[field] || 0) + (parseInt(delta, 10) || 0)); var applied = nv - (p[field] || 0); p[field] = nv;
     var lay = (field === "in4" || field === "out4") ? "stock4" : "stock5";
     var sign = (field === "in4" || field === "in5") ? 1 : -1;
-    var s = getTrolleyStock(hubId, datum); s[lay] = Math.max(0, (s[lay] || 0) + sign * applied);
+    var s = markCounted(hubId, datum); s[lay] = Math.max(0, (s[lay] || 0) + sign * applied);
     save();
   }
   function trolleySetStock(hubId, datum, dagdeel, field, value) {
     if (!isSetup(currentUser())) throw new Error("Alleen binnendienst (senior+) mag corrigeren.");
     if (field !== "stock4" && field !== "stock5") return;
-    var s = getTrolleyStock(hubId, datum); s[field] = Math.max(0, parseInt(value, 10) || 0); save();
+    var s = markCounted(hubId, datum); s[field] = Math.max(0, parseInt(value, 10) || 0); save();
   }
   // Trolley-telling met +/- (kwaliteit tijdens/na de shift, of senior+). Past de doorlopende hub-voorraad aan.
   function trolleyBump(hubId, datum, dagdeel, field, delta) {
     if (!(canOpShift(currentUser(), hubId, datum, dagdeel, "kwaliteit", "Kwaliteit") || isSetup(currentUser()))) throw new Error("Je bent deze shift niet aangewezen voor kwaliteit.");
     if (field !== "stock4" && field !== "stock5") return;
-    var s = getTrolleyStock(hubId, datum); s[field] = Math.max(0, (s[field] || 0) + (parseInt(delta, 10) || 0)); save();
+    var s = markCounted(hubId, datum); s[field] = Math.max(0, (s[field] || 0) + (parseInt(delta, 10) || 0)); save();
   }
 
   /* ----- LC (laden) ----- */
