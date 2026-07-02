@@ -686,7 +686,7 @@
     var b = getSchade(hubId, datum, dagdeel).buses;
     return { done: b.filter(steekproefDone).length, total: 5 };
   }
-  function newBus(naam, bus, kenteken) { return { id: uid("bus"), naam: (naam || "").trim(), bus: (bus || "").trim(), kenteken: (kenteken || "").trim(), dock: "", gecontroleerd: false, mist_tolkrol: false, mist_kabels: false, mist_doekjes: false, steekproef: null }; }
+  function newBus(naam, bus, kenteken) { return { id: uid("bus"), naam: (naam || "").trim(), bus: (bus || "").trim(), kenteken: (kenteken || "").trim(), dock: "", opmerking: "", gecontroleerd: false, mist_tolkrol: false, mist_kabels: false, mist_doekjes: false, steekproef: null }; }
   // Probleembus: er mist iets bij de schadecontrole (voor Bussenbeheer).
   function busHeeftProbleem(b) { return !!(b.mist_tolkrol || b.mist_kabels || b.mist_doekjes); }
   function schadeImportColumns(hubId, datum, dagdeel, busText, kentekenText, naamText) {
@@ -726,6 +726,12 @@
       if (bezet) throw new Error("Dock " + dock + " is al toegewezen aan bus " + (bezet.bus || "?") + ".");
     }
     b.dock = dock || ""; save();
+  }
+  // Opmerking bij een bus (binnendienst zet 'm klaar, de schadecontroleur ziet 'm).
+  function schadeSetOpmerking(hubId, datum, dagdeel, busId, tekst) {
+    if (!isSetup(currentUser())) throw new Error("Alleen binnendienst (senior+) mag een opmerking plaatsen.");
+    var b = getSchade(hubId, datum, dagdeel).buses.filter(function (x) { return x.id === busId; })[0]; if (!b) return;
+    b.opmerking = (tekst || "").trim(); save();
   }
   function schadeRemove(hubId, datum, dagdeel, busId) { if (!isSetup(currentUser())) throw new Error("Geen rechten."); var s = getSchade(hubId, datum, dagdeel); s.buses = s.buses.filter(function (x) { return x.id !== busId; }); save(); }
   function schadeReset(hubId, datum, dagdeel) { if (!isSetup(currentUser())) throw new Error("Geen rechten."); db.schade[opKey(hubId, datum, dagdeel)] = { buses: [] }; save(); }
@@ -1011,7 +1017,7 @@
     reload: reload, DOCKS: DOCKS, EMB_TROLLEYS: EMB_TROLLEYS, EMB_VAKKEN: EMB_VAKKEN, VAK_NUMMERS: VAK_NUMMERS, VAK_SOORTEN: VAK_SOORTEN, vakSoortLabel: vakSoortLabel,
     isSunday: isSunday, dagdelenVoor: dagdelenVoor, isFutureDay: isFutureDay, todayYmd: todayYmd, isSetup: isSetup, canOpShift: canOpShift,
     getDiensten: getDiensten, setDienst: setDienst, importSheet: importSheet,
-    getSchade: getSchade, schadeImportColumns: schadeImportColumns, schadeAddBus: schadeAddBus, schadeToggle: schadeToggle, schadeSetDock: schadeSetDock, schadeRemove: schadeRemove, schadeReset: schadeReset, schadeStats: schadeStats,
+    getSchade: getSchade, schadeImportColumns: schadeImportColumns, schadeAddBus: schadeAddBus, schadeToggle: schadeToggle, schadeSetDock: schadeSetDock, schadeSetOpmerking: schadeSetOpmerking, schadeRemove: schadeRemove, schadeReset: schadeReset, schadeStats: schadeStats,
     setBusSteekproef: setBusSteekproef, steekproefDone: steekproefDone, steekproefStats: steekproefStats, steekproevenList: steekproevenList, recentGecontroleerdeBussen: recentGecontroleerdeBussen, busHeeftProbleem: busHeeftProbleem,
     getKwaliteit: getKwaliteit, vakSoort: vakSoort, setVakSoort: setVakSoort, emballageSet: emballageSet, emballageVakTotal: emballageVakTotal, clearEmbVak: clearEmbVak,
     getTrolley: getTrolley, addPendelPlan: addPendelPlan, removePendel: removePendel, pendelBump: pendelBump, trolleySetStock: trolleySetStock, trolleyBump: trolleyBump, recentPendels: recentPendels,

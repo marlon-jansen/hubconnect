@@ -1382,11 +1382,12 @@
     if (senior) m.push({ id: "takenplanning", name: "Takenplanning", icon: "clipboardList", color: "blue", group: "Planning", desc: "Weekrooster maken & delen." });
     if (S.can.seeBeheer(u)) m.push({ id: "personeelsbeheer", name: "Personeelsbeheer", icon: "userCog", color: "teal", group: "Beheer", desc: "Medewerkers, functies, taken en hubs." });
     if (S.can.seeBussenbeheer(u)) m.push({ id: "bussenbeheer", name: "Bussenbeheer", icon: "van", color: "gray", group: "Beheer", desc: "Bussen per shift, met focus op probleembussen." });
+    // Proces-volgorde: Senior Dashboard, Laadproces, Schadecontrole, Kwaliteit.
     if (senior) m.push({ id: "dashboard", name: "Senior Dashboard", icon: "chart", color: "dark", group: "Proces", desc: "Realtime overzicht van de shift." });
     // Bezorgers zien een procesmodule zodra ze de bijbehorende taak toegewezen krijgen (personeelsbeheer).
+    if (senior || hasTask("LC") || hasTask("Laden")) m.push({ id: "lc", name: "Laadproces", icon: "inbox", color: "orange", group: "Proces", desc: "Ritten koppelen aan bussen & trolleys." });
     if (senior || hasTask("Schadecontrole")) m.push({ id: "schadecontrole", name: "Schadecontrole", icon: "shield", color: "green", group: "Proces", desc: "Bussen controleren & afvinken." });
     if (senior || hasTask("Kwaliteit")) m.push({ id: "kwaliteit", name: "Kwaliteit", icon: "award", color: "purple", group: "Proces", desc: "Emballage tellen per vak." });
-    if (senior || hasTask("LC") || hasTask("Laden")) m.push({ id: "lc", name: "Laadproces", icon: "inbox", color: "orange", group: "Proces", desc: "Ritten koppelen aan bussen & trolleys." });
     return m;
   }
 
@@ -1415,7 +1416,7 @@
         '<span class="tile-name">' + esc(m.name) + "</span>" +
         '<span class="tile-desc">' + esc(m.desc) + "</span></button>";
     }
-    var sections = ["Planning", "Beheer", "Proces"].map(function (g) {
+    var sections = ["Planning", "Proces", "Beheer"].map(function (g) {
       var gm = mods.filter(function (m) { return (m.group || "Proces") === g; });
       if (!gm.length) return "";
       return '<section class="portal-group"><h3 class="portal-group-title">' + esc(g) + "</h3>" +
@@ -1429,11 +1430,11 @@
     el("app").querySelector("[data-logout]").addEventListener("click", function () { S.logout(); authScreen = "landing"; render(); });
     el("app").querySelector("[data-profile]").addEventListener("click", openProfile);
     document.querySelectorAll("[data-module]").forEach(function (b) {
-      b.addEventListener("click", function () { state.module = b.getAttribute("data-module"); state.view = "shifts"; render(); });
+      b.addEventListener("click", function () { state.module = b.getAttribute("data-module"); state.view = "shifts"; state.viewOnly = false; render(); });
     });
   }
 
-  function gotoPortal() { state.module = null; render(); }
+  function gotoPortal() { state.module = null; state.viewOnly = false; render(); }
 
   /* ===================================================================
      MODULE-PAGINA (operationeel — in aanbouw)
@@ -1617,15 +1618,22 @@
      =================================================================== */
   function moduleShell(title, content, opts) {
     opts = opts || {};
+    var vo = state.viewOnly;
+    var badge = vo
+      ? '<span class="live-badge vo-badge">' + svg("shield", "icon-sm") + "Alleen bekijken</span>"
+      : '<span class="live-badge">' + svg("refresh", "icon-sm") + "Live</span>";
+    var voBar = vo ? '<div class="vo-bar"><button class="btn btn-ghost btn-sm" data-voback>' + svg("arrowLeft", "icon-sm") + "Terug naar dashboard</button>" +
+      '<span class="cellsub">Je bekijkt deze taak mee zoals de uitvoerder — wijzigen kan hier niet.</span></div>' : "";
     return portalHeader(S.currentUser(), true) +
       '<main><div class="page-head" style="margin-top:6px"><div><h2>' + esc(title) + "</h2></div>" +
-      '<div class="grow"></div><span class="live-badge">' + svg("refresh", "icon-sm") + "Live</span></div>" +
-      (opts.noShift ? "" : shiftBar()) + content + "</main>";
+      '<div class="grow"></div>' + badge + "</div>" +
+      (opts.noShift ? "" : shiftBar()) + voBar + content + "</main>";
   }
   function bindModuleHeader(rerender) {
     el("app").querySelector("[data-logout]").addEventListener("click", function () { S.logout(); authScreen = "landing"; render(); });
     el("app").querySelector("[data-profile]").addEventListener("click", openProfile);
     el("app").querySelector("[data-portal]").addEventListener("click", gotoPortal);
+    var vb = el("app").querySelector("[data-voback]"); if (vb) vb.addEventListener("click", function () { state.viewOnly = false; state.module = "dashboard"; render(); });
     if (rerender) bindShiftBar(rerender);
   }
   function ensureShiftState() {
@@ -1661,7 +1669,7 @@
   function renderSchade() {
     var c = ctx(), u = c.u;
     var s = S.getSchade(c.h, c.d, c.dd);
-    var canEdit = S.canOpShift(u, c.h, c.d, c.dd, "schadecontrole", "Schadecontrole");
+    var canEdit = !state.viewOnly && S.canOpShift(u, c.h, c.d, c.dd, "schadecontrole", "Schadecontrole");
     var st = S.schadeStats(c.h, c.d, c.dd), spSt = S.steekproefStats(c.h, c.d, c.dd);
 
     function chkCell(b) {
@@ -1683,7 +1691,8 @@
     }
     var rows = s.buses.length ? s.buses.map(function (b) {
       var dockCell = b.dock ? '<span class="badge dock">' + svg("building", "icon-sm") + "Dock " + esc(b.dock) + "</span>" : '<span class="cellsub">—</span>';
-      return "<tr class=\"" + (b.gecontroleerd ? "sc-done" : "") + "\"><td><div class=\"cellname\">Bus " + esc(b.bus || "?") + "</div><div class=\"cellsub\">" + esc(b.naam || "") + (b.kenteken ? " · " + esc(b.kenteken) : "") + "</div></td>" +
+      var opmNote = b.opmerking ? '<div class="bus-opm">' + svg("alertTri", "icon-sm") + esc(b.opmerking) + "</div>" : "";
+      return "<tr class=\"" + (b.gecontroleerd ? "sc-done" : "") + "\"><td><div class=\"cellname\">Bus " + esc(b.bus || "?") + "</div><div class=\"cellsub\">" + esc(b.naam || "") + (b.kenteken ? " · " + esc(b.kenteken) : "") + "</div>" + opmNote + "</td>" +
         chkCell(b) + mistCell(b) + spCell(b) + '<td data-th="Dock">' + dockCell + "</td></tr>";
     }).join("") : '<tr><td colspan="5"><div class="cellsub" style="padding:14px">De binnendienst zet de lijst klaar via het dashboard.</div></td></tr>';
     var table = '<div class="panel" style="padding:0"><div class="table-scroll"><table class="table sc-table">' +
@@ -1761,7 +1770,7 @@
   /* ---------- Kwaliteit (vak-soort + emballage per vak) ---------- */
   function renderKwaliteit() {
     var c = ctx(), u = c.u;
-    var canEdit = S.canOpShift(u, c.h, c.d, c.dd, "kwaliteit", "Kwaliteit");
+    var canEdit = !state.viewOnly && S.canOpShift(u, c.h, c.d, c.dd, "kwaliteit", "Kwaliteit");
     function soortOpts(sel) { return S.VAK_SOORTEN.map(function (s) { return '<option value="' + s.id + '"' + (sel === s.id ? " selected" : "") + ">" + esc(s.label) + "</option>"; }).join(""); }
     var rows = S.VAK_NUMMERS.map(function (i) {
       var soort = S.vakSoort(c.h, c.d, c.dd, i), isEmb = soort === "emb5", tot = isEmb ? S.emballageVakTotal(c.h, c.d, c.dd, i) : 0;
@@ -1841,8 +1850,8 @@
     var c = ctx(), u = c.u;
     var lc = S.getLC(c.h, c.d, c.dd);
     var tr = S.getTrolley(c.h, c.d, c.dd);
-    var canLoad = S.canOpShift(u, c.h, c.d, c.dd, "lc", "LC");
-    var canSetup = S.level(u) >= 3;
+    var canLoad = !state.viewOnly && S.canOpShift(u, c.h, c.d, c.dd, "lc", "LC");
+    var canSetup = !state.viewOnly && S.level(u) >= 3;
     var isPM = c.dd === "PM";
     var st = S.lcStats(c.h, c.d, c.dd);
     if (!state.lcTab) state.lcTab = "laden";
@@ -1913,6 +1922,7 @@
     document.querySelectorAll("[data-dashtab]").forEach(function (b) { b.addEventListener("click", function () { state.dashTab = b.getAttribute("data-dashtab"); renderDashboard(); }); });
     if (state.dashTab === "klaarzetten") bindDashKlaarzetten(c);
     else if (state.dashTab === "diensten") bindDashDiensten(c);
+    else document.querySelectorAll("[data-viewmod]").forEach(function (b) { b.addEventListener("click", function () { state.module = b.getAttribute("data-viewmod"); state.viewOnly = true; render(); }); });
   }
   function dashOverzicht(c) {
     var sc = S.schadeStats(c.h, c.d, c.dd), lcS = S.lcStats(c.h, c.d, c.dd), tr = S.getTrolley(c.h, c.d, c.dd);
@@ -1925,7 +1935,10 @@
     if (!diensten.lc.length || !diensten.schadecontrole.length || !diensten.kwaliteit.length) todo.push("Niet alle diensten zijn toegewezen");
     var todoBanner = todo.length ? '<div class="todo-banner">' + svg("alertTri", "icon-sm") + "<div><b>Nog te doen:</b> " + todo.map(esc).join(" · ") + ' <button class="link-btn" data-dashtab="klaarzetten">Naar klaarzetten</button></div></div>' : "";
 
-    function tile(title, icon, color, inner) { return '<div class="dash-card dash-' + color + '"><div class="dash-h">' + svg(icon, "icon-sm") + esc(title) + "</div>" + inner + "</div>"; }
+    function tile(title, icon, color, inner, mod) {
+      var view = mod ? '<button class="btn btn-ghost btn-sm dash-view" data-viewmod="' + mod + '">' + svg("arrowRight", "icon-sm") + "Bekijk voortgang</button>" : "";
+      return '<div class="dash-card dash-' + color + '"><div class="dash-h">' + svg(icon, "icon-sm") + esc(title) + "</div>" + inner + view + "</div>";
+    }
     var ring = function (pct, cls) { return '<div class="dash-ring ' + cls + '" style="--p:' + pct + '"><span>' + pct + "%</span></div>"; };
     var embVakken = S.VAK_NUMMERS.filter(function (i) { return S.vakSoort(c.h, c.d, c.dd, i) === "emb5"; });
     var vakTotals = embVakken.map(function (i) { return '<div class="emb-vaktot"><span>Vak ' + i + ":</span> <b>" + S.emballageVakTotal(c.h, c.d, c.dd, i) + "</b></div>"; }).join("");
@@ -1936,10 +1949,10 @@
     var recentPendels = recentList(S.recentPendels(c.h, c.d, c.dd).map(function (p) { return recentItem("inbox", "Pendel " + (p.tijd || "?"), null); }));
     // Laden vóór schadecontrole
     var grid = '<div class="dash-grid">' +
-      tile("Laden", "inbox", "orange", '<div class="dash-row">' + ring(lcS.pct, "o") + '<div><div class="dash-big">' + lcS.done + " / " + lcS.used + '</div><div class="cellsub">vakken geladen</div></div></div>' + '<div class="dash-recent-title">Recent geladen</div>' + recentGeladen) +
-      tile("Schadecontrole", "shield", "green", '<div class="dash-row">' + ring(sc.pct, "g") + '<div><div class="dash-big">' + sc.done + " / " + sc.total + '</div><div class="cellsub">bussen gecontroleerd</div></div></div>' + '<div class="dash-recent-title">Recent gecontroleerd</div>' + recentSchade) +
-      tile("Trolley-voorraad", "inbox", "blue", '<div class="dash-stocks"><div><div class="dash-big">' + tr.stock4 + '</div><div class="cellsub">4-laags</div></div><div><div class="dash-big">' + tr.stock5 + '</div><div class="cellsub">5-laags</div></div></div>' + '<div class="dash-recent-title">Recente pendels</div>' + recentPendels) +
-      tile("Emballage per vak", "tag", "purple", vakTotals ? '<div class="emb-vaktots">' + vakTotals + "</div>" : '<div class="cellsub">Nog niets geteld</div>') +
+      tile("Laden", "inbox", "orange", '<div class="dash-row">' + ring(lcS.pct, "o") + '<div><div class="dash-big">' + lcS.done + " / " + lcS.used + '</div><div class="cellsub">vakken geladen</div></div></div>' + '<div class="dash-recent-title">Recent geladen</div>' + recentGeladen, "lc") +
+      tile("Schadecontrole", "shield", "green", '<div class="dash-row">' + ring(sc.pct, "g") + '<div><div class="dash-big">' + sc.done + " / " + sc.total + '</div><div class="cellsub">bussen gecontroleerd</div></div></div>' + '<div class="dash-recent-title">Recent gecontroleerd</div>' + recentSchade, "schadecontrole") +
+      tile("Trolley-voorraad", "inbox", "blue", '<div class="dash-stocks"><div><div class="dash-big">' + tr.stock4 + '</div><div class="cellsub">4-laags</div></div><div><div class="dash-big">' + tr.stock5 + '</div><div class="cellsub">5-laags</div></div></div>' + '<div class="dash-recent-title">Recente pendels</div>' + recentPendels, "lc") +
+      tile("Emballage per vak", "tag", "purple", vakTotals ? '<div class="emb-vaktots">' + vakTotals + "</div>" : '<div class="cellsub">Nog niets geteld</div>', "kwaliteit") +
       "</div>";
     var docks = S.getSchade(c.h, c.d, c.dd).buses.filter(function (b) { return b.dock; });
     var dockPanel = "";
@@ -1966,6 +1979,7 @@
     if (!state.kzTab) state.kzTab = "laden";
     var seg = '<div class="kz-subtabs"><span class="kz-subtabs-lbl">Klaarzetten voor:</span><div class="seg seg-sub">' +
       '<button data-kztab="laden" class="' + (state.kzTab === "laden" ? "active" : "") + '">Laadproces</button>' +
+      '<button data-kztab="pendel" class="' + (state.kzTab === "pendel" ? "active" : "") + '">Pendel</button>' +
       '<button data-kztab="schade" class="' + (state.kzTab === "schade" ? "active" : "") + '">Schadecontrole</button></div></div>';
 
     // ---- Laadproces ----
@@ -1990,7 +2004,8 @@
       '<div style="margin-top:10px">' + pendelRows + "</div></div>";
     var ladenBlock = ladenImport + '<div class="kz-section"><div class="kz-h">' + svg("inbox", "icon-sm") + "Laden klaarzetten</div>" +
       '<div class="lc-setup"><label>Aantal vakken</label><input type="number" min="0" max="60" id="lcAantal" value="' + (lc.aantal || lc.vakken.length) + '"><button class="btn btn-dark btn-sm" id="lcSetAantal">' + svg("check", "icon-sm") + "Instellen</button></div>" +
-      '<div class="panel" style="padding:0;margin-top:10px"><div class="table-scroll"><table class="table lc-table"><thead><tr><th>Vak</th><th>Vertrek</th><th>Bus</th><th>Rit</th><th>Type</th><th>ZE</th></tr></thead><tbody>' + lcRows + "</tbody></table></div></div></div>" + pendelPlanBlock;
+      '<div class="panel" style="padding:0;margin-top:10px"><div class="table-scroll"><table class="table lc-table"><thead><tr><th>Vak</th><th>Vertrek</th><th>Bus</th><th>Rit</th><th>Type</th><th>ZE</th></tr></thead><tbody>' + lcRows + "</tbody></table></div></div></div>";
+    var pendelBlock = pendelPlanBlock;
 
     // ---- Schadecontrole (Voorbereiding AM) ----
     var schadeImport = '<div class="kz-section"><div class="kz-h">' + svg("download", "icon-sm") + "Schadecontrole importeren</div>" +
@@ -2001,13 +2016,14 @@
     var scRows = s.buses.length ? s.buses.map(function (b) {
       return "<tr><td><div class=\"cellname\">Bus " + esc(b.bus || "?") + "</div><div class=\"cellsub\">" + esc(b.naam || "") + (b.kenteken ? " · " + esc(b.kenteken) : "") + "</div></td>" +
         '<td data-th="Dock (morgen)"><select class="lc-in dock-sel" data-dock="' + b.id + '">' + dockOptions(b.dock) + "</select></td>" +
+        '<td data-th="Opmerking voor controleur"><input class="lc-in" data-scopm="' + b.id + '" placeholder="Opmerking (optioneel)" value="' + esc(b.opmerking || "") + '"></td>' +
         '<td data-th="" style="text-align:right"><button class="pl-x" data-schadedel="' + b.id + '">' + svg("trash", "icon-sm") + "</button></td></tr>";
-    }).join("") : '<tr><td colspan="3"><div class="cellsub" style="padding:12px">Nog geen bussen. Importeer de planning of voeg toe.</div></td></tr>';
+    }).join("") : '<tr><td colspan="4"><div class="cellsub" style="padding:12px">Nog geen bussen. Importeer de planning of voeg toe.</div></td></tr>';
     var schadeBlock = schadeImport + '<div class="kz-section"><div class="kz-h">' + svg("sun", "icon-sm") + "Voorbereiding AM — bussen klaarzetten voor morgen</div>" +
       '<div class="add-inline"><input id="scBus" placeholder="Busnr"><input id="scKent" placeholder="Kenteken"><input id="scNaam" placeholder="Bezorger"><button class="btn btn-dark btn-sm" id="scAdd">' + svg("plus", "icon-sm") + "Bus</button></div>" +
-      '<div class="panel" style="padding:0;margin-top:10px"><div class="table-scroll"><table class="table"><thead><tr><th>Bus</th><th>Dock (morgen)</th><th></th></tr></thead><tbody>' + scRows + "</tbody></table></div></div></div>";
+      '<div class="panel" style="padding:0;margin-top:10px"><div class="table-scroll"><table class="table"><thead><tr><th>Bus</th><th>Dock (morgen)</th><th>Opmerking voor controleur</th><th></th></tr></thead><tbody>' + scRows + "</tbody></table></div></div></div>";
 
-    return seg + (state.kzTab === "schade" ? schadeBlock : ladenBlock);
+    return seg + (state.kzTab === "schade" ? schadeBlock : state.kzTab === "pendel" ? pendelBlock : ladenBlock);
   }
   function bindDashKlaarzetten(c) {
     document.querySelectorAll("[data-kztab]").forEach(function (b) { b.addEventListener("click", function () { state.kzTab = b.getAttribute("data-kztab"); renderDashboard(); }); });
@@ -2021,6 +2037,7 @@
     document.querySelectorAll("[data-lcset]").forEach(function (inp) { inp.addEventListener("change", function () { var p = inp.getAttribute("data-lcset").split("|"); var data = {}; data[p[1]] = inp.value; try { S.lcSetupVak(c.h, c.d, c.dd, parseInt(p[0], 10), data); } catch (e) { toast(e.message, "err"); } }); });
     document.querySelectorAll("[data-lcze]").forEach(function (cb) { cb.addEventListener("change", function () { try { S.lcSetupVak(c.h, c.d, c.dd, parseInt(cb.getAttribute("data-lcze"), 10), { ze: cb.checked }); } catch (e) { toast(e.message, "err"); } }); });
     document.querySelectorAll("[data-dock]").forEach(function (sl) { sl.addEventListener("change", function () { try { S.schadeSetDock(c.h, c.d, c.dd, sl.getAttribute("data-dock"), sl.value); renderDashboard(); } catch (e) { toast(e.message, "err"); } }); });
+    document.querySelectorAll("[data-scopm]").forEach(function (inp) { inp.addEventListener("change", function () { try { S.schadeSetOpmerking(c.h, c.d, c.dd, inp.getAttribute("data-scopm"), inp.value); } catch (e) { toast(e.message, "err"); } }); });
     document.querySelectorAll("[data-schadedel]").forEach(function (b) { b.addEventListener("click", function () { try { S.schadeRemove(c.h, c.d, c.dd, b.getAttribute("data-schadedel")); renderDashboard(); } catch (e) { toast(e.message, "err"); } }); });
     var add = el("scAdd"); if (add) add.addEventListener("click", function () { try { S.schadeAddBus(c.h, c.d, c.dd, el("scNaam").value, el("scBus").value, el("scKent").value); renderDashboard(); } catch (e) { toast(e.message, "err"); } });
     // banner-knop naar klaarzetten
