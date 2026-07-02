@@ -1385,7 +1385,7 @@
     var m = [{ id: "ruilhub", name: "RuilHub", icon: "exchange", color: "yellow", group: "Planning", desc: "Shifts en taken ruilen binnen je hub." }];
     if (senior) m.push({ id: "takenplanning", name: "Takenplanning", icon: "clipboardList", color: "blue", group: "Planning", desc: "Weekrooster maken & delen." });
     if (S.can.seeBeheer(u)) m.push({ id: "personeelsbeheer", name: "Personeelsbeheer", icon: "userCog", color: "teal", group: "Beheer", desc: "Medewerkers, functies, taken en hubs." });
-    if (S.can.seeBussenbeheer(u)) m.push({ id: "bussenbeheer", name: "Bussenbeheer", icon: "van", color: "dark", group: "Beheer", desc: "Bussen per shift, met focus op probleembussen." });
+    if (S.can.seeBussenbeheer(u)) m.push({ id: "bussenbeheer", name: "Bussenbeheer", icon: "van", color: "gray", group: "Beheer", desc: "Bussen per shift, met focus op probleembussen." });
     if (senior) m.push({ id: "dashboard", name: "Senior Dashboard", icon: "chart", color: "dark", group: "Proces", desc: "Realtime overzicht van de shift." });
     // Bezorgers zien een procesmodule zodra ze de bijbehorende taak toegewezen krijgen (personeelsbeheer).
     if (senior || hasTask("Schadecontrole")) m.push({ id: "schadecontrole", name: "Schadecontrole", icon: "shield", color: "green", group: "Proces", desc: "Bussen controleren & afvinken." });
