@@ -646,7 +646,7 @@ main { max-width: 1100px; margin: 0 auto; padding: 22px 18px 80px; }
 
 /* senior dashboard */
 .dash-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); margin-bottom: 18px; }
-.dash-card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; box-shadow: var(--shadow); border-top: 4px solid var(--jumbo-yellow); }
+.dash-card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; box-shadow: var(--shadow); border-top: 4px solid var(--jumbo-yellow); display: flex; flex-direction: column; }
 .dash-green { border-top-color: var(--green); } .dash-orange { border-top-color: var(--orange); } .dash-blue { border-top-color: var(--blue); } .dash-purple { border-top-color: #6b3fa0; }
 .dash-h { display: flex; align-items: center; gap: 8px; font-weight: 900; font-size: 14px; margin-bottom: 14px; }
 .dash-row { display: flex; align-items: center; gap: 14px; }
@@ -673,7 +673,11 @@ main { max-width: 1100px; margin: 0 auto; padding: 22px 18px 80px; }
 .live-badge.vo-badge { color: #446; background: #e8ebf5; }
 .live-badge.vo-badge .icon { animation: none; }
 .vo-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; background: #eef1f8; border: 1px solid #d5daec; border-radius: 12px; padding: 8px 12px; margin: 0 0 14px; }
-.dash-view { margin-top: 12px; width: 100%; justify-content: center; border: 1px solid var(--line); }
+.dash-view { margin-top: auto; width: 100%; justify-content: center; background: var(--jumbo-yellow); color: var(--ink); border: 0; font-weight: 800; padding-top: 10px; padding-bottom: 10px; }
+.dash-view:hover { background: var(--jumbo-yellow-dark, #e0a800); }
+.dash-view svg { color: var(--ink); }
+/* ruimte tussen de recent-lijst en de knop onderaan */
+.dash-recent, .dash-recent-empty, .emb-vaktots, .dash-stocks { margin-bottom: 14px; }
 .op-progress { background: #fff; border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; box-shadow: var(--shadow); margin-bottom: 14px; }
 .op-bar { height: 12px; background: #eceae4; border-radius: 999px; overflow: hidden; }
 .op-bar span { display: block; height: 100%; background: var(--green-bright); border-radius: 999px; transition: width .3s; }
