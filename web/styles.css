@@ -238,6 +238,8 @@ main { max-width: 1100px; margin: 0 auto; padding: 22px 18px 80px; }
 .table .num { font-variant-numeric: tabular-nums; font-weight: 800; }
 .cellname { font-weight: 800; }
 .cellsub { font-size: 12px; color: var(--muted); font-weight: 700; }
+.bus-opm { display: inline-flex; align-items: center; gap: 6px; margin-top: 6px; padding: 4px 9px; border-radius: 8px; background: #fff4d6; color: #8a5a00; font-size: 12px; font-weight: 800; }
+.bus-opm .icon-sm { flex: 0 0 auto; }
 
 /* Log timeline */
 .log-item { display: flex; gap: 14px; padding: 14px 18px; border-bottom: 1px solid var(--line); }
@@ -668,6 +670,10 @@ main { max-width: 1100px; margin: 0 auto; padding: 22px 18px 80px; }
 .live-badge { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 800; color: var(--green-bright); background: #dff5e6; padding: 5px 11px; border-radius: 999px; }
 .live-badge .icon { animation: spin 4s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
+.live-badge.vo-badge { color: #446; background: #e8ebf5; }
+.live-badge.vo-badge .icon { animation: none; }
+.vo-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; background: #eef1f8; border: 1px solid #d5daec; border-radius: 12px; padding: 8px 12px; margin: 0 0 14px; }
+.dash-view { margin-top: 12px; width: 100%; justify-content: center; border: 1px solid var(--line); }
 .op-progress { background: #fff; border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; box-shadow: var(--shadow); margin-bottom: 14px; }
 .op-bar { height: 12px; background: #eceae4; border-radius: 999px; overflow: hidden; }
 .op-bar span { display: block; height: 100%; background: var(--green-bright); border-radius: 999px; transition: width .3s; }
