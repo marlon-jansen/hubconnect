@@ -2078,6 +2078,20 @@
     });
   }
 
+  // Dubbeltik-zoom hard uitzetten (iOS Safari negeert user-scalable=no en touch-action lang niet altijd).
+  // Interactieve elementen overslaan: die worden al door touch-action gedekt en snel-tikken op +/- moet blijven werken.
+  var lastTouchEnd = 0;
+  document.addEventListener("touchend", function (e) {
+    var now = Date.now();
+    if (now - lastTouchEnd <= 350) {
+      var t = e.target;
+      if (!(t && t.closest && t.closest("button, input, select, textarea, a, label"))) e.preventDefault();
+    }
+    lastTouchEnd = now;
+  }, { passive: false });
+  // Pinch-zoom (2 vingers) net zo blokkeren.
+  document.addEventListener("gesturestart", function (e) { e.preventDefault(); });
+
   document.addEventListener("DOMContentLoaded", boot);
   if (document.readyState !== "loading") boot();
 })();
