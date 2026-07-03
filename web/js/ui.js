@@ -244,7 +244,7 @@
     el("loginForm").addEventListener("submit", function (e) {
       e.preventDefault();
       var f = e.target;
-      try { S.login(f.email.value, f.password.value); render(); }
+      try { S.login(f.email.value, f.password.value); resetNav(); render(); }
       catch (err) { el("authMsg").innerHTML = '<div class="alert alert-error">' + esc(err.message) + "</div>"; }
     });
   }
@@ -269,7 +269,7 @@
       e.preventDefault();
       var f = e.target;
       if (f.p1.value !== f.p2.value) { el("pwMsg").innerHTML = '<div class="alert alert-error">De wachtwoorden komen niet overeen.</div>'; return; }
-      try { S.setInitialPassword(f.p1.value); toast("Wachtwoord ingesteld.", "ok"); render(); }
+      try { S.setInitialPassword(f.p1.value); resetNav(); toast("Wachtwoord ingesteld.", "ok"); render(); }
       catch (err) { el("pwMsg").innerHTML = '<div class="alert alert-error">' + esc(err.message) + "</div>"; }
     });
   }
@@ -321,7 +321,7 @@
     document.querySelectorAll("[data-nav]").forEach(function (b) {
       b.addEventListener("click", function () { state.view = b.getAttribute("data-nav"); renderMain(); });
     });
-    el("app").querySelector("[data-logout]").addEventListener("click", function () { S.logout(); authScreen = "landing"; render(); });
+    el("app").querySelector("[data-logout]").addEventListener("click", function () { S.logout(); resetNav(); authScreen = "landing"; render(); });
     el("app").querySelector("[data-profile]").addEventListener("click", openProfile);
     var pb = el("app").querySelector("[data-portal]"); if (pb) pb.addEventListener("click", gotoPortal);
     var hm = el("app").querySelector("[data-home]"); if (hm) hm.addEventListener("click", gotoLanding);
@@ -1440,7 +1440,7 @@
         '<div class="portal-welcome"><h2>Hoi ' + esc(u.voornaam) + ",</h2><p>Waar wil je mee aan de slag?</p></div>" +
         sections +
       "</main>";
-    el("app").querySelector("[data-logout]").addEventListener("click", function () { S.logout(); authScreen = "landing"; render(); });
+    el("app").querySelector("[data-logout]").addEventListener("click", function () { S.logout(); resetNav(); authScreen = "landing"; render(); });
     el("app").querySelector("[data-profile]").addEventListener("click", openProfile);
     var hm = el("app").querySelector("[data-home]"); if (hm) hm.addEventListener("click", gotoLanding);
     document.querySelectorAll("[data-module]").forEach(function (b) {
@@ -1448,6 +1448,8 @@
     });
   }
 
+  // Navigatiestatus terug naar het menu (bij in-/uitloggen zodat niemand op een vorige pagina belandt).
+  function resetNav() { state.module = null; state.showLanding = false; state.viewOnly = false; state.view = "shifts"; }
   function gotoPortal() { state.module = null; state.viewOnly = false; state.showLanding = false; render(); }
   function gotoLanding() { state.showLanding = true; render(); } // logo-klik: naar de voorpagina (blijft ingelogd)
 
@@ -1475,7 +1477,7 @@
       '<div class="panel" style="padding:30px;text-align:center">' +
         '<div class="empty" style="padding:30px 10px">' + svg(info.icon) + "<h3>" + esc(info.name) + " — in aanbouw</h3><p style=\"max-width:520px;margin:0 auto\">" + esc(info.desc) + "</p>" +
         '<div style="margin-top:18px"><span class="badge st-afwachting">Volgende fase</span></div></div></div></main>';
-    el("app").querySelector("[data-logout]").addEventListener("click", function () { S.logout(); authScreen = "landing"; render(); });
+    el("app").querySelector("[data-logout]").addEventListener("click", function () { S.logout(); resetNav(); authScreen = "landing"; render(); });
     el("app").querySelector("[data-profile]").addEventListener("click", openProfile);
     el("app").querySelector("[data-portal]").addEventListener("click", gotoPortal);
     var hm2 = el("app").querySelector("[data-home]"); if (hm2) hm2.addEventListener("click", gotoLanding);
@@ -1645,7 +1647,7 @@
       (opts.noShift ? "" : shiftBar()) + voBar + content + "</main>";
   }
   function bindModuleHeader(rerender) {
-    el("app").querySelector("[data-logout]").addEventListener("click", function () { S.logout(); authScreen = "landing"; render(); });
+    el("app").querySelector("[data-logout]").addEventListener("click", function () { S.logout(); resetNav(); authScreen = "landing"; render(); });
     el("app").querySelector("[data-profile]").addEventListener("click", openProfile);
     el("app").querySelector("[data-portal]").addEventListener("click", gotoPortal);
     var hm = el("app").querySelector("[data-home]"); if (hm) hm.addEventListener("click", gotoLanding);
