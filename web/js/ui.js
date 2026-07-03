@@ -1744,8 +1744,7 @@
       '<button class="active" style="cursor:default;text-transform:capitalize">' + svg("calendar", "icon-sm") + esc(lbl) + "</button>" +
       '<button data-opday="1">' + svg("arrowRight", "icon-sm") + "</button></div>" +
       '<div class="seg"><button data-opshift="AM" class="am-btn ' + (state.opShift === "AM" ? "active" : "") + '">' + svg("sun", "icon-sm") + "AM</button>" +
-      (sun ? "" : '<button data-opshift="PM" class="pm-btn ' + (state.opShift === "PM" ? "active" : "") + '">' + svg("moon", "icon-sm") + "PM</button>") + "</div>" +
-      (sun ? '<span class="cellsub">Zondag heeft alleen een AM-shift</span>' : "") + "</div>";
+      (sun ? "" : '<button data-opshift="PM" class="pm-btn ' + (state.opShift === "PM" ? "active" : "") + '">' + svg("moon", "icon-sm") + "PM</button>") + "</div></div>";
   }
   function bindShiftBar(rer) {
     document.querySelectorAll("[data-opday]").forEach(function (b) { b.addEventListener("click", function () { var m = new Date(state.opDate + "T00:00:00"); m.setDate(m.getDate() + parseInt(b.getAttribute("data-opday"), 10)); state.opDate = ymd(m); ensureShiftState(); rer(); }); });
@@ -1963,8 +1962,7 @@
       var busEditable = canLoad && isPM && v.type !== "N2"; // op PM mag de LC alleen diesel-bussen aanpassen
       var busCell = busEditable ? '<input class="lc-in" data-lcbus="' + v.nr + '" placeholder="busnr" value="' + esc(v.bus) + '">' : '<span class="' + (v.bus ? "cellname" : "cellsub") + '">' + (v.bus ? esc(v.bus) : "—") + "</span>";
       var typeBadge = v.type === "N2" ? '<span class="badge n2">' + svg("bolt", "icon-sm") + "N2</span>" : '<span class="badge diesel">' + svg("droplet", "icon-sm") + "Diesel</span>";
-      var typeCell = (v.jbt ? '<span class="badge jbt">' + svg("cap", "icon-sm") + "JBT</span> " : "") + typeBadge +
-        (noLoad ? '<div class="cellsub nl-note">hoeft niet geladen</div>' : "");
+      var typeCell = (v.jbt ? '<span class="badge jbt">' + svg("cap", "icon-sm") + "JBT</span> " : "") + typeBadge;
       // JBT/N2: afvinkvakje grijs & aangevinkt (niet aanklikbaar); overige vakken normaal
       var chkCell = noLoad
         ? '<label class="chk-box grey ro" title="Hoeft niet geladen te worden"><input type="checkbox" checked disabled>' + svg("check", "icon-sm") + "</label>"
