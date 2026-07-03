@@ -185,9 +185,16 @@ main { max-width: 1100px; margin: 0 auto; padding: 22px 18px 80px; }
   background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
   box-shadow: var(--shadow); padding: 16px; display: flex; flex-direction: column; gap: 12px;
 }
+.card { overflow: hidden; }
 .card.accent-n2 { border-left: 4px solid var(--green); }
 .card.accent-diesel { border-left: 4px solid var(--ink); }
 .card.pending { border-left: 4px solid var(--orange); }
+/* type-lint bovenin de kaart */
+.card-ribbon { display: flex; align-items: center; gap: 6px; font-weight: 800; font-size: 11.5px; letter-spacing: .04em; text-transform: uppercase; padding: 7px 14px; margin: -16px -16px 0; }
+.card-ribbon .icon { width: 14px; height: 14px; }
+.rib-shift { background: var(--blue-soft); color: var(--blue); }
+.rib-callout { background: #efe7fb; color: #7c4dbc; }
+.rib-backup { background: var(--orange-soft); color: var(--orange); }
 
 .card-top { display: flex; align-items: flex-start; gap: 12px; }
 .card-top .avatar { width: 40px; height: 40px; font-size: 15px; }
@@ -430,6 +437,18 @@ main { max-width: 1100px; margin: 0 auto; padding: 22px 18px 80px; }
 /* ----- ruilbord: dag/week-balk ----- */
 .board-range { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
 .board-range .seg button { text-transform: none; }
+/* Ruilbord-besturing: gegroepeerd met labels en kleur-gecodeerde soort-filter */
+.board-controls { display: flex; flex-wrap: wrap; gap: 12px 22px; align-items: flex-end; background: #faf9f4; border: 1px solid var(--line); border-radius: 14px; padding: 12px 16px; margin-bottom: 18px; }
+.bc-group { display: flex; flex-direction: column; gap: 6px; }
+.bc-lbl { font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.bc-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.bc-search { flex: 1; min-width: 190px; }
+.bc-search .search { width: 100%; }
+.seg-type button { display: inline-flex; align-items: center; gap: 6px; text-transform: none; }
+.seg-type button.bt-shift.active { background: var(--blue-soft); color: var(--blue); }
+.seg-type button.bt-callout.active { background: #efe7fb; color: #7c4dbc; }
+.seg-type button.bt-backup.active { background: var(--orange-soft); color: var(--orange); }
+.mine-acts { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
 
 /* ----- ruilbord: meldingen-banner ----- */
 .notif-banner { background: #fff; border: 1px solid var(--line); border-left: 4px solid var(--jumbo-yellow); border-radius: 14px; padding: 12px 16px; margin-bottom: 16px; box-shadow: var(--shadow); }
