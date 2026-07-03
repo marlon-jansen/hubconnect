@@ -1842,7 +1842,6 @@
   function renderBussenbeheer() {
     var c = ctx();
     var s = S.getSchade(c.h, c.d, c.dd);
-    var isSetup = S.isSetup(c.u);
     if (state.bbAll === undefined) state.bbAll = false;
     var buses = s.buses.filter(function (b) { return state.bbAll || S.busHeeftProbleem(b); });
     function mistBadges(b) {
@@ -1851,24 +1850,19 @@
       return chips || '<span class="cellsub">Geen afwijking</span>';
     }
     var rows = buses.length ? buses.map(function (b) {
-      var dockCell = isSetup
-        ? '<select data-bbdock="' + b.id + '">' + dockOptions(b.dock) + "</select>"
-        : (b.dock ? '<span class="badge dock">' + svg("building", "icon-sm") + "Dock " + esc(b.dock) + "</span>" : '<span class="cellsub">—</span>');
       return "<tr><td><div class=\"cellname\">Bus " + esc(b.bus || "?") + "</div><div class=\"cellsub\">" + esc(b.naam || "") + (b.kenteken ? " · " + esc(b.kenteken) : "") + "</div></td>" +
         '<td data-th="Schadecontrole">' + (b.gecontroleerd ? '<span class="badge st-goedgekeurd">Gecontroleerd</span>' : '<span class="badge st-afwachting">Nog niet</span>') + "</td>" +
         '<td data-th="Ontbreekt"><div class="chips">' + mistBadges(b) + "</div></td>" +
-        '<td data-th="Steekproef">' + (S.steekproefDone(b) ? '<span class="badge st-goedgekeurd">Gedaan</span>' : '<span class="cellsub">—</span>') + "</td>" +
-        '<td data-th="Dock">' + dockCell + "</td></tr>";
-    }).join("") : '<tr><td colspan="5"><div class="cellsub" style="padding:14px">' + (state.bbAll ? "Nog geen bussen voor deze shift." : "Geen probleembussen voor deze shift.") + "</div></td></tr>";
+        '<td data-th="Steekproef">' + (S.steekproefDone(b) ? '<span class="badge st-goedgekeurd">Gedaan</span>' : '<span class="cellsub">—</span>') + "</td></tr>";
+    }).join("") : '<tr><td colspan="4"><div class="cellsub" style="padding:14px">' + (state.bbAll ? "Nog geen bussen voor deze shift." : "Geen probleembussen voor deze shift.") + "</div></td></tr>";
     var table = '<div class="panel" style="padding:0"><div class="table-scroll"><table class="table">' +
-      "<thead><tr><th>Bus</th><th>Schadecontrole</th><th>Ontbreekt</th><th>Steekproef</th><th>Dock</th></tr></thead><tbody>" + rows + "</tbody></table></div></div>";
+      "<thead><tr><th>Bus</th><th>Schadecontrole</th><th>Ontbreekt</th><th>Steekproef</th></tr></thead><tbody>" + rows + "</tbody></table></div></div>";
     var toggle = '<div class="page-head" style="margin:0 0 12px"><div><p class="cellsub" style="margin:0">' +
       (state.bbAll ? "Alle bussen van deze shift." : "Alleen bussen met een afwijking bij de schadecontrole.") + '</p></div><div class="grow"></div>' +
       '<label class="chk"><input type="checkbox" id="bbAllToggle"' + (state.bbAll ? " checked" : "") + "> Toon alle bussen</label></div>";
     el("app").innerHTML = moduleShell("Bussenbeheer", toggle + table);
     bindModuleHeader(renderBussenbeheer);
     var t = el("bbAllToggle"); if (t) t.addEventListener("change", function () { state.bbAll = t.checked; renderBussenbeheer(); });
-    if (isSetup) document.querySelectorAll("[data-bbdock]").forEach(function (sl) { sl.addEventListener("change", function () { try { S.schadeSetDock(c.h, c.d, c.dd, sl.getAttribute("data-bbdock"), sl.value); renderBussenbeheer(); } catch (e) { toast(e.message, "err"); } }); });
   }
 
   /* ---------- Kwaliteit (vak-soort + emballage per vak) ---------- */
@@ -2117,15 +2111,16 @@
       '<textarea id="kzSheetSchade" rows="5" class="kz-sheet" placeholder="Plak hier de sheet…"></textarea>' +
       '<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"><button class="btn btn-primary btn-sm" id="kzImportSchade">' + svg("check", "icon-sm") + "Importeren</button>" +
       '<button class="btn btn-ghost btn-sm" id="kzResetSchade">' + svg("trash", "icon-sm") + "Schade leegmaken</button></div></div>";
+    var showDock = c.dd === "PM"; // docks toewijzen is een PM-taak; tijdens AM niet tonen
     var scRows = s.buses.length ? s.buses.map(function (b) {
       return "<tr><td><div class=\"cellname\">Bus " + esc(b.bus || "?") + "</div><div class=\"cellsub\">" + esc(b.naam || "") + (b.kenteken ? " · " + esc(b.kenteken) : "") + "</div></td>" +
-        '<td data-th="Dock (morgen)"><select class="lc-in dock-sel" data-dock="' + b.id + '">' + dockOptions(b.dock) + "</select></td>" +
+        (showDock ? '<td data-th="Dock (morgen)"><select class="lc-in dock-sel" data-dock="' + b.id + '">' + dockOptions(b.dock) + "</select></td>" : "") +
         '<td data-th="Opmerking voor controleur"><input class="lc-in" data-scopm="' + b.id + '" placeholder="Opmerking (optioneel)" value="' + esc(b.opmerking || "") + '"></td>' +
         '<td data-th="" style="text-align:right"><button class="pl-x" data-schadedel="' + b.id + '">' + svg("trash", "icon-sm") + "</button></td></tr>";
-    }).join("") : '<tr><td colspan="4"><div class="cellsub" style="padding:12px">Nog geen bussen. Importeer de planning of voeg toe.</div></td></tr>';
+    }).join("") : '<tr><td colspan="' + (showDock ? 4 : 3) + '"><div class="cellsub" style="padding:12px">Nog geen bussen. Importeer de planning of voeg toe.</div></td></tr>';
     var schadeBlock = schadeImport + '<div class="kz-section"><div class="kz-h">' + svg("sun", "icon-sm") + "Voorbereiding AM — bussen klaarzetten voor morgen</div>" +
       '<div class="add-inline"><input id="scBus" placeholder="Busnr"><input id="scKent" placeholder="Kenteken"><input id="scNaam" placeholder="Bezorger"><button class="btn btn-dark btn-sm" id="scAdd">' + svg("plus", "icon-sm") + "Bus</button></div>" +
-      '<div class="panel" style="padding:0;margin-top:10px"><div class="table-scroll"><table class="table"><thead><tr><th>Bus</th><th>Dock (morgen)</th><th>Opmerking voor controleur</th><th></th></tr></thead><tbody>' + scRows + "</tbody></table></div></div></div>";
+      '<div class="panel" style="padding:0;margin-top:10px"><div class="table-scroll"><table class="table"><thead><tr><th>Bus</th>' + (showDock ? "<th>Dock (morgen)</th>" : "") + "<th>Opmerking voor controleur</th><th></th></tr></thead><tbody>" + scRows + "</tbody></table></div></div></div>";
 
     return seg + (state.kzTab === "schade" ? schadeBlock : state.kzTab === "pendel" ? pendelBlock : ladenBlock);
   }
