@@ -1959,14 +1959,22 @@
 
     // ----- LADEN -----
     var rows = lc.vakken.length ? lc.vakken.map(function (v) {
+      var noLoad = v.jbt || v.type === "N2"; // JBT en N2 hoeven niet geladen te worden
       var busEditable = canLoad && isPM && v.type !== "N2"; // op PM mag de LC alleen diesel-bussen aanpassen
       var busCell = busEditable ? '<input class="lc-in" data-lcbus="' + v.nr + '" placeholder="busnr" value="' + esc(v.bus) + '">' : '<span class="' + (v.bus ? "cellname" : "cellsub") + '">' + (v.bus ? esc(v.bus) : "—") + "</span>";
       var typeBadge = v.type === "N2" ? '<span class="badge n2">' + svg("bolt", "icon-sm") + "N2</span>" : '<span class="badge diesel">' + svg("droplet", "icon-sm") + "Diesel</span>";
-      return "<tr class=\"" + (v.geladen ? "sc-done" : "") + "\"><td class=\"lc-nr cellname\">Vak " + v.nr + "</td>" +
+      var typeCell = (v.jbt ? '<span class="badge jbt">' + svg("cap", "icon-sm") + "JBT</span> " : "") + typeBadge +
+        (noLoad ? '<div class="cellsub nl-note">hoeft niet geladen</div>' : "");
+      // JBT/N2: afvinkvakje grijs & aangevinkt (niet aanklikbaar); overige vakken normaal
+      var chkCell = noLoad
+        ? '<label class="chk-box grey ro" title="Hoeft niet geladen te worden"><input type="checkbox" checked disabled>' + svg("check", "icon-sm") + "</label>"
+        : '<label class="chk-box ' + (v.geladen ? "on" : "") + (canLoad ? "" : " ro") + '"><input type="checkbox" ' + (v.geladen ? "checked" : "") + (canLoad ? "" : " disabled") + ' data-lcgel="' + v.nr + '">' + svg("check", "icon-sm") + "</label>";
+      var rowCls = noLoad ? "lc-noload" : (v.geladen ? "sc-done" : "");
+      return "<tr class=\"" + rowCls + "\"><td class=\"lc-nr cellname\">Vak " + v.nr + "</td>" +
         '<td class="cellsub" data-th="Vertrek">' + (v.vertrek ? esc(v.vertrek) : "—") + '</td><td data-th="Bus">' + busCell + "</td>" +
-        '<td class="cellsub" data-th="Rit">' + (v.rit ? esc(v.rit) : "—") + '</td><td data-th="Type">' + typeBadge + "</td>" +
+        '<td class="cellsub" data-th="Rit">' + (v.rit ? esc(v.rit) : "—") + '</td><td data-th="Type">' + typeCell + "</td>" +
         '<td data-th="ZE" style="text-align:center">' + (v.ze ? '<span class="badge dock">ZE</span>' : "") + "</td>" +
-        '<td class="sc-chk" data-th="Geladen"><label class="chk-box ' + (v.geladen ? "on" : "") + (canLoad ? "" : " ro") + '"><input type="checkbox" ' + (v.geladen ? "checked" : "") + (canLoad ? "" : " disabled") + ' data-lcgel="' + v.nr + '">' + svg("check", "icon-sm") + "</label></td></tr>";
+        '<td class="sc-chk" data-th="Geladen">' + chkCell + "</td></tr>";
     }).join("") : '<tr><td colspan="7"><div class="cellsub" style="padding:14px">De binnendienst zet de vakken klaar via het dashboard.</div></td></tr>';
     var table = '<div class="panel" style="padding:0"><div class="table-scroll"><table class="table lc-table">' +
       "<thead><tr><th>Vak</th><th>Vertrek</th><th>Bus</th><th>Rit</th><th>Type</th><th>ZE</th><th>Geladen</th></tr></thead><tbody>" + rows + "</tbody></table></div></div>";

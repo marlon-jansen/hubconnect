@@ -871,7 +871,7 @@
 
   /* ----- LC (laden) ----- */
   function getLC(hubId, datum, dagdeel) { if (!db.lc) db.lc = {}; var k = opKey(hubId, datum, dagdeel); if (!db.lc[k]) db.lc[k] = { vakken: [], aantal: 0 }; return db.lc[k]; }
-  function newVak(nr) { return { nr: nr, vertrek: "", bus: "", rit: "", ze: false, type: "diesel", geladen: false }; }
+  function newVak(nr) { return { nr: nr, vertrek: "", bus: "", rit: "", ze: false, type: "diesel", jbt: false, geladen: false }; }
   function lcSetAantal(hubId, datum, dagdeel, aantal) {
     if (!isSetup(currentUser())) throw new Error("Alleen binnendienst (senior+) mag het aantal vakken instellen.");
     aantal = Math.max(0, Math.min(60, parseInt(aantal, 10) || 0));
@@ -904,6 +904,7 @@
   function lcToggleGeladen(hubId, datum, dagdeel, nr) {
     if (!canOpShift(currentUser(), hubId, datum, dagdeel, "lc", "LC")) throw new Error("Je bent deze shift niet aangewezen als LC.");
     var vk = getLC(hubId, datum, dagdeel).vakken.filter(function (x) { return x.nr === nr; })[0]; if (!vk) return;
+    if (vk.jbt || vk.type === "N2") return; // JBT/N2 hoeven niet geladen te worden
     vk.geladen = !vk.geladen;
     vk.geladenAt = vk.geladen ? now() : null;
     save();
@@ -961,6 +962,7 @@
       function tokHas(str, w) { return new RegExp("(^|[^a-z0-9])" + w + "([^a-z0-9]|$)", "i").test(str); }
       var n2 = /n2/i.test(type) || tokHas(opmText, "n2");
       var ze = /ze/i.test(type) || tokHas(opmText, "ze");
+      var jbt = tokHas(opmText, "jbt"); // "JBT" in de opmerking(en) → hoeft niet geladen te worden
       if (!bus && !rit) continue; // lege regel
       // schade alleen voor regels met een echte bus
       if (bus && doSchade) schade.buses.push(newBus(naam, bus, kent));
@@ -968,7 +970,7 @@
       if (doLaden) {
         while (lc.vakken.length < volg) lc.vakken.push(newVak(lc.vakken.length + 1));
         var vk = lc.vakken[volg - 1];
-        if (vk) { vk.bus = bus; vk.rit = rit; vk.vertrek = vertrek; vk.type = n2 ? "N2" : "diesel"; vk.ze = ze; }
+        if (vk) { vk.bus = bus; vk.rit = rit; vk.vertrek = vertrek; vk.type = n2 ? "N2" : "diesel"; vk.ze = ze; vk.jbt = jbt; }
       }
       n++;
     }
@@ -977,7 +979,8 @@
     return n;
   }
   function lcStats(hubId, datum, dagdeel) {
-    var v = getLC(hubId, datum, dagdeel).vakken.filter(function (x) { return x.bus || x.rit; });
+    // JBT- en N2-vakken hoeven niet geladen te worden → niet meetellen in de voortgang
+    var v = getLC(hubId, datum, dagdeel).vakken.filter(function (x) { return (x.bus || x.rit) && !(x.jbt || x.type === "N2"); });
     var done = v.filter(function (x) { return x.geladen; }).length;
     return { used: v.length, done: done, total: getLC(hubId, datum, dagdeel).vakken.length, pct: v.length ? Math.round(done / v.length * 100) : 0 };
   }
