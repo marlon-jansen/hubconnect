@@ -1437,7 +1437,7 @@
     }).join("");
     el("app").innerHTML = portalHeader(u) +
       '<main class="portal-main">' +
-        '<div class="portal-welcome"><h2>Hoi ' + esc(u.voornaam) + ",</h2><p>Waar wil je mee aan de slag?</p></div>" +
+        '<div class="portal-welcome"><h2>Hallo ' + esc(u.voornaam) + ",</h2><p>Waar wil je mee aan de slag?</p></div>" +
         sections +
       "</main>";
     el("app").querySelector("[data-logout]").addEventListener("click", function () { S.logout(); resetNav(); authScreen = "landing"; render(); });
