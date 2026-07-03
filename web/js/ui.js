@@ -1681,6 +1681,16 @@
   function layerLabel(n) { return '<span class="layer-tag">' + svg(n === 5 ? "layers5" : "layers4", "icon-sm") + n + "-laags</span>"; }
   function ctx() { ensureShiftState(); var u = S.currentUser(); return { u: u, h: u.hubId, d: state.opDate, dd: state.opShift }; }
 
+  // Sorteer bussen op busnummer: numeriek oplopend, niet-numerieke achteraan (alfabetisch).
+  function byBusNr(a, b) {
+    var na = parseInt(a.bus, 10), nb = parseInt(b.bus, 10);
+    var an = isNaN(na), bn = isNaN(nb);
+    if (an && bn) return (a.bus || "").localeCompare(b.bus || "");
+    if (an) return 1;
+    if (bn) return -1;
+    return na - nb;
+  }
+
   /* ---------- Schadecontrole (alleen afvinken) ---------- */
   function renderSchade() {
     var c = ctx(), u = c.u;
@@ -1705,7 +1715,8 @@
       return '<td data-th="Steekproef"><button class="btn btn-sm sc-sp-btn' + (done ? " done" : "") + '" data-spbus="' + b.id + '"' + (canEdit ? "" : " disabled") + ">" +
         svg(done ? "check" : "clipboard", "icon-sm") + "Steekproef</button></td>";
     }
-    var rows = s.buses.length ? s.buses.map(function (b) {
+    var busSorted = s.buses.slice().sort(byBusNr); // altijd laagste busnummer bovenaan
+    var rows = busSorted.length ? busSorted.map(function (b) {
       var dockCell = b.dock ? '<span class="badge dock">' + svg("building", "icon-sm") + "Dock " + esc(b.dock) + "</span>" : '<span class="cellsub">—</span>';
       var opmNote = b.opmerking ? '<div class="bus-opm">' + svg("alertTri", "icon-sm") + esc(b.opmerking) + "</div>" : "";
       return "<tr class=\"" + (b.gecontroleerd ? "sc-done" : "") + "\"><td><div class=\"cellname\">Bus " + esc(b.bus || "?") + "</div><div class=\"cellsub\">" + esc(b.naam || "") + (b.kenteken ? " · " + esc(b.kenteken) : "") + "</div>" + opmNote + "</td>" +
