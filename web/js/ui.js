@@ -1437,7 +1437,7 @@
     }).join("");
     el("app").innerHTML = portalHeader(u) +
       '<main class="portal-main">' +
-        '<div class="portal-welcome"><h2>Hoi ' + esc(u.voornaam) + " 👋</h2><p>Waar wil je mee aan de slag?</p></div>" +
+        '<div class="portal-welcome"><h2>Hoi ' + esc(u.voornaam) + ",</h2><p>Waar wil je mee aan de slag?</p></div>" +
         sections +
       "</main>";
     el("app").querySelector("[data-logout]").addEventListener("click", function () { S.logout(); authScreen = "landing"; render(); });
@@ -1962,7 +1962,7 @@
     function recentItem(icon, label, time) { return '<li class="dash-recent-item">' + svg(icon, "icon-sm") + '<span class="drn">' + esc(label) + "</span>" + (time ? '<span class="drt">' + esc(time) + "</span>" : "") + "</li>"; }
     var recentGeladen = recentList(S.recentGeladenBussen(c.h, c.d, c.dd).map(function (v) { return recentItem("check", "Bus " + (v.bus || "vak " + v.nr), fmtClock(v.geladenAt)); }));
     var recentSchade = recentList(S.recentGecontroleerdeBussen(c.h, c.d, c.dd).map(function (b) { return recentItem("check", "Bus " + (b.bus || "?"), fmtClock(b.gecontroleerdAt)); }));
-    var recentPendels = recentList(S.recentPendels(c.h, c.d, c.dd).map(function (p) { return recentItem("inbox", "Pendel " + (p.tijd || "?"), null); }));
+    var recentPendels = recentList(S.recentPendels(c.h, c.d, c.dd).map(function (p) { return recentItem("van", "Pendel " + (p.tijd || "?"), null); }));
     // Laden vóór schadecontrole
     var grid = '<div class="dash-grid">' +
       tile("Laden", "inbox", "orange", '<div class="dash-row">' + ring(lcS.pct, "o") + '<div><div class="dash-big">' + lcS.done + " / " + lcS.used + '</div><div class="cellsub">vakken geladen</div></div></div>' + '<div class="dash-recent-title">Recent geladen</div>' + recentGeladen, "lc") +
