@@ -437,7 +437,6 @@
       '<div class="page-head"><div><h2>Ruilbord</h2><p>Binnen HUB ' + esc(hub ? hub.naam : "?") + " — wie eerst aanbiedt, gaat voor.</p></div>" +
         '<div class="grow"></div>' +
         '<button class="btn btn-primary" data-offer="shift">' + svg("plus") + "Shift aanbieden</button>" +
-        '<button class="btn btn-dark" data-offer="task">' + svg("plus") + "Taak aanbieden</button>" +
         '<button class="btn btn-outline" data-offer="callout">' + svg("search", "icon-sm") + "Shift gezocht</button>" +
         '<button class="btn btn-outline" data-offer="backup">' + svg("lifebuoy", "icon-sm") + "Back-up</button>" +
       "</div>" +
@@ -454,7 +453,6 @@
         '<div class="seg">' +
           '<button data-board="alles" class="' + (state.board === "alles" ? "active" : "") + '">Alles</button>' +
           '<button data-board="shifts" class="' + (state.board === "shifts" ? "active" : "") + '">Shifts</button>' +
-          '<button data-board="tasks" class="' + (state.board === "tasks" ? "active" : "") + '">Taken</button>' +
           '<button data-board="callout" class="' + (state.board === "callout" ? "active" : "") + '">Oproepen</button>' +
           '<button data-board="backup" class="' + (state.board === "backup" ? "active" : "") + '">Back-up</button>' +
         "</div>" +
@@ -490,8 +488,8 @@
   function statusKeep(s) { return state.filter === "open" ? (s === "open") : (s !== "ingetrokken"); }
 
   function boardContent() {
+    if (state.board === "tasks") state.board = "alles"; // taak-aanbieden vervallen
     if (state.board === "shifts") return boardShifts();
-    if (state.board === "tasks") return boardTasks();
     if (state.board === "callout") return boardCallout();
     if (state.board === "backup") return boardBackup();
     return boardAlles();
@@ -501,7 +499,6 @@
     var u = S.currentUser();
     var items = [];
     S.shiftsForHub(u.hubId).forEach(function (s) { if (S.visibleTask(u, s.taak) && rangeKeep(s.datum) && statusKeep(s.status) && matchesQ(qstr(s.aanbiederId, s.datum, s.dagdeel, s.taak))) { s._type = "shift"; items.push(s); } });
-    S.taskOffersForHub(u.hubId).forEach(function (t) { if (S.visibleTask(u, t.taak) && rangeKeep(t.datum) && statusKeep(t.status) && matchesQ(qstr(t.aanbiederId, t.datum, t.dagdeel, t.taak))) { t._type = "task"; items.push(t); } });
     S.calloutsForHub(u.hubId).forEach(function (c) { if (rangeKeep(c.datum) && statusKeep(c.status) && matchesQ(qstr(c.aanbiederId, c.datum, c.dagdeel, ""))) { c._type = "callout"; items.push(c); } });
     S.backupsForHub(u.hubId).forEach(function (b) { if (rangeKeep(b.datum) && statusKeep(b.status) && matchesQ(qstr(b.aanbiederId, b.datum, b.dagdeel, b.ritOmschrijving || ""))) { b._type = "backup"; items.push(b); } });
     if (!items.length) return emptyState("inbox", "Niets op het bord", "Er staan nu geen verzoeken binnen je hub.");
@@ -924,7 +921,6 @@
 
   function openCalloutModal() {
     var body = '<form id="coForm">' +
-      '<div class="alert alert-info">Je zoekt een shift. Plaats een oproep; een collega kan zijn shift aan jou geven.</div>' +
       dateField("datum") + dagdeelChoiceBlock() +
       '<div class="field"><label>Toelichting (optioneel)</label><textarea name="toelichting" rows="2" placeholder="Bijv. ik wil graag extra werken"></textarea></div>' +
       "</form>";
@@ -1093,34 +1089,38 @@
      =================================================================== */
   function viewStats() {
     var u = S.currentUser();
+    if (state.statSort !== "shiftsOvergenomen" && state.statSort !== "shiftsAangeboden") state.statSort = "shiftsOvergenomen";
     var users = S.usersForHub(u.hubId);
+    if (state.statQ) {
+      var q = state.statQ.toLowerCase();
+      users = users.filter(function (x) { return (x.voornaam + " " + x.achternaam + " " + esc(x.email)).toLowerCase().indexOf(q) !== -1; });
+    }
     var sorted = users.slice().sort(function (a, b) { return b.stats[state.statSort] - a.stats[state.statSort]; });
     var rows = sorted.map(function (x) {
       return "<tr><td><div class=\"cellname\">" + fullName(x) + "</div><div class=\"cellsub\">" + esc(S.roleMeta(x.rol).label) + "</div></td>" +
-        '<td class="num up grp-start">' + x.stats.shiftsOvergenomen + "</td><td class=\"num down\">" + x.stats.shiftsAangeboden + "</td>" +
-        '<td class="num up grp-start">' + x.stats.takenOvergenomen + "</td><td class=\"num down\">" + x.stats.takenAangeboden + "</td></tr>";
+        '<td class="num up grp-start">' + x.stats.shiftsOvergenomen + "</td><td class=\"num down\">" + x.stats.shiftsAangeboden + "</td></tr>";
     }).join("");
 
     var sortSel = '<select class="pill-select" id="statSort">' +
-      '<option value="shiftsOvergenomen"' + (state.statSort === "shiftsOvergenomen" ? " selected" : "") + ">Meeste shifts overgenomen</option>" +
-      '<option value="shiftsAangeboden"' + (state.statSort === "shiftsAangeboden" ? " selected" : "") + ">Meeste shifts weggegeven</option>" +
-      '<option value="takenOvergenomen"' + (state.statSort === "takenOvergenomen" ? " selected" : "") + ">Meeste taken overgenomen</option>" +
-      '<option value="takenAangeboden"' + (state.statSort === "takenAangeboden" ? " selected" : "") + ">Meeste taken weggegeven</option></select>";
+      '<option value="shiftsOvergenomen"' + (state.statSort === "shiftsOvergenomen" ? " selected" : "") + ">Meeste overgenomen</option>" +
+      '<option value="shiftsAangeboden"' + (state.statSort === "shiftsAangeboden" ? " selected" : "") + ">Meeste weggegeven</option></select>";
 
-    var upH = svg("arrowUp", "icon-sm");
-    var dnH = svg("arrowDown", "icon-sm");
+    // Overgenomen = groen, pijl omlaag · Weggegeven = rood, pijl omhoog
+    var overH = '<span class="hcol up">' + svg("arrowDown", "icon-sm") + "Overgenomen</span>";
+    var wegH = '<span class="hcol down">' + svg("arrowUp", "icon-sm") + "Weggegeven</span>";
+    var search = '<div class="search"><span style="display:flex">' + svg("search", "icon-sm") + '</span><input id="statSearch" placeholder="Zoek medewerker…" value="' + esc(state.statQ || "") + '"></div>';
     return '<div class="page-head"><div><h2>Statistieken</h2><p>Telt alleen goedgekeurde ruilingen.</p></div></div>' +
+      '<div class="toolbar">' + search + '<div class="grow"></div><span class="cellsub" style="margin-right:8px">Sorteer:</span>' + sortSel + "</div>" +
       panel("users", "Per medewerker", tableScroll(
-        '<thead><tr><th></th><th class="grp-start grp-shift" colspan="2">Shifts</th><th class="grp-start grp-task" colspan="2">Taken</th></tr>' +
-        "<tr><th>Medewerker</th>" +
-        '<th class="grp-start"><span class="hcol up">' + upH + "Over</span></th><th><span class=\"hcol down\">" + dnH + "Weg</span></th>" +
-        '<th class="grp-start"><span class="hcol up">' + upH + "Over</span></th><th><span class=\"hcol down\">" + dnH + "Weg</span></th></tr></thead><tbody>" +
-        (rows || '<tr><td colspan="5"><div class="cellsub" style="padding:8px 0">Geen gegevens.</div></td></tr>') + "</tbody>", true),
-        '<div style="flex:1"></div><span class="cellsub" style="margin-right:8px">Sorteer:</span>' + sortSel);
+        "<thead><tr><th>Medewerker</th>" +
+        '<th class="grp-start">' + overH + "</th><th>" + wegH + "</th></tr></thead><tbody>" +
+        (rows || '<tr><td colspan="3"><div class="cellsub" style="padding:8px 0">Geen medewerkers gevonden.</div></td></tr>') + "</tbody>", true));
   }
   function bindStats() {
     var s = el("statSort");
     if (s) s.addEventListener("change", function () { state.statSort = s.value; renderMain(); });
+    var qs = el("statSearch");
+    if (qs) qs.addEventListener("input", function () { state.statQ = qs.value; renderMain(); var n = el("statSearch"); if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); } });
   }
 
   /* ===================================================================
@@ -1788,6 +1788,10 @@
     }
     function spCell(b) {
       var done = S.steekproefDone(b);
+      // Er hoeven maar 5 steekproeven: zodra 5 gedaan zijn worden de overige knopjes grijs met een streepje.
+      if (!done && spSt.done >= 5) {
+        return '<td data-th="Steekproef"><button class="btn btn-sm sc-sp-btn cap" disabled><span class="sp-dash">–</span>Steekproef</button></td>';
+      }
       return '<td data-th="Steekproef"><button class="btn btn-sm sc-sp-btn' + (done ? " done" : "") + '" data-spbus="' + b.id + '"' + (canEdit ? "" : " disabled") + ">" +
         svg(done ? "check" : "clipboard", "icon-sm") + "Steekproef</button></td>";
     }
@@ -1987,8 +1991,8 @@
     }
     function layBlock(p, n) {
       return '<div class="pen-lay">' + layerLabel(n) +
-        '<div class="pen-rows"><span class="pen-r"><em>binnen</em>' + ctl(p.id, "in" + n, p["in" + n]) + "</span>" +
-        '<span class="pen-r"><em>retour</em>' + ctl(p.id, "out" + n, p["out" + n]) + "</span></div></div>";
+        '<div class="pen-rows"><span class="pen-r"><em>binnen</em><span class="pen-arrow in">' + svg("arrowDown", "icon-sm") + "</span>" + ctl(p.id, "in" + n, p["in" + n]) + "</span>" +
+        '<span class="pen-r"><em>retour</em><span class="pen-arrow out">' + svg("arrowUp", "icon-sm") + "</span>" + ctl(p.id, "out" + n, p["out" + n]) + "</span></div></div>";
     }
     var pendelList = tr.pendels.length ? tr.pendels.map(function (p, i) {
       return '<div class="pen-card"><div class="pen-head">' + svg("van", "icon-sm") + "<b>Pendel " + (i + 1) + "</b>" +
@@ -2058,23 +2062,13 @@
       tile("Trolley-voorraad", "inbox", "blue", '<div class="dash-stocks"><div><div class="dash-big">' + tr.stock4 + '</div><div class="cellsub">4-laags</div></div><div><div class="dash-big">' + tr.stock5 + '</div><div class="cellsub">5-laags</div></div></div>' + '<div class="dash-recent-title">Volgende pendels</div>' + komendePendels, "lc") +
       tile("Emballage per vak", "tag", "purple", vakTotals ? '<div class="emb-vaktots">' + vakTotals + "</div>" : '<div class="cellsub">Nog niets geteld</div>', "kwaliteit") +
       "</div>";
-    var docks = S.getSchade(c.h, c.d, c.dd).buses.filter(function (b) { return b.dock; });
-    var dockPanel = "";
-    if (isPM) { // bussen klaarzetten voor morgen is een PM-taak
-      var dockList = docks.length ? '<table class="table"><thead><tr><th>Dock</th><th>Bus</th><th>Status</th></tr></thead><tbody>' +
-        docks.sort(function (a, b) { return a.dock - b.dock; }).map(function (b) {
-          var full = b.gecontroleerd;
-          return "<tr><td class=\"cellname\">Dock " + esc(b.dock) + '</td><td data-th="Bus">Bus ' + esc(b.bus) + '</td><td data-th="Status">' + (full ? '<span class="badge st-goedgekeurd">Klaar</span>' : '<span class="badge st-afwachting">Nog niet</span>') + "</td></tr>";
-        }).join("") + "</tbody></table>" : '<div class="cellsub" style="padding:12px">Nog geen bussen aan een dock toegewezen.</div>';
-      dockPanel = panel("building", "Klaarzetten voor morgen (docks)", dockList);
-    }
     var spItems = S.steekproevenList(c.h, c.d, c.dd);
     var spList = spItems.length ? '<table class="table"><thead><tr><th>Bus</th><th>Naam</th><th>hr-nummer</th><th>Rit</th><th>Kratten</th></tr></thead><tbody>' +
       spItems.map(function (b) {
         return "<tr><td class=\"cellname\">Bus " + esc(b.bus || "?") + '</td><td data-th="Naam">' + esc(b.steekproef.naam) + '</td><td data-th="hr-nummer">' + esc(b.steekproef.hr) + '</td><td data-th="Rit">' + esc(b.steekproef.rit || "-") + '</td><td data-th="Kratten">' + esc(b.steekproef.kratten) + "</td></tr>";
       }).join("") + "</tbody></table>" : '<div class="cellsub" style="padding:12px">Nog geen steekproeven ingevuld.</div>';
     var spPanel = panel("clipboard", "Steekproeven schadecontrole", spList);
-    return todoBanner + grid + dockPanel + spPanel;
+    return todoBanner + grid + spPanel;
   }
 
   function dashKlaarzetten(c) {
@@ -2195,8 +2189,21 @@
     S.boot(function (err) {
       if (err) { bootScreen("Geen verbinding met de server.", "Controleer of de server draait en de database bereikbaar is. (" + (err.message || err) + ")"); return; }
       startRealtime();
+      startAutoLogout();
       render();
     });
+  }
+
+  // Elk account logt automatisch uit om 03:00 (dagelijkse reset). Controleert elke minuut.
+  var autoLogoutTimer = null;
+  function startAutoLogout() {
+    if (autoLogoutTimer) return;
+    autoLogoutTimer = setInterval(function () {
+      var d = new Date();
+      if (d.getHours() === 3 && d.getMinutes() === 0 && S.currentUser()) {
+        S.logout(); resetNav(); authScreen = "landing"; render();
+      }
+    }, 60000);
   }
 
   // Dubbeltik-zoom hard uitzetten (iOS Safari negeert user-scalable=no en touch-action lang niet altijd).
