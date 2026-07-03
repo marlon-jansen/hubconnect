@@ -202,13 +202,18 @@
         "</div>" +
       "</div></div>";
 
-    // probeer-het-zelf demo: bussen aftikken, voortgang loopt live op
-    var demoRows = [["Bus 214", "Dock 3"], ["Bus 87", "Dock 1"], ["Bus 153", "Dock 5"], ["Bus 66", "Dock 2"]].map(function (b, i) {
-      return '<div class="l2-demo-row" data-democheck tabindex="0">' +
-        '<span class="l2-demo-chk">' + svg("check", "icon-sm") + "</span>" +
-        '<span class="l2-demo-bus"><b>' + b[0] + "</b><small>" + b[1] + "</small></span>" +
-        '<span class="badge dock">' + svg("van", "icon-sm") + "Klaar voor controle</span></div>";
-    }).join("");
+    // de Jumbo-bezorgbus die door het scherm rijdt (scroll-gedreven)
+    var vanSvg =
+      '<svg class="l2-van-svg" viewBox="0 0 250 130" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' +
+        '<g class="l2-van-lines"><rect x="0" y="46" width="26" height="6" rx="3"/><rect x="8" y="64" width="20" height="6" rx="3"/><rect x="2" y="82" width="14" height="6" rx="3"/></g>' +
+        '<rect x="34" y="18" width="124" height="74" rx="12" fill="#fdc500"/>' +
+        '<path d="M158 36 h42 a12 12 0 0 1 9.6 4.8 l12 16 a12 12 0 0 1 2.4 7.2 v20 a8 8 0 0 1 -8 8 h-58 z" fill="#fdc500"/>' +
+        '<path d="M166 42 h28 a8 8 0 0 1 6.4 3.2 l9 12 h-43.4 z" fill="#1d1d1b"/>' +
+        '<text x="52" y="65" font-family="Arial Black, Arial, sans-serif" font-weight="900" font-size="27" fill="#1d1d1b">JUMBO</text>' +
+        '<rect x="40" y="93" width="184" height="7" rx="3.5" fill="#1d1d1b" opacity=".14"/>' +
+        '<g class="l2-wheel"><circle cx="78" cy="102" r="17" fill="#1d1d1b"/><circle cx="78" cy="102" r="7.5" fill="#fff"/><rect x="76.6" y="87" width="2.8" height="30" rx="1.4" fill="#9a9a96"/><rect x="63" y="100.6" width="30" height="2.8" rx="1.4" fill="#9a9a96"/></g>' +
+        '<g class="l2-wheel"><circle cx="196" cy="102" r="17" fill="#1d1d1b"/><circle cx="196" cy="102" r="7.5" fill="#fff"/><rect x="194.6" y="87" width="2.8" height="30" rx="1.4" fill="#9a9a96"/><rect x="181" y="100.6" width="30" height="2.8" rx="1.4" fill="#9a9a96"/></g>' +
+      "</svg>";
 
     el("app").innerHTML =
       '<div class="l2">' +
@@ -242,18 +247,17 @@
           '<div class="l2-rail" id="l2Rail">' + railCards + "</div>" +
         "</section>" +
 
-        // PROBEER HET ZELF — interactieve mini-demo
-        '<section class="l2-demo">' +
-          '<h2 class="l2-h2 reveal">Probeer het zelf.</h2>' +
-          '<p class="l2-demo-sub reveal" style="--rd:80ms">Tik de bussen af zoals bij de schadecontrole — de voortgang loopt live mee.</p>' +
-          '<div class="l2-demo-card reveal" style="--rd:160ms">' +
-            '<div class="l2-demo-top"><span class="l2-demo-title">' + svg("shield", "icon-sm") + 'Schadecontrole · AM</span>' +
-              '<span class="l2-demo-pct" id="l2DemoPct">0%</span></div>' +
-            '<div class="l2-bar demo"><span id="l2DemoBar"></span></div>' +
-            demoRows +
-            '<div class="l2-demo-done" id="l2DemoDone">' + svg("check", "icon-sm") + "Alle bussen gecontroleerd — de binnendienst ziet het meteen! 🎉</div>" +
+        // DE RIT — bezorgbus rijdt mee met je scroll
+        '<section class="l2-drive" id="l2Drive"><div class="l2-drive-sticky">' +
+          '<h2 class="l2-h2 reveal">Van hub<br><span class="l2-dim">tot voordeur.</span></h2>' +
+          '<p class="l2-drive-sub reveal" style="--rd:80ms">Scroll — en rij mee met de bezorging.</p>' +
+          '<div class="l2-scene">' +
+            '<div class="l2-hub-b"><span class="logo-badge">' + logo(16) + "</span><span>HUB</span></div>" +
+            '<div class="l2-house" aria-hidden="true">🏠</div>' +
+            '<div class="l2-van" id="l2Van">' + vanSvg + "</div>" +
+            '<div class="l2-road"><div class="l2-road-line" id="l2RoadLine"></div></div>' +
           "</div>" +
-        "</section>" +
+        "</div></section>" +
 
         // STATS — gele band met tellers
         '<section class="l2-stats"><div class="l2-stats-in reveal">' +
@@ -267,11 +271,23 @@
         '<section class="l2-dark">' +
           '<h2 class="l2-h2 reveal">Realtime.<br><span class="l2-dim2">Voor de hele shift.</span></h2>' +
           '<p class="l2-dark-sub reveal" style="--rd:80ms">Wat de vloer afvinkt, ziet de binnendienst meteen. En andersom.</p>' +
-          '<div class="l2-live reveal" style="--rd:160ms">' +
-            '<div class="l2-live-row"><span class="l2-live-lab">' + svg("inbox", "icon-sm") + 'Laden</span><div class="l2-bar"><span data-bar="78"></span></div><b class="l2-live-val" data-count="78" data-suffix="%">0%</b></div>' +
-            '<div class="l2-live-row"><span class="l2-live-lab">' + svg("shield", "icon-sm") + 'Schadecontrole</span><div class="l2-bar g"><span data-bar="67"></span></div><b class="l2-live-val" data-count="67" data-suffix="%">0%</b></div>' +
-            '<div class="l2-live-row"><span class="l2-live-lab">' + svg("award", "icon-sm") + 'Emballage</span><div class="l2-bar p"><span data-bar="45"></span></div><b class="l2-live-val" data-count="45" data-suffix="%">0%</b></div>' +
-            '<div class="l2-live-foot"><span class="live-badge">' + svg("refresh", "icon-sm") + 'Live</span><span>ververst elke 3 seconden</span></div>' +
+          '<div class="l2-dash reveal" id="l2Dash" style="--rd:160ms">' +
+            '<div class="l2-dash-top">' +
+              '<span class="l2-dash-title">' + svg("chart", "icon-sm") + 'Senior Dashboard</span>' +
+              '<span class="l2-dash-live"><i></i>Live</span>' +
+            "</div>" +
+            '<div class="l2-dash-seg" id="l2Seg">' +
+              '<button class="active" data-dd="AM">' + svg("sun", "icon-sm") + 'AM</button>' +
+              '<button data-dd="PM">' + svg("moon", "icon-sm") + 'PM</button>' +
+            "</div>" +
+            '<div class="l2-dash-grid">' +
+              '<div class="l2-dash-ring"><div class="l2-ring" id="l2Ring" style="--p:0"><span id="l2RingVal">0%</span></div><small>shift compleet</small></div>' +
+              '<div class="l2-dash-bars">' +
+                '<div class="l2-dash-bar"><span class="ldb-lab">' + svg("inbox", "icon-sm") + 'Laden</span><div class="l2-bar"><span id="l2DBar1"></span></div><b id="l2DVal1">0%</b></div>' +
+                '<div class="l2-dash-bar"><span class="ldb-lab">' + svg("shield", "icon-sm") + 'Schade</span><div class="l2-bar g"><span id="l2DBar2"></span></div><b id="l2DVal2">0%</b></div>' +
+              "</div>" +
+            "</div>" +
+            '<div class="l2-feed" id="l2Feed"></div>' +
           "</div>" +
         "</section>" +
 
@@ -293,7 +309,9 @@
   }
 
   // Scroll-effecten van de landing: reveals, tellers, balken, nav-schaduw.
+  var l2Timers = []; // lopende intervallen van de landing (opgeruimd bij her-render)
   function initLandingFx() {
+    l2Timers.forEach(function (t) { clearInterval(t); }); l2Timers.length = 0;
     var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     var reveals = document.querySelectorAll(".l2 .reveal");
     if (reduce || !("IntersectionObserver" in window)) {
@@ -325,21 +343,88 @@
     var nav = el("l2Nav");
     if (nav) { var onScroll = function () { nav.classList.toggle("scrolled", window.scrollY > 8); }; window.addEventListener("scroll", onScroll, { passive: true }); onScroll(); }
 
-    // demo: bussen aftikken → voortgang loopt live mee
-    var demoRows = document.querySelectorAll("[data-democheck]");
-    function demoUpdate() {
-      var done = document.querySelectorAll("[data-democheck].on").length, total = demoRows.length;
-      var pct = total ? Math.round(done / total * 100) : 0;
-      var bar = el("l2DemoBar"), val = el("l2DemoPct"), fin = el("l2DemoDone");
-      if (bar) bar.style.width = pct + "%";
-      if (val) val.textContent = pct + "%";
-      if (fin) fin.classList.toggle("show", pct === 100);
+    // de bezorgbus rijdt van de hub naar de voordeur terwijl je scrolt
+    var drive = el("l2Drive"), van = el("l2Van");
+    if (drive && van) {
+      var wheels = van.querySelectorAll(".l2-wheel");
+      var roadLine = el("l2RoadLine");
+      var scene = drive.querySelector(".l2-scene");
+      if (reduce) {
+        van.style.transform = "translateX(40vw)"; // stilstaand, halverwege
+      } else {
+        var lastX = 0, vanTick = false, vanIdle = null;
+        var vanFrame = function () {
+          vanTick = false;
+          var r = drive.getBoundingClientRect();
+          var total = r.height - window.innerHeight;
+          var p = total > 0 ? Math.min(1, Math.max(0, -r.top / total)) : 0;
+          var sw = scene.getBoundingClientRect().width;
+          var vw2 = van.getBoundingClientRect().width || 1;
+          var x = -vw2 + p * (sw + vw2 * 2); // start volledig links buiten beeld, eindig rechts buiten beeld
+          van.style.transform = "translateX(" + x + "px)";
+          wheels.forEach(function (w) { w.style.transform = "rotate(" + (x * 2.2) + "deg)"; });
+          if (roadLine) roadLine.style.backgroundPositionX = (-x * 0.9) + "px";
+          if (Math.abs(x - lastX) > 0.5) {
+            van.classList.add("moving");
+            clearTimeout(vanIdle); vanIdle = setTimeout(function () { van.classList.remove("moving"); }, 160);
+          }
+          lastX = x;
+        };
+        window.addEventListener("scroll", function () { if (!vanTick) { vanTick = true; requestAnimationFrame(vanFrame); } }, { passive: true });
+        vanFrame();
+      }
     }
-    demoRows.forEach(function (r) {
-      function flip() { r.classList.toggle("on"); demoUpdate(); }
-      r.addEventListener("click", flip);
-      r.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); flip(); } });
-    });
+
+    // levend dashboard: AM/PM-schakelaar + live-feed die blijft tikken
+    var dash = el("l2Dash");
+    if (dash) {
+      var DD = { AM: { ring: 72, b1: 78, b2: 67 }, PM: { ring: 38, b1: 41, b2: 25 } };
+      function tween(from, to, ms, fn) {
+        if (reduce || ms <= 0) { fn(to); return; }
+        var t0 = null;
+        function tick(ts) { if (!t0) t0 = ts; var p = Math.min(1, (ts - t0) / ms); fn(from + (to - from) * (1 - Math.pow(1 - p, 3))); if (p < 1) requestAnimationFrame(tick); }
+        requestAnimationFrame(tick);
+      }
+      function setDD(key) {
+        var d = DD[key], ring = el("l2Ring"), rv = el("l2RingVal"), v1 = el("l2DVal1"), v2 = el("l2DVal2");
+        tween(parseFloat(ring.style.getPropertyValue("--p")) || 0, d.ring, 800, function (v) { ring.style.setProperty("--p", v); rv.textContent = Math.round(v) + "%"; });
+        el("l2DBar1").style.width = d.b1 + "%";
+        el("l2DBar2").style.width = d.b2 + "%";
+        tween(parseInt(v1.textContent, 10) || 0, d.b1, 800, function (v) { v1.textContent = Math.round(v) + "%"; });
+        tween(parseInt(v2.textContent, 10) || 0, d.b2, 800, function (v) { v2.textContent = Math.round(v) + "%"; });
+      }
+      el("l2Seg").querySelectorAll("[data-dd]").forEach(function (b) {
+        b.addEventListener("click", function () {
+          el("l2Seg").querySelectorAll("button").forEach(function (x) { x.classList.remove("active"); });
+          b.classList.add("active"); setDD(b.getAttribute("data-dd"));
+        });
+      });
+      // live-feed: gebeurtenissen schuiven binnen zolang het dashboard in beeld is
+      var feedPool = [
+        ["check", "Bus 214 geladen — vak 8"], ["shield", "Bus 87 gecontroleerd"],
+        ["exchange", "Shift geruild: Alex → Sam"], ["van", "Pendel aangekomen · 3 trolleys"],
+        ["award", "Vak 7: 42 kratjes geteld"], ["clipboard", "Steekproef bus 153 ingevuld"],
+        ["check", "Bus 129 geladen — vak 12"], ["shield", "Bus 66: tolkrol mist"]
+      ];
+      var fi = 0, feedEl = el("l2Feed"), feedOn = false, dashStarted = false;
+      function pushFeed(instant) {
+        var it = feedPool[fi++ % feedPool.length];
+        var d = document.createElement("div"); d.className = "l2-feed-item";
+        d.innerHTML = svg(it[0], "icon-sm") + "<span>" + it[1] + "</span><time>zojuist</time>";
+        feedEl.insertBefore(d, feedEl.firstChild);
+        if (instant || reduce) d.classList.add("show");
+        else requestAnimationFrame(function () { requestAnimationFrame(function () { d.classList.add("show"); }); });
+        var items = feedEl.querySelectorAll(".l2-feed-item");
+        if (items.length > 4) { var last = items[items.length - 1]; last.classList.add("out"); setTimeout(function () { if (last.parentNode) last.parentNode.removeChild(last); }, 420); }
+      }
+      function startDash() { if (dashStarted) return; dashStarted = true; setDD("AM"); pushFeed(true); pushFeed(true); pushFeed(true); }
+      if (reduce || !("IntersectionObserver" in window)) { startDash(); }
+      else {
+        var dio = new IntersectionObserver(function (es) { es.forEach(function (e) { feedOn = e.isIntersecting; if (e.isIntersecting) startDash(); }); }, { threshold: 0.2 });
+        dio.observe(dash);
+        l2Timers.push(setInterval(function () { if (feedOn && !document.hidden && document.body.contains(feedEl)) pushFeed(false); }, 2400));
+      }
+    }
 
     // telefoon-mockup: kantelt mee met de muis (desktop) en scroll (mobiel)
     var phone = el("l2Phone"), hero = el("l2Hero");
