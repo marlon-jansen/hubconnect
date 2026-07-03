@@ -840,7 +840,7 @@ main { max-width: 1100px; margin: 0 auto; padding: 22px 18px 80px; }
   .table:not(.table-grid) { border: none; }
   .table:not(.table-grid) thead { display: none; }
   .table:not(.table-grid), .table:not(.table-grid) tbody, .table:not(.table-grid) tr, .table:not(.table-grid) td { display: block; width: 100%; }
-  .table:not(.table-grid) tr { border: 1px solid var(--line); border-radius: 12px; padding: 4px 12px; margin: 0 0 10px; background: var(--card); }
+  .table:not(.table-grid) tr { border: 1.5px solid #cfcfc7; border-radius: 14px; padding: 4px 13px 6px; margin: 0 0 13px; background: var(--card); box-shadow: 0 1px 3px rgba(0,0,0,.07); }
   .table:not(.table-grid) tr:hover td { background: transparent; }
   .table:not(.table-grid) td { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--line); text-align: right; }
   .table:not(.table-grid) tr td:last-child { border-bottom: none; }
