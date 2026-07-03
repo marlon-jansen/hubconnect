@@ -836,6 +836,14 @@
   function recentPendels(hubId, datum, dagdeel) {
     return getTrolley(hubId, datum, dagdeel).pendels.slice(-3).reverse();
   }
+  // Volgende pendels (voor het dashboard): die vanaf de huidige tijd aankomen, oplopend op aankomsttijd.
+  function komendePendels(hubId, datum, dagdeel) {
+    var d = new Date(), nowMin = d.getHours() * 60 + d.getMinutes();
+    return getTrolley(hubId, datum, dagdeel).pendels
+      .filter(function (p) { var m = toMin(p.tijd); return m != null && m >= nowMin; })
+      .sort(function (a, b) { return toMin(a.tijd) - toMin(b.tijd); })
+      .slice(0, 3);
+  }
   // LC verwerkt de trolley-veranderingen per pendel met +/- (past de doorlopende voorraad aan).
   function pendelBump(hubId, datum, dagdeel, id, field, delta) {
     if (!canOpShift(currentUser(), hubId, datum, dagdeel, "lc", "LC")) throw new Error("Je bent deze shift niet aangewezen als LC.");
@@ -1020,7 +1028,7 @@
     getSchade: getSchade, schadeImportColumns: schadeImportColumns, schadeAddBus: schadeAddBus, schadeToggle: schadeToggle, schadeSetDock: schadeSetDock, schadeSetOpmerking: schadeSetOpmerking, schadeRemove: schadeRemove, schadeReset: schadeReset, schadeStats: schadeStats,
     setBusSteekproef: setBusSteekproef, steekproefDone: steekproefDone, steekproefStats: steekproefStats, steekproevenList: steekproevenList, recentGecontroleerdeBussen: recentGecontroleerdeBussen, busHeeftProbleem: busHeeftProbleem,
     getKwaliteit: getKwaliteit, vakSoort: vakSoort, setVakSoort: setVakSoort, emballageSet: emballageSet, emballageVakTotal: emballageVakTotal, clearEmbVak: clearEmbVak,
-    getTrolley: getTrolley, addPendelPlan: addPendelPlan, removePendel: removePendel, pendelBump: pendelBump, trolleySetStock: trolleySetStock, trolleyBump: trolleyBump, recentPendels: recentPendels,
+    getTrolley: getTrolley, addPendelPlan: addPendelPlan, removePendel: removePendel, pendelBump: pendelBump, trolleySetStock: trolleySetStock, trolleyBump: trolleyBump, recentPendels: recentPendels, komendePendels: komendePendels,
     getLC: getLC, lcSetAantal: lcSetAantal, lcSetupVak: lcSetupVak, lcSetBus: lcSetBus, lcToggleGeladen: lcToggleGeladen, lcImportColumns: lcImportColumns, lcReset: lcReset, lcStats: lcStats, recentGeladenBussen: recentGeladenBussen,
     shiftsForHub: shiftsForHub, taskOffersForHub: taskOffersForHub, backupsForHub: backupsForHub, calloutsForHub: calloutsForHub,
     logsForHub: logsForHub, usersForHub: usersForHub, manageableUsers: manageableUsers,
