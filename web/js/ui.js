@@ -280,7 +280,7 @@
   function navItems(u) {
     var items = [
       { id: "shifts", label: "Ruilbord", icon: "swap" },
-      { id: "mine", label: "Mijn ruilverzoeken", icon: "clipboard" }
+      { id: "mine", label: "Mijn ruilverzoeken", icon: "clipboard", count: myNewDecisions(u).length }
     ];
     if (S.can.isApprover(u)) items.push({ id: "approvals", label: "Goedkeuren", icon: "checkCircle", count: S.pendingCount(u) });
     if (S.can.seeStats(u)) items.push({ id: "stats", label: "Statistieken", icon: "chart" });
@@ -333,7 +333,7 @@
     var m = el("main");
     switch (state.view) {
       case "shifts": m.innerHTML = viewBoard(); bindBoard(); break;
-      case "mine": m.innerHTML = viewMine(); break;
+      case "mine": m.innerHTML = viewMine(); markDecisionsSeen(); break;
       case "approvals": m.innerHTML = viewApprovals(); bindApprovals(); break;
       case "stats": m.innerHTML = viewStats(); bindStats(); break;
       case "beheer": m.innerHTML = viewBeheer(); bindBeheer(); break;
@@ -373,16 +373,82 @@
   /* ===================================================================
      RUILBORD
      =================================================================== */
+  // Dag/week-bereik voor het bord.
+  function rangeLabel() {
+    var d = new Date(state.boardRef + "T00:00:00");
+    if (state.boardRange === "dag") {
+      var dn = ["zo", "ma", "di", "wo", "do", "vr", "za"][d.getDay()];
+      return dn + " " + d.getDate() + "-" + (d.getMonth() + 1) + "-" + d.getFullYear();
+    }
+    var mon = mondayOf(d), sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+    return "Week " + isoWeek(mon) + " · " + mon.getDate() + "-" + (mon.getMonth() + 1) + " t/m " + sun.getDate() + "-" + (sun.getMonth() + 1);
+  }
+  function rangeKeep(datum) {
+    if (!datum) return true;
+    if (state.boardRange === "dag") return datum === state.boardRef;
+    var mon = mondayOf(new Date(state.boardRef + "T00:00:00"));
+    var sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+    return datum >= ymd(mon) && datum <= ymd(sun);
+  }
+
+  // Meldingen voor de aanbieder: goedgekeurde/afgewezen eigen verzoeken.
+  function myDecisions(u) {
+    var out = [];
+    function add(list, kind) { (list || []).forEach(function (x) { if (x.aanbiederId === u.id && (x.status === "goedgekeurd" || x.status === "afgekeurd") && x.besluitOp) out.push({ kind: kind, it: x }); }); }
+    add(S.db.shifts, "shift"); add(S.db.taskOffers, "task"); add(S.db.backups, "backup"); add(S.db.callouts, "callout");
+    out.sort(function (a, b) { return (b.it.besluitOp || "").localeCompare(a.it.besluitOp || ""); });
+    return out;
+  }
+  function notifSeenKey(u) { return "ruilhub_notifseen_" + u.id; }
+  function getNotifSeen(u) { try { return localStorage.getItem(notifSeenKey(u)) || ""; } catch (e) { return ""; } }
+  function setNotifSeen(u, ts) { try { localStorage.setItem(notifSeenKey(u), ts); } catch (e) {} }
+  function myNewDecisions(u) {
+    var grens = new Date(Date.now() - 14 * 864e5).toISOString(); // alleen recente (14 dagen) meldingen
+    var seen = getNotifSeen(u);
+    return myDecisions(u).filter(function (d) { var t = d.it.besluitOp || ""; return t > seen && t > grens; });
+  }
+  function markDecisionsSeen() {
+    var u = S.currentUser(); if (!u) return;
+    var ds = myDecisions(u);
+    if (ds.length && ds[0].it.besluitOp > getNotifSeen(u)) { setNotifSeen(u, ds[0].it.besluitOp); document.querySelectorAll('[data-nav="mine"] .badge-count').forEach(function (n) { n.remove(); }); }
+  }
+  function notifBanner(u) {
+    var nd = myNewDecisions(u);
+    if (!nd.length) return "";
+    var rows = nd.slice(0, 6).map(function (d) {
+      var it = d.it, ok = it.status === "goedgekeurd";
+      var wat = d.kind === "shift" ? "Je shift" : d.kind === "task" ? "Je taak" : d.kind === "backup" ? "Je back-up" : "Je oproep";
+      var wanneer = fmtDate(it.datum) + " · " + it.dagdeel;
+      return '<div class="notif-row ' + (ok ? "ok" : "no") + '">' + svg(ok ? "checkCircle" : "x", "icon-sm") +
+        "<span>" + wat + " van <b>" + esc(wanneer) + "</b> is " + (ok ? "goedgekeurd" : "afgewezen") +
+        (!ok && it.reden ? ' <span class="notif-reden">— ' + esc(it.reden) + "</span>" : "") + "</span></div>";
+    }).join("");
+    return '<div class="notif-banner"><div class="notif-head">' + svg("info", "icon-sm") + "<b>Nieuw voor jou</b><div class=\"grow\"></div>" +
+      '<button class="btn btn-ghost btn-sm" data-notifseen>Gezien</button></div>' + rows + "</div>";
+  }
+
   function viewBoard() {
     var u = S.currentUser();
     var hub = S.hubById(u.hubId);
+    if (!state.boardRange) state.boardRange = "week";
+    if (!state.boardRef) state.boardRef = ymd(new Date());
     return '' +
+      notifBanner(u) +
       '<div class="page-head"><div><h2>Ruilbord</h2><p>Binnen HUB ' + esc(hub ? hub.naam : "?") + " — wie eerst aanbiedt, gaat voor.</p></div>" +
         '<div class="grow"></div>' +
         '<button class="btn btn-primary" data-offer="shift">' + svg("plus") + "Shift aanbieden</button>" +
         '<button class="btn btn-dark" data-offer="task">' + svg("plus") + "Taak aanbieden</button>" +
         '<button class="btn btn-outline" data-offer="callout">' + svg("search", "icon-sm") + "Shift gezocht</button>" +
         '<button class="btn btn-outline" data-offer="backup">' + svg("lifebuoy", "icon-sm") + "Back-up</button>" +
+      "</div>" +
+      '<div class="board-range"><div class="seg">' +
+          '<button data-brange="dag" class="' + (state.boardRange === "dag" ? "active" : "") + '">' + svg("sun", "icon-sm") + "Per dag</button>" +
+          '<button data-brange="week" class="' + (state.boardRange === "week" ? "active" : "") + '">' + svg("calendar", "icon-sm") + "Per week</button>" +
+        "</div>" +
+        '<div class="seg"><button data-bnav="-1" title="Vorige">' + svg("arrowLeft", "icon-sm") + "</button>" +
+          '<button class="active" style="cursor:default;text-transform:capitalize">' + esc(rangeLabel()) + "</button>" +
+          '<button data-bnav="1" title="Volgende">' + svg("arrowRight", "icon-sm") + "</button></div>" +
+        '<button class="btn btn-ghost btn-sm" data-bnav="today">Vandaag</button>' +
       "</div>" +
       '<div class="toolbar">' +
         '<div class="seg">' +
@@ -434,10 +500,10 @@
   function boardAlles() {
     var u = S.currentUser();
     var items = [];
-    S.shiftsForHub(u.hubId).forEach(function (s) { if (S.visibleTask(u, s.taak) && statusKeep(s.status) && matchesQ(qstr(s.aanbiederId, s.datum, s.dagdeel, s.taak))) { s._type = "shift"; items.push(s); } });
-    S.taskOffersForHub(u.hubId).forEach(function (t) { if (S.visibleTask(u, t.taak) && statusKeep(t.status) && matchesQ(qstr(t.aanbiederId, t.datum, t.dagdeel, t.taak))) { t._type = "task"; items.push(t); } });
-    S.calloutsForHub(u.hubId).forEach(function (c) { if (statusKeep(c.status) && matchesQ(qstr(c.aanbiederId, c.datum, c.dagdeel, ""))) { c._type = "callout"; items.push(c); } });
-    S.backupsForHub(u.hubId).forEach(function (b) { if (statusKeep(b.status) && matchesQ(qstr(b.aanbiederId, b.datum, b.dagdeel, b.ritOmschrijving || ""))) { b._type = "backup"; items.push(b); } });
+    S.shiftsForHub(u.hubId).forEach(function (s) { if (S.visibleTask(u, s.taak) && rangeKeep(s.datum) && statusKeep(s.status) && matchesQ(qstr(s.aanbiederId, s.datum, s.dagdeel, s.taak))) { s._type = "shift"; items.push(s); } });
+    S.taskOffersForHub(u.hubId).forEach(function (t) { if (S.visibleTask(u, t.taak) && rangeKeep(t.datum) && statusKeep(t.status) && matchesQ(qstr(t.aanbiederId, t.datum, t.dagdeel, t.taak))) { t._type = "task"; items.push(t); } });
+    S.calloutsForHub(u.hubId).forEach(function (c) { if (rangeKeep(c.datum) && statusKeep(c.status) && matchesQ(qstr(c.aanbiederId, c.datum, c.dagdeel, ""))) { c._type = "callout"; items.push(c); } });
+    S.backupsForHub(u.hubId).forEach(function (b) { if (rangeKeep(b.datum) && statusKeep(b.status) && matchesQ(qstr(b.aanbiederId, b.datum, b.dagdeel, b.ritOmschrijving || ""))) { b._type = "backup"; items.push(b); } });
     if (!items.length) return emptyState("inbox", "Niets op het bord", "Er staan nu geen verzoeken binnen je hub.");
     return groupRender(items, function (it) {
       return it._type === "shift" ? shiftCard(it) : it._type === "task" ? taskCard(it) : it._type === "callout" ? calloutCard(it) : backupCard(it);
@@ -448,7 +514,7 @@
   function boardShifts() {
     var u = S.currentUser();
     var list = S.shiftsForHub(u.hubId).filter(function (s) {
-      return S.visibleTask(u, s.taak) && statusKeep(s.status) && matchesQ(qstr(s.aanbiederId, s.datum, s.dagdeel, s.taak));
+      return S.visibleTask(u, s.taak) && rangeKeep(s.datum) && statusKeep(s.status) && matchesQ(qstr(s.aanbiederId, s.datum, s.dagdeel, s.taak));
     });
     list.sort(function (a, b) { return (a.seq || 0) - (b.seq || 0); }); // FCFS oudste eerst
     if (!list.length) return emptyState("inbox", "Geen shifts", "Er staan nu geen shifts op het bord. Bied er zelf één aan met de knop rechtsboven.");
@@ -496,7 +562,7 @@
   function boardTasks() {
     var u = S.currentUser();
     var list = S.taskOffersForHub(u.hubId).filter(function (t) {
-      return S.visibleTask(u, t.taak) && statusKeep(t.status) && matchesQ(qstr(t.aanbiederId, t.datum, t.dagdeel, t.taak));
+      return S.visibleTask(u, t.taak) && rangeKeep(t.datum) && statusKeep(t.status) && matchesQ(qstr(t.aanbiederId, t.datum, t.dagdeel, t.taak));
     });
     if (!list.length) return emptyState("tag", "Geen losse taken", "Heb je een taak voor of na je rit (zoals LC of schadecontrole)? Bied 'm aan zodat een collega extra uren kan draaien.");
     return groupRender(list, taskCard);
@@ -527,7 +593,7 @@
   function boardBackup() {
     var u = S.currentUser();
     var list = S.backupsForHub(u.hubId).filter(function (b) {
-      return statusKeep(b.status) && matchesQ(qstr(b.aanbiederId, b.datum, b.dagdeel, b.ritOmschrijving || ""));
+      return rangeKeep(b.datum) && statusKeep(b.status) && matchesQ(qstr(b.aanbiederId, b.datum, b.dagdeel, b.ritOmschrijving || ""));
     });
     if (!list.length) return emptyState("lifebuoy", "Geen back-up verzoeken", "Wil je rijden terwijl je op back-up staat, of juist je rit weggeven om back-up te staan? Gebruik de knop 'Back-up'.");
     return groupRender(list, backupCard);
@@ -561,7 +627,7 @@
   function boardCallout() {
     var u = S.currentUser();
     var list = S.calloutsForHub(u.hubId).filter(function (c) {
-      return statusKeep(c.status) && matchesQ(qstr(c.aanbiederId, c.datum, c.dagdeel, ""));
+      return rangeKeep(c.datum) && statusKeep(c.status) && matchesQ(qstr(c.aanbiederId, c.datum, c.dagdeel, ""));
     });
     if (!list.length) return emptyState("search", "Geen oproepen", "Zoek je zelf een shift? Plaats een oproep met de knop 'Shift gezocht'.");
     return groupRender(list, calloutCard);
@@ -592,6 +658,15 @@
   function bindBoard() {
     document.querySelectorAll("[data-board]").forEach(function (b) { b.addEventListener("click", function () { state.board = b.getAttribute("data-board"); renderMain(); }); });
     document.querySelectorAll("[data-filter]").forEach(function (b) { b.addEventListener("click", function () { state.filter = b.getAttribute("data-filter"); renderMain(); }); });
+    document.querySelectorAll("[data-brange]").forEach(function (b) { b.addEventListener("click", function () { state.boardRange = b.getAttribute("data-brange"); renderMain(); }); });
+    document.querySelectorAll("[data-bnav]").forEach(function (b) { b.addEventListener("click", function () {
+      var v = b.getAttribute("data-bnav");
+      if (v === "today") { state.boardRef = ymd(new Date()); }
+      else { var step = (state.boardRange === "dag" ? 1 : 7) * parseInt(v, 10); var d = new Date(state.boardRef + "T00:00:00"); d.setDate(d.getDate() + step); state.boardRef = ymd(d); }
+      renderMain();
+    }); });
+    var nseen = document.querySelector("[data-notifseen]");
+    if (nseen) nseen.addEventListener("click", function () { var u = S.currentUser(); var ds = myDecisions(u); setNotifSeen(u, ds.length ? ds[0].it.besluitOp : new Date().toISOString()); renderApp(); });
     var s = el("boardSearch");
     if (s) s.addEventListener("input", function () { state.q = s.value; el("boardGrid").innerHTML = boardContent(); bindBoardActions(); });
     document.querySelectorAll("[data-offer]").forEach(function (b) { b.addEventListener("click", function () { openOfferModal(b.getAttribute("data-offer")); }); });
