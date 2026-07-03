@@ -167,281 +167,55 @@
   /* ===================================================================
      LANDING
      =================================================================== */
+  // HubConnect-beeldmerk: geel afgerond vierkant met hub-en-spaken (zes nodes rond een kern).
+  function hubMark(h) {
+    h = h || 40;
+    var c = 48, R = 26, nodes = "", lines = "";
+    for (var i = 0; i < 6; i++) {
+      var a = Math.PI / 180 * (i * 60 - 90);
+      var x = Math.round((c + R * Math.cos(a)) * 10) / 10, y = Math.round((c + R * Math.sin(a)) * 10) / 10;
+      lines += '<line x1="48" y1="48" x2="' + x + '" y2="' + y + '"/>';
+      nodes += '<circle cx="' + x + '" cy="' + y + '" r="5.2"/>';
+    }
+    return '<svg class="hc-mark" width="' + h + '" height="' + h + '" viewBox="0 0 96 96" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="HubConnect">' +
+      '<defs><linearGradient id="hcg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffd23e"/><stop offset="1" stop-color="#f2b600"/></linearGradient></defs>' +
+      '<rect width="96" height="96" rx="24" fill="url(#hcg)"/>' +
+      '<g stroke="#1d1d1b" stroke-width="4.6" stroke-linecap="round">' + lines + "</g>" +
+      '<g fill="#1d1d1b">' + nodes + '<circle cx="48" cy="48" r="8.2"/></g>' +
+      "</svg>";
+  }
+
   function renderLanding() {
     var loggedIn = !!S.currentUser();
     var cta = loggedIn ? "Verder naar de hub" : "Inloggen";
-
-    // Module-rail: gekleurde kaarten, horizontaal snappen
-    var railCards = [
-      { icon: "exchange", cls: "yellow", naam: "RuilHub", txt: "Shift kwijt? Geruild in twee tikken — met goedkeuring van de teamleider." },
-      { icon: "clipboardList", cls: "blue", naam: "Takenplanning", txt: "Het weekrooster als afbeelding, klaar voor de groepsapp." },
-      { icon: "chart", cls: "dark", naam: "Senior Dashboard", txt: "Alles klaarzetten en live meekijken met de hele shift." },
-      { icon: "inbox", cls: "orange", naam: "Laadproces", txt: "Vakken, bussen en pendels — afvinken terwijl je laadt." },
-      { icon: "shield", cls: "green", naam: "Schadecontrole", txt: "Elke bus gecontroleerd, met steekproeven en opmerkingen." },
-      { icon: "award", cls: "purple", naam: "Kwaliteit", txt: "Emballage per vak en de trolley-voorraad per dag." }
-    ].map(function (m, i) {
-      return '<div class="l2-card l2-card-' + m.cls + ' reveal" style="--rd:' + (i * 60) + 'ms">' +
-        '<span class="l2-card-ico">' + svg(m.icon, "icon-lg") + "</span>" +
-        "<h3>" + esc(m.naam) + "</h3><p>" + esc(m.txt) + "</p></div>";
-    }).join("");
-
-    // doorlopende marquee-band met de modulenamen (2x voor naadloze loop)
-    var marqItems = "RuilHub · Takenplanning · Senior Dashboard · Laadproces · Schadecontrole · Kwaliteit · Bussenbeheer · ";
-    var marq = '<span>' + esc(marqItems) + "</span><span aria-hidden=\"true\">" + esc(marqItems) + "</span>";
-
-    // telefoon-mockup in de hero (kantelt mee met muis/scroll)
-    var phone =
-      '<div class="l2-phone-wrap reveal" style="--rd:300ms"><div class="l2-phone" id="l2Phone">' +
-        '<div class="l2-ph-head"><span class="logo-badge">' + logo(20) + '</span><span>' + PORTAL + '</span><span class="l2-ph-live">' + svg("refresh", "icon-sm") + "Live</span></div>" +
-        '<div class="l2-ph-hi">Hoi Alex 👋</div>' +
-        '<div class="l2-ph-tiles">' +
-          '<div class="l2-ph-tile t-yellow">' + svg("exchange", "icon-sm") + "<b>RuilHub</b><small>3 open shifts</small></div>" +
-          '<div class="l2-ph-tile t-dark">' + svg("chart", "icon-sm") + "<b>Dashboard</b><small>live overzicht</small></div>" +
-          '<div class="l2-ph-tile t-green">' + svg("shield", "icon-sm") + "<b>Schade</b><small>12/18 bussen</small></div>" +
-          '<div class="l2-ph-tile t-orange">' + svg("inbox", "icon-sm") + "<b>Laden</b><small>vak 8 · rit 214</small></div>" +
-        "</div>" +
-      "</div></div>";
-
-    // de Jumbo-bezorgbus die door het scherm rijdt (scroll-gedreven)
-    var vanSvg =
-      '<svg class="l2-van-svg" viewBox="0 0 250 130" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' +
-        '<g class="l2-van-lines"><rect x="0" y="46" width="26" height="6" rx="3"/><rect x="8" y="64" width="20" height="6" rx="3"/><rect x="2" y="82" width="14" height="6" rx="3"/></g>' +
-        '<rect x="34" y="18" width="124" height="74" rx="12" fill="#fdc500"/>' +
-        '<path d="M158 36 h42 a12 12 0 0 1 9.6 4.8 l12 16 a12 12 0 0 1 2.4 7.2 v20 a8 8 0 0 1 -8 8 h-58 z" fill="#fdc500"/>' +
-        '<path d="M166 42 h28 a8 8 0 0 1 6.4 3.2 l9 12 h-43.4 z" fill="#1d1d1b"/>' +
-        '<text x="52" y="65" font-family="Arial Black, Arial, sans-serif" font-weight="900" font-size="27" fill="#1d1d1b">JUMBO</text>' +
-        '<rect x="40" y="93" width="184" height="7" rx="3.5" fill="#1d1d1b" opacity=".14"/>' +
-        '<g class="l2-wheel"><circle cx="78" cy="102" r="17" fill="#1d1d1b"/><circle cx="78" cy="102" r="7.5" fill="#fff"/><rect x="76.6" y="87" width="2.8" height="30" rx="1.4" fill="#9a9a96"/><rect x="63" y="100.6" width="30" height="2.8" rx="1.4" fill="#9a9a96"/></g>' +
-        '<g class="l2-wheel"><circle cx="196" cy="102" r="17" fill="#1d1d1b"/><circle cx="196" cy="102" r="7.5" fill="#fff"/><rect x="194.6" y="87" width="2.8" height="30" rx="1.4" fill="#9a9a96"/><rect x="181" y="100.6" width="30" height="2.8" rx="1.4" fill="#9a9a96"/></g>' +
-      "</svg>";
-
     el("app").innerHTML =
-      '<div class="l2">' +
-        // vaste, doorschijnende navbalk
-        '<header class="l2-nav" id="l2Nav"><div class="l2-nav-in">' +
-          '<span class="logo-badge">' + logo(30) + "</span>" +
-          '<span class="l2-nav-name">' + PORTAL + "</span>" +
+      '<div class="l3">' +
+        '<header class="l3-nav" id="l3Nav"><div class="l3-nav-in">' +
+          hubMark(28) +
+          '<span class="l3-nav-name">HubConnect</span>' +
           '<div class="grow"></div>' +
           '<button class="btn btn-dark btn-sm" data-go="login">' + cta + "</button>" +
         "</div></header>" +
-
-        // HERO — geel, groot, met telefoon-mockup
-        '<section class="l2-hero" id="l2Hero">' +
-          '<div class="l2-hero-blob b1"></div><div class="l2-hero-blob b2"></div>' +
-          '<p class="l2-kicker reveal">Jumbo Bezorgservice</p>' +
-          '<h1 class="reveal" style="--rd:80ms">' + PORTAL + ".</h1>" +
-          '<p class="l2-sub reveal" style="--rd:160ms">Alles voor je hub.<br>Op één plek.</p>' +
-          '<div class="l2-cta reveal" style="--rd:240ms">' +
-            '<button class="btn btn-dark btn-lg" data-go="login">' + svg("arrowRight") + cta + "</button>" +
-            '<button class="l2-more" data-scrollto=".l2-mods">Ontdek de modules <span class="l2-chev">↓</span></button>' +
-          "</div>" + phone +
+        '<section class="l3-hero">' +
+          '<div class="l3-glow" aria-hidden="true"></div>' +
+          '<div class="l3-mark rise">' + hubMark(104) + "</div>" +
+          '<h1 class="rise d1">HubConnect.</h1>' +
+          '<p class="l3-tag rise d2">Alles voor je hub. Op &eacute;&eacute;n plek.</p>' +
+          '<div class="l3-act rise d3"><button class="btn btn-dark btn-lg" data-go="login">' + svg("arrowRight") + cta + "</button></div>" +
+          '<p class="l3-kicker rise d4">Jumbo Bezorgservice</p>' +
         "</section>" +
-
-        // MARQUEE — doorlopende band
-        '<div class="l2-marq" aria-hidden="true"><div class="l2-marq-track">' + marq + "</div></div>" +
-
-        // MODULES — horizontale snap-rail met gekleurde kaarten
-        '<section class="l2-mods">' +
-          '<h2 class="l2-h2 reveal">Eén hub.<br><span class="l2-dim">Zes gereedschappen.</span></h2>' +
-          '<p class="l2-mods-hint reveal" style="--rd:80ms">' + svg("arrowRight", "icon-sm") + " swipe door de modules</p>" +
-          '<div class="l2-rail" id="l2Rail">' + railCards + "</div>" +
-        "</section>" +
-
-        // DE RIT — bezorgbus rijdt mee met je scroll
-        '<section class="l2-drive" id="l2Drive"><div class="l2-drive-sticky">' +
-          '<h2 class="l2-h2 reveal">Van hub<br><span class="l2-dim">tot voordeur.</span></h2>' +
-          '<p class="l2-drive-sub reveal" style="--rd:80ms">Scroll — en rij mee met de bezorging.</p>' +
-          '<div class="l2-scene">' +
-            '<div class="l2-hub-b"><span class="logo-badge">' + logo(16) + "</span><span>HUB</span></div>" +
-            '<div class="l2-house" aria-hidden="true">🏠</div>' +
-            '<div class="l2-van" id="l2Van">' + vanSvg + "</div>" +
-            '<div class="l2-road"><div class="l2-road-line" id="l2RoadLine"></div></div>' +
-          "</div>" +
-        "</div></section>" +
-
-        // STATS — gele band met tellers
-        '<section class="l2-stats"><div class="l2-stats-in reveal">' +
-          '<div class="l2-stat"><b data-count="13">0</b><span>hubs</span></div>' +
-          '<div class="l2-stat"><b data-count="6">0</b><span>modules</span></div>' +
-          '<div class="l2-stat"><b data-count="3" data-suffix="s">0</b><span>realtime</span></div>' +
-          '<div class="l2-stat"><b data-count="1">0</b><span>plek</span></div>' +
-        "</div></section>" +
-
-        // REALTIME — donkere sectie met animerende voortgang
-        '<section class="l2-dark">' +
-          '<h2 class="l2-h2 reveal">Realtime.<br><span class="l2-dim2">Voor de hele shift.</span></h2>' +
-          '<p class="l2-dark-sub reveal" style="--rd:80ms">Wat de vloer afvinkt, ziet de binnendienst meteen. En andersom.</p>' +
-          '<div class="l2-dash reveal" id="l2Dash" style="--rd:160ms">' +
-            '<div class="l2-dash-top">' +
-              '<span class="l2-dash-title">' + svg("chart", "icon-sm") + 'Senior Dashboard</span>' +
-              '<span class="l2-dash-live"><i></i>Live</span>' +
-            "</div>" +
-            '<div class="l2-dash-seg" id="l2Seg">' +
-              '<button class="active" data-dd="AM">' + svg("sun", "icon-sm") + 'AM</button>' +
-              '<button data-dd="PM">' + svg("moon", "icon-sm") + 'PM</button>' +
-            "</div>" +
-            '<div class="l2-dash-grid">' +
-              '<div class="l2-dash-ring"><div class="l2-ring" id="l2Ring" style="--p:0"><span id="l2RingVal">0%</span></div><small>shift compleet</small></div>' +
-              '<div class="l2-dash-bars">' +
-                '<div class="l2-dash-bar"><span class="ldb-lab">' + svg("inbox", "icon-sm") + 'Laden</span><div class="l2-bar"><span id="l2DBar1"></span></div><b id="l2DVal1">0%</b></div>' +
-                '<div class="l2-dash-bar"><span class="ldb-lab">' + svg("shield", "icon-sm") + 'Schade</span><div class="l2-bar g"><span id="l2DBar2"></span></div><b id="l2DVal2">0%</b></div>' +
-              "</div>" +
-            "</div>" +
-            '<div class="l2-feed" id="l2Feed"></div>' +
-          "</div>" +
-        "</section>" +
-
-        // AFSLUITER — geel
-        '<section class="l2-final">' +
-          '<h2 class="l2-h2 reveal">Klaar voor je shift?</h2>' +
-          '<div class="reveal" style="--rd:100ms"><button class="btn btn-dark btn-lg" data-go="login">' + svg("arrowRight") + cta + "</button></div>" +
-          '<p class="l2-note reveal" style="--rd:180ms">' + svg("shield", "icon-sm") + " Veilig &amp; per hub afgeschermd</p>" +
-        "</section>" +
-
-        '<footer class="landing-foot">' + PORTAL + " · Jumbo Bezorgservice</footer>" +
+        '<footer class="l3-foot">HubConnect &middot; Jumbo Bezorgservice</footer>' +
       "</div>";
-
     document.querySelectorAll("[data-go=login]").forEach(function (b) { b.addEventListener("click", function () {
       if (S.currentUser()) { state.showLanding = false; state.module = null; render(); } // al ingelogd → direct de hub in
       else { authScreen = "login"; render(); }
     }); });
-    initLandingFx();
-  }
-
-  // Scroll-effecten van de landing: reveals, tellers, balken, nav-schaduw.
-  var l2Timers = []; // lopende intervallen van de landing (opgeruimd bij her-render)
-  function initLandingFx() {
-    l2Timers.forEach(function (t) { clearInterval(t); }); l2Timers.length = 0;
-    var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    var reveals = document.querySelectorAll(".l2 .reveal");
-    if (reduce || !("IntersectionObserver" in window)) {
-      reveals.forEach(function (n) { n.classList.add("in"); });
-      document.querySelectorAll(".l2 [data-bar]").forEach(function (s) { s.style.width = s.getAttribute("data-bar") + "%"; });
-      document.querySelectorAll(".l2 [data-count]").forEach(function (n) { n.textContent = n.getAttribute("data-count") + (n.getAttribute("data-suffix") || ""); });
-    } else {
-      var io = new IntersectionObserver(function (entries) {
-        entries.forEach(function (en) {
-          if (!en.isIntersecting) return;
-          en.target.classList.add("in");
-          // balken + tellers binnen dit blok starten zodra het blok in beeld komt
-          en.target.querySelectorAll("[data-bar]").forEach(function (s) { s.style.width = s.getAttribute("data-bar") + "%"; });
-          en.target.querySelectorAll("[data-count]").forEach(function (n) {
-            var end = parseInt(n.getAttribute("data-count"), 10), suf = n.getAttribute("data-suffix") || "", t0 = null;
-            function tick(t) { if (!t0) t0 = t; var p = Math.min(1, (t - t0) / 900); n.textContent = Math.round(end * (1 - Math.pow(1 - p, 3))) + suf; if (p < 1) requestAnimationFrame(tick); }
-            requestAnimationFrame(tick);
-          });
-          io.unobserve(en.target);
-        });
-      }, { threshold: 0.25 });
-      reveals.forEach(function (n) { io.observe(n); });
-    }
-    // zachte scroll naar de modules
-    document.querySelectorAll(".l2 [data-scrollto]").forEach(function (b) {
-      b.addEventListener("click", function () { var t = document.querySelector(b.getAttribute("data-scrollto")); if (t) t.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" }); });
-    });
-    // navbalk krijgt schaduw zodra je scrolt
-    var nav = el("l2Nav");
-    if (nav) { var onScroll = function () { nav.classList.toggle("scrolled", window.scrollY > 8); }; window.addEventListener("scroll", onScroll, { passive: true }); onScroll(); }
-
-    // de bezorgbus rijdt van de hub naar de voordeur terwijl je scrolt
-    var drive = el("l2Drive"), van = el("l2Van");
-    if (drive && van) {
-      var wheels = van.querySelectorAll(".l2-wheel");
-      var roadLine = el("l2RoadLine");
-      var scene = drive.querySelector(".l2-scene");
-      if (reduce) {
-        van.style.transform = "translateX(40vw)"; // stilstaand, halverwege
-      } else {
-        var lastX = 0, vanTick = false, vanIdle = null;
-        var vanFrame = function () {
-          vanTick = false;
-          var r = drive.getBoundingClientRect();
-          var total = r.height - window.innerHeight;
-          var p = total > 0 ? Math.min(1, Math.max(0, -r.top / total)) : 0;
-          var sw = scene.getBoundingClientRect().width;
-          var vw2 = van.getBoundingClientRect().width || 1;
-          var x = -vw2 + p * (sw + vw2 * 2); // start volledig links buiten beeld, eindig rechts buiten beeld
-          van.style.transform = "translateX(" + x + "px)";
-          wheels.forEach(function (w) { w.style.transform = "rotate(" + (x * 2.2) + "deg)"; });
-          if (roadLine) roadLine.style.backgroundPositionX = (-x * 0.9) + "px";
-          if (Math.abs(x - lastX) > 0.5) {
-            van.classList.add("moving");
-            clearTimeout(vanIdle); vanIdle = setTimeout(function () { van.classList.remove("moving"); }, 160);
-          }
-          lastX = x;
-        };
-        window.addEventListener("scroll", function () { if (!vanTick) { vanTick = true; requestAnimationFrame(vanFrame); } }, { passive: true });
-        vanFrame();
-      }
-    }
-
-    // levend dashboard: AM/PM-schakelaar + live-feed die blijft tikken
-    var dash = el("l2Dash");
-    if (dash) {
-      var DD = { AM: { ring: 72, b1: 78, b2: 67 }, PM: { ring: 38, b1: 41, b2: 25 } };
-      function tween(from, to, ms, fn) {
-        if (reduce || ms <= 0) { fn(to); return; }
-        var t0 = null;
-        function tick(ts) { if (!t0) t0 = ts; var p = Math.min(1, (ts - t0) / ms); fn(from + (to - from) * (1 - Math.pow(1 - p, 3))); if (p < 1) requestAnimationFrame(tick); }
-        requestAnimationFrame(tick);
-      }
-      function setDD(key) {
-        var d = DD[key], ring = el("l2Ring"), rv = el("l2RingVal"), v1 = el("l2DVal1"), v2 = el("l2DVal2");
-        tween(parseFloat(ring.style.getPropertyValue("--p")) || 0, d.ring, 800, function (v) { ring.style.setProperty("--p", v); rv.textContent = Math.round(v) + "%"; });
-        el("l2DBar1").style.width = d.b1 + "%";
-        el("l2DBar2").style.width = d.b2 + "%";
-        tween(parseInt(v1.textContent, 10) || 0, d.b1, 800, function (v) { v1.textContent = Math.round(v) + "%"; });
-        tween(parseInt(v2.textContent, 10) || 0, d.b2, 800, function (v) { v2.textContent = Math.round(v) + "%"; });
-      }
-      el("l2Seg").querySelectorAll("[data-dd]").forEach(function (b) {
-        b.addEventListener("click", function () {
-          el("l2Seg").querySelectorAll("button").forEach(function (x) { x.classList.remove("active"); });
-          b.classList.add("active"); setDD(b.getAttribute("data-dd"));
-        });
-      });
-      // live-feed: gebeurtenissen schuiven binnen zolang het dashboard in beeld is
-      var feedPool = [
-        ["check", "Bus 214 geladen — vak 8"], ["shield", "Bus 87 gecontroleerd"],
-        ["exchange", "Shift geruild: Alex → Sam"], ["van", "Pendel aangekomen · 3 trolleys"],
-        ["award", "Vak 7: 42 kratjes geteld"], ["clipboard", "Steekproef bus 153 ingevuld"],
-        ["check", "Bus 129 geladen — vak 12"], ["shield", "Bus 66: tolkrol mist"]
-      ];
-      var fi = 0, feedEl = el("l2Feed"), feedOn = false, dashStarted = false;
-      function pushFeed(instant) {
-        var it = feedPool[fi++ % feedPool.length];
-        var d = document.createElement("div"); d.className = "l2-feed-item";
-        d.innerHTML = svg(it[0], "icon-sm") + "<span>" + it[1] + "</span><time>zojuist</time>";
-        feedEl.insertBefore(d, feedEl.firstChild);
-        if (instant || reduce) d.classList.add("show");
-        else requestAnimationFrame(function () { requestAnimationFrame(function () { d.classList.add("show"); }); });
-        var items = feedEl.querySelectorAll(".l2-feed-item");
-        if (items.length > 4) { var last = items[items.length - 1]; last.classList.add("out"); setTimeout(function () { if (last.parentNode) last.parentNode.removeChild(last); }, 420); }
-      }
-      function startDash() { if (dashStarted) return; dashStarted = true; setDD("AM"); pushFeed(true); pushFeed(true); pushFeed(true); }
-      if (reduce || !("IntersectionObserver" in window)) { startDash(); }
-      else {
-        var dio = new IntersectionObserver(function (es) { es.forEach(function (e) { feedOn = e.isIntersecting; if (e.isIntersecting) startDash(); }); }, { threshold: 0.2 });
-        dio.observe(dash);
-        l2Timers.push(setInterval(function () { if (feedOn && !document.hidden && document.body.contains(feedEl)) pushFeed(false); }, 2400));
-      }
-    }
-
-    // telefoon-mockup: kantelt mee met de muis (desktop) en scroll (mobiel)
-    var phone = el("l2Phone"), hero = el("l2Hero");
-    if (phone && hero && !reduce) {
-      hero.addEventListener("pointermove", function (e) {
-        if (e.pointerType !== "mouse") return;
-        var r = hero.getBoundingClientRect();
-        var dx = (e.clientX - r.left) / r.width - 0.5, dy = (e.clientY - r.top) / r.height - 0.5;
-        phone.style.transform = "rotateY(" + (dx * 10) + "deg) rotateX(" + (-dy * 8) + "deg)";
-      });
-      hero.addEventListener("pointerleave", function () { phone.style.transform = ""; });
-      // subtiele parallax bij scrollen
-      window.addEventListener("scroll", function () {
-        var y = window.scrollY;
-        if (y < window.innerHeight) phone.style.transform = "translateY(" + (y * -0.06) + "px)";
-      }, { passive: true });
-    }
+    // entree-animatie + nav-schaduw bij scrollen
+    var root = document.querySelector(".l3");
+    requestAnimationFrame(function () { requestAnimationFrame(function () { root.classList.add("ready"); }); });
+    var nav = el("l3Nav");
+    var onS = function () { nav.classList.toggle("scrolled", window.scrollY > 8); };
+    window.addEventListener("scroll", onS, { passive: true }); onS();
   }
 
   /* ===================================================================
