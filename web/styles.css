@@ -697,6 +697,7 @@ main { max-width: 1100px; margin: 0 auto; padding: 22px 18px 80px; }
 .chk-box input { display: none; }
 .chk-box .icon { width: 18px; height: 18px; stroke-width: 3; }
 .chk-box.on { background: var(--green-bright); border-color: var(--green-bright); color: #fff; }
+.chk-box.grey { background: #b8b8b3; border-color: #b8b8b3; color: #fff; }
 .chk-box.ro { cursor: default; opacity: .8; }
 
 .counter-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
@@ -716,6 +717,9 @@ main { max-width: 1100px; margin: 0 auto; padding: 22px 18px 80px; }
 .lc-table .lc-nr { font-weight: 900; text-align: center; }
 .lc-in { padding: 7px 9px; border: 1px solid var(--line); border-radius: 8px; font-family: inherit; font-size: 13px; }
 .lc-table tr.sc-done td { background: var(--green-soft); }
+.lc-table tr.lc-noload td { background: #f4f4f1; color: var(--muted); }
+.lc-table tr.lc-noload .lc-nr { color: var(--muted); }
+.nl-note { font-size: 11px; color: var(--muted); margin-top: 2px; font-weight: 700; }
 
 /* ----- takenplanning ----- */
 .plan-table { border-collapse: collapse; min-width: 900px; }
