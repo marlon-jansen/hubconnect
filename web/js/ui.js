@@ -2180,10 +2180,20 @@
     }).join("") : '<tr><td colspan="6"><div class="cellsub" style="padding:12px">Importeer de planning of stel het aantal vakken in.</div></td></tr>';
     var tr = S.getTrolley(c.h, c.d, c.dd);
     var pendelRows = tr.pendels.length ? tr.pendels.map(function (p, i) {
-      return '<div class="kz-pendel-row"><span>' + svg("van", "icon-sm") + "Pendel " + (i + 1) + (p.tijd ? " · aankomst " + esc(p.tijd) : "") + "</span>" +
+      var meta = [];
+      if (p.rit) meta.push("rit " + esc(p.rit));
+      if (p.herkomst) meta.push(esc(p.herkomst));
+      if (p.trolleysVerwacht) meta.push(esc(p.trolleysVerwacht) + " trolleys");
+      if (p.afwijking) meta.push('<span class="pen-afw ' + (String(p.afwijking).charAt(0) === "-" ? "vroeg" : "laat") + '">' + esc(p.afwijking) + " min</span>");
+      var sub = meta.length ? '<div class="kz-pendel-sub">' + meta.join(" · ") + "</div>" : "";
+      return '<div class="kz-pendel-row"><div><span>' + svg("van", "icon-sm") + "Pendel " + (i + 1) + (p.tijd ? " · aankomst " + esc(p.tijd) : "") + "</span>" + sub + "</div>" +
         '<button class="pl-x" data-pendeldel="' + p.id + '" title="Verwijderen">' + svg("trash", "icon-sm") + "</button></div>";
     }).join("") : '<div class="cellsub" style="padding:8px 0">Nog geen pendels klaargezet.</div>';
-    var pendelPlanBlock = '<div class="kz-section"><div class="kz-h">' + svg("van", "icon-sm") + "Pendels klaarzetten (hele dag)</div>" +
+    var pendelImportBlock = '<div class="kz-section"><div class="kz-h">' + svg("download", "icon-sm") + "Aankomsttijden importeren</div>" +
+      '<p class="cellsub" style="margin:0 0 8px">Plak de pendellijst (blokken per pendel: aankomsttijd, aantallen, venstertijd, ritnr, herkomst). Pendels vóór 13:00 komen in AM, vanaf 13:00 in PM. <b>Vervangt de pendelplanning van deze dag.</b></p>' +
+      '<textarea id="kzPendelImport" rows="5" class="kz-sheet" placeholder="05:15&#10;31&#10;29&#10;Venstertijd: 05:15 - 06:19&#10;A1003455643&#10;EFC Bleiswijk&#10;+30&#10;…"></textarea>' +
+      '<div style="margin-top:8px"><button class="btn btn-primary btn-sm" id="kzImportPendel">' + svg("check", "icon-sm") + "Pendels importeren</button></div></div>";
+    var pendelPlanBlock = pendelImportBlock + '<div class="kz-section"><div class="kz-h">' + svg("van", "icon-sm") + "Pendels klaarzetten (" + (c.dd === "PM" ? "PM" : "AM") + ")</div>" +
       '<div class="add-inline"><input id="penTijd" type="time" class="lc-in" style="max-width:140px"><button class="btn btn-dark btn-sm" id="penAdd">' + svg("plus", "icon-sm") + "Pendel toevoegen</button></div>" +
       '<div style="margin-top:10px">' + pendelRows + "</div></div>";
     var ladenBlock = ladenImport + '<div class="kz-section"><div class="kz-h">' + svg("inbox", "icon-sm") + "Laden klaarzetten</div>" +
@@ -2217,6 +2227,7 @@
     var isc = el("kzImportSchade"); if (isc) isc.addEventListener("click", function () { try { var n = S.importSheet(c.h, c.d, c.dd, el("kzSheetSchade").value, "schade"); toast(n + " bussen geïmporteerd.", "ok"); renderDashboard(); } catch (e) { toast(e.message, "err"); } });
     var rsc = el("kzResetSchade"); if (rsc) rsc.addEventListener("click", function () { try { S.schadeReset(c.h, c.d, c.dd); renderDashboard(); } catch (e) { toast(e.message, "err"); } });
     var pa = el("penAdd"); if (pa) pa.addEventListener("click", function () { try { S.addPendelPlan(c.h, c.d, c.dd, el("penTijd").value); renderDashboard(); } catch (e) { toast(e.message, "err"); } });
+    var pi = el("kzImportPendel"); if (pi) pi.addEventListener("click", function () { try { var r = S.pendelImport(c.h, c.d, el("kzPendelImport").value); toast(r.total + " pendels geïmporteerd (" + r.am + " AM · " + r.pm + " PM).", "ok"); renderDashboard(); } catch (e) { toast(e.message, "err"); } });
     document.querySelectorAll("[data-pendeldel]").forEach(function (b) { b.addEventListener("click", function () { try { S.removePendel(c.h, c.d, c.dd, b.getAttribute("data-pendeldel")); renderDashboard(); } catch (e) { toast(e.message, "err"); } }); });
     var sa = el("lcSetAantal"); if (sa) sa.addEventListener("click", function () { try { S.lcSetAantal(c.h, c.d, c.dd, el("lcAantal").value); renderDashboard(); } catch (e) { toast(e.message, "err"); } });
     document.querySelectorAll("[data-lcset]").forEach(function (inp) { inp.addEventListener("change", function () { var p = inp.getAttribute("data-lcset").split("|"); var data = {}; data[p[1]] = inp.value; try { S.lcSetupVak(c.h, c.d, c.dd, parseInt(p[0], 10), data); } catch (e) { toast(e.message, "err"); } }); });
