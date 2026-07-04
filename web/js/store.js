@@ -790,9 +790,9 @@
       var ent = { emballage: {}, soort: {} };
       var best = null, bestOrd = "";
       Object.keys(db.kwaliteit).forEach(function (kk) {
-        var p = kk.split("|"); if (p[0] !== hubId || p[1] === EMB_STOCK) return;
+        var p = kk.split("|"); if (p[0] !== hubId || p[1] === EMB_STOCK || (p[2] && p[2].indexOf("PC-") === 0)) return;
         var e = db.kwaliteit[kk] && db.kwaliteit[kk].emballage;
-        if (!e || !Object.keys(e).length) return;
+        if (!e || !Object.keys(e).length || e.rows) return;
         var ord = p[1] + (p[2] === "AM" ? "0" : "1");
         if (ord > bestOrd) { bestOrd = ord; best = e; }
       });
@@ -820,6 +820,59 @@
   function clearEmbVak(hubId, datum, dagdeel, vak) {
     if (!isSetup(currentUser())) throw new Error("Alleen binnendienst (senior+) mag een vak leeghalen.");
     delete embStockHub(hubId)[vak]; save();
+  }
+
+  /* ----- Pendelcontrol: tellijst per shift -----
+     Bewaard in de kwaliteit-tabel onder sleutel `hub|datum|PC-<dagdeel>` (in de emballage-JSONB als
+     { rows: [...] }), zodat de bestaande tabel het persisteert zonder serverwijziging. */
+  function pcCanEdit(u, hubId, datum, dagdeel) { return canOpShift(u, hubId, datum, dagdeel, "lc") || isSetup(u); }
+  function pcStore(hubId, datum, dagdeel) {
+    if (!db.kwaliteit) db.kwaliteit = {};
+    var k = hubId + "|" + datum + "|PC-" + dagdeel;
+    if (!db.kwaliteit[k] || !db.kwaliteit[k].emballage || !db.kwaliteit[k].emballage.rows) db.kwaliteit[k] = { emballage: { rows: [] }, soort: {} };
+    return db.kwaliteit[k].emballage;
+  }
+  function getPCRows(hubId, datum, dagdeel) { return pcStore(hubId, datum, dagdeel).rows; }
+  function num(x) { var v = parseInt(String(x == null ? "" : x).replace(/[^0-9-]/g, ""), 10); return isNaN(v) ? 0 : Math.max(0, v); }
+  function pcImport(hubId, datum, dagdeel, text) {
+    if (!pcCanEdit(currentUser(), hubId, datum, dagdeel)) throw new Error("Je bent deze shift niet aangewezen voor het laadproces.");
+    var lines = (text || "").split(/\r?\n/).map(function (l) { return l.replace(/\s+$/, ""); }).filter(function (l) { return l.trim(); });
+    if (!lines.length) throw new Error("Plak de tellijst.");
+    function cells(l) { return l.indexOf("\t") !== -1 ? l.split("\t") : l.trim().split(/ {2,}|;|,/); }
+    var start = 0, h0 = lines[0].toLowerCase();
+    if (h0.indexOf("subrit") !== -1 || h0.indexOf("trolley") !== -1) start = 1; // kopregel overslaan
+    var rows = [];
+    for (var i = start; i < lines.length; i++) {
+      var c = cells(lines[i]).map(function (x) { return (x || "").trim(); });
+      if (!c.length || !c.join("")) continue;
+      rows.push({ subrit: c[0] || String(rows.length + 1), trolleys: num(c[1]), kratten: num(c[2]), versb: num(c[3]), dvboxen: num(c[4]), xl: num(c[5]), gecontroleerd: false, gecontroleerdAt: null, l4: 0, l5: 0 });
+    }
+    pcStore(hubId, datum, dagdeel).rows = rows; save(); return rows.length;
+  }
+  function pcToggle(hubId, datum, dagdeel, idx) {
+    if (!pcCanEdit(currentUser(), hubId, datum, dagdeel)) throw new Error("Je bent deze shift niet aangewezen voor het laadproces.");
+    var r = getPCRows(hubId, datum, dagdeel)[idx]; if (!r) return;
+    r.gecontroleerd = !r.gecontroleerd; r.gecontroleerdAt = r.gecontroleerd ? now() : null; save();
+  }
+  function pcSetLayer(hubId, datum, dagdeel, idx, field, delta) {
+    if (!pcCanEdit(currentUser(), hubId, datum, dagdeel)) throw new Error("Je bent deze shift niet aangewezen voor het laadproces.");
+    if (field !== "l4" && field !== "l5") return;
+    var r = getPCRows(hubId, datum, dagdeel)[idx]; if (!r) return;
+    var other = field === "l4" ? (r.l5 || 0) : (r.l4 || 0);
+    var nv = Math.max(0, (r[field] || 0) + (parseInt(delta, 10) || 0));
+    if (nv + other > (r.trolleys || 0)) nv = Math.max(0, (r.trolleys || 0) - other); // 4- + 5-laags samen ≤ trolleys
+    r[field] = nv; save();
+  }
+  function pcReset(hubId, datum, dagdeel) {
+    if (!pcCanEdit(currentUser(), hubId, datum, dagdeel)) throw new Error("Geen rechten.");
+    pcStore(hubId, datum, dagdeel).rows = []; save();
+  }
+  function pcStats(hubId, datum, dagdeel) {
+    var rows = getPCRows(hubId, datum, dagdeel);
+    var done = rows.filter(function (r) { return r.gecontroleerd; }).length;
+    var tot = { trolleys: 0, kratten: 0, versb: 0, dvboxen: 0, xl: 0, l4: 0, l5: 0 };
+    rows.forEach(function (r) { tot.trolleys += r.trolleys || 0; tot.kratten += r.kratten || 0; tot.versb += r.versb || 0; tot.dvboxen += r.dvboxen || 0; tot.xl += r.xl || 0; tot.l4 += r.l4 || 0; tot.l5 += r.l5 || 0; });
+    return { total: rows.length, done: done, pct: rows.length ? Math.round(done / rows.length * 100) : 0, tot: tot };
   }
 
   /* ----- Trolley-voorraad: ÉÉN doorlopende voorraad per hub (loopt door tussen dagdelen én dagen) ----- */
@@ -1088,6 +1141,7 @@
     getKwaliteit: getKwaliteit, vakSoort: vakSoort, setVakSoort: setVakSoort, emballageSet: emballageSet, emballageVakTotal: emballageVakTotal, emballageVakArr: emballageVakArr, clearEmbVak: clearEmbVak,
     getTrolley: getTrolley, addPendelPlan: addPendelPlan, removePendel: removePendel, pendelBump: pendelBump, trolleySetStock: trolleySetStock, trolleyBump: trolleyBump, recentPendels: recentPendels, komendePendels: komendePendels,
     getLC: getLC, lcSetAantal: lcSetAantal, lcSetupVak: lcSetupVak, lcSetBus: lcSetBus, lcToggleGeladen: lcToggleGeladen, lcImportColumns: lcImportColumns, lcReset: lcReset, lcStats: lcStats, recentGeladenBussen: recentGeladenBussen,
+    getPCRows: getPCRows, pcImport: pcImport, pcToggle: pcToggle, pcSetLayer: pcSetLayer, pcReset: pcReset, pcStats: pcStats, pcCanEdit: pcCanEdit,
     shiftsForHub: shiftsForHub, taskOffersForHub: taskOffersForHub, backupsForHub: backupsForHub, calloutsForHub: calloutsForHub,
     logsForHub: logsForHub, usersForHub: usersForHub, manageableUsers: manageableUsers,
     pendingForApprover: pendingForApprover, pendingCount: pendingCount
