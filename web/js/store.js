@@ -939,6 +939,37 @@
     if (!isSetup(currentUser())) throw new Error("Alleen binnendienst (senior+) mag pendels verwijderen.");
     var t = getTrolley(hubId, datum, dagdeel); t.pendels = t.pendels.filter(function (p) { return p.id !== id; }); save();
   }
+  // Verwachte aankomsttijden importeren (blok-formaat per pendel: tijd / aantallen / Venstertijd / ritnr / herkomst / afwijking).
+  // Pendels vóór 13:00 → AM-shift, vanaf 13:00 → PM-shift van diezelfde dag. Vervangt de pendelplanning van de dag.
+  function pendelImport(hubId, datum, text) {
+    if (!isSetup(currentUser())) throw new Error("Alleen binnendienst (senior+) mag pendels importeren.");
+    var lines = (text || "").split(/\r?\n/).map(function (l) { return l.trim(); }).filter(function (l) { return l; });
+    if (!lines.length) throw new Error("Plak de pendellijst.");
+    var isTime = function (l) { return /^\d{1,2}:\d{2}$/.test(l); };
+    var blocks = [], cur = null;
+    lines.forEach(function (l) {
+      if (isTime(l)) { if (cur) blocks.push(cur); cur = { tijd: l, nums: [], rit: "", herkomst: "", venster: "", afwijking: "" }; return; }
+      if (!cur) return; // regels vóór de eerste tijd negeren
+      if (/^venstertijd/i.test(l)) { cur.venster = l.replace(/^venstertijd:?\s*/i, "").trim(); return; }
+      if (/^[+-]\d+$/.test(l)) { cur.afwijking = l; return; }
+      if (/^\d+$/.test(l)) { cur.nums.push(parseInt(l, 10)); return; }
+      if (/^[A-Za-z]?\d{5,}$/.test(l.replace(/\s+/g, "")) && !cur.rit) { cur.rit = l; return; }
+      cur.herkomst = cur.herkomst ? cur.herkomst + " " + l : l;
+    });
+    if (cur) blocks.push(cur);
+    if (!blocks.length) throw new Error("Geen pendels herkend — controleer het formaat (begin elke pendel met de aankomsttijd, bv. 05:15).");
+    var am = [], pm = [];
+    blocks.forEach(function (b) {
+      var pen = { id: uid("pen"), tijd: b.tijd, in4: 0, out4: 0, in5: 0, out5: 0,
+        rit: b.rit, herkomst: b.herkomst, venster: b.venster, afwijking: b.afwijking,
+        trolleysVerwacht: b.nums.length ? b.nums[0] : 0 };
+      (toMin(b.tijd) >= 13 * 60 ? pm : am).push(pen);
+    });
+    getTrolley(hubId, datum, "AM").pendels = am;
+    getTrolley(hubId, datum, "PM").pendels = pm;
+    save();
+    return { am: am.length, pm: pm.length, total: am.length + pm.length };
+  }
   // Recentste pendels (voor het dashboard) — laatst toegevoegd eerst.
   function recentPendels(hubId, datum, dagdeel) {
     return getTrolley(hubId, datum, dagdeel).pendels.slice(-3).reverse();
@@ -1139,7 +1170,7 @@
     getSchade: getSchade, schadeImportColumns: schadeImportColumns, schadeAddBus: schadeAddBus, schadeToggle: schadeToggle, schadeSetDock: schadeSetDock, schadeSetOpmerking: schadeSetOpmerking, schadeRemove: schadeRemove, schadeReset: schadeReset, schadeStats: schadeStats,
     setBusSteekproef: setBusSteekproef, steekproefDone: steekproefDone, steekproefStats: steekproefStats, steekproevenList: steekproevenList, recentGecontroleerdeBussen: recentGecontroleerdeBussen, busHeeftProbleem: busHeeftProbleem,
     getKwaliteit: getKwaliteit, vakSoort: vakSoort, setVakSoort: setVakSoort, emballageSet: emballageSet, emballageVakTotal: emballageVakTotal, emballageVakArr: emballageVakArr, clearEmbVak: clearEmbVak,
-    getTrolley: getTrolley, addPendelPlan: addPendelPlan, removePendel: removePendel, pendelBump: pendelBump, trolleySetStock: trolleySetStock, trolleyBump: trolleyBump, recentPendels: recentPendels, komendePendels: komendePendels,
+    getTrolley: getTrolley, addPendelPlan: addPendelPlan, removePendel: removePendel, pendelImport: pendelImport, pendelBump: pendelBump, trolleySetStock: trolleySetStock, trolleyBump: trolleyBump, recentPendels: recentPendels, komendePendels: komendePendels,
     getLC: getLC, lcSetAantal: lcSetAantal, lcSetupVak: lcSetupVak, lcSetBus: lcSetBus, lcToggleGeladen: lcToggleGeladen, lcImportColumns: lcImportColumns, lcReset: lcReset, lcStats: lcStats, recentGeladenBussen: recentGeladenBussen,
     getPCRows: getPCRows, pcImport: pcImport, pcToggle: pcToggle, pcSetLayer: pcSetLayer, pcReset: pcReset, pcStats: pcStats, pcCanEdit: pcCanEdit,
     shiftsForHub: shiftsForHub, taskOffersForHub: taskOffersForHub, backupsForHub: backupsForHub, calloutsForHub: calloutsForHub,
