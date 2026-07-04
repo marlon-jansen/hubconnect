@@ -306,7 +306,7 @@
         '<button class="btn btn-icon portal-btn" data-portal title="Naar de Hub">' + svg("grid", "icon-sm") + "</button>" +
         '<div class="brand" data-home role="button" title="Naar de voorpagina"><span class="logo-badge">' + logo(40) + "</span>" +
           '<div><div class="app-name">' + APP + '</div><div class="app-sub">Shifts &amp; taken ruilen</div></div></div>' +
-        '<div class="header-spacer"></div>' +
+        '<div class="header-spacer"></div>' + liveBadge() +
         '<div class="user-chip">' +
           '<div style="text-align:right"><div class="u-name">' + fullName(u) + "</div>" +
             '<div class="u-meta">' + esc(S.roleMeta(u.rol).label) + " · HUB " + esc(hub ? hub.naam : "?") + "</div></div>" +
@@ -1579,7 +1579,7 @@
       (showBack ? '<button class="btn btn-icon portal-btn" data-portal title="Naar het menu">' + svg("grid", "icon-sm") + "</button>" : "") +
       '<div class="brand" data-home role="button" title="Naar de voorpagina"><span class="logo-badge">' + logo(40) + "</span>" +
         '<div><div class="app-name">' + PORTAL + '</div><div class="app-sub">Bezorgservice · HUB ' + esc(hub ? hub.naam : "?") + "</div></div></div>" +
-      '<div class="header-spacer"></div>' +
+      '<div class="header-spacer"></div>' + liveBadge() +
       '<div class="user-chip">' +
         '<div style="text-align:right"><div class="u-name">' + fullName(u) + "</div>" +
           '<div class="u-meta">' + esc(S.roleMeta(u.rol).label) + "</div></div>" +
@@ -1803,12 +1803,15 @@
   /* ===================================================================
      OPERATIONELE MODULES (prototype, live tussen tabbladen)
      =================================================================== */
+  // Live-indicator (rood pulserend bolletje + LIVE) — op elke pagina in de header.
+  function liveBadge() { return '<span class="live-ind"><span class="live-dot"></span>LIVE</span>'; }
   function moduleShell(title, content, opts) {
     opts = opts || {};
     var vo = state.viewOnly;
+    // LIVE staat in de header (portalHeader); hier alleen nog de context-badge in de view-only-modus.
     var badge = vo
       ? '<span class="live-badge vo-badge">' + svg("shield", "icon-sm") + (S.isSetup(S.currentUser()) ? "Binnendienst" : "Alleen bekijken") + "</span>"
-      : '<span class="live-badge">' + svg("refresh", "icon-sm") + "Live</span>";
+      : "";
     var voBar = vo ? '<div class="vo-bar"><button class="btn btn-ghost btn-sm" data-voback>' + svg("arrowLeft", "icon-sm") + "Terug naar dashboard</button></div>" : "";
     return portalHeader(S.currentUser(), true) +
       '<main><div class="page-head" style="margin-top:6px"><div><h2>' + esc(title) + "</h2></div>" +
