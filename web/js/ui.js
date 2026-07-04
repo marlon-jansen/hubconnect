@@ -1807,7 +1807,7 @@
     opts = opts || {};
     var vo = state.viewOnly;
     var badge = vo
-      ? '<span class="live-badge vo-badge">' + svg("shield", "icon-sm") + "Alleen bekijken</span>"
+      ? '<span class="live-badge vo-badge">' + svg("shield", "icon-sm") + (S.isSetup(S.currentUser()) ? "Binnendienst" : "Alleen bekijken") + "</span>"
       : '<span class="live-badge">' + svg("refresh", "icon-sm") + "Live</span>";
     var voBar = vo ? '<div class="vo-bar"><button class="btn btn-ghost btn-sm" data-voback>' + svg("arrowLeft", "icon-sm") + "Terug naar dashboard</button></div>" : "";
     return portalHeader(S.currentUser(), true) +
@@ -1881,12 +1881,15 @@
     autoShift("schadecontrole");
     var c = ctx(), u = c.u;
     var s = S.getSchade(c.h, c.d, c.dd);
-    var canEdit = !state.viewOnly && opWindowOK(u, "schadecontrole", c) && S.canOpShift(u, c.h, c.d, c.dd, "schadecontrole", "Schadecontrole");
+    var dashView = state.viewOnly, isBinnen = S.isSetup(u);
+    var showTimes = dashView && isBinnen; // afvinktijden alleen voor de binnendienst in de dashboard-weergave
+    var canEdit = dashView ? isBinnen : (opWindowOK(u, "schadecontrole", c) && S.canOpShift(u, c.h, c.d, c.dd, "schadecontrole", "Schadecontrole"));
     var st = S.schadeStats(c.h, c.d, c.dd), spSt = S.steekproefStats(c.h, c.d, c.dd);
 
     function chkCell(b) {
+      var timeCell = (showTimes && b.gecontroleerd && b.gecontroleerdAt) ? '<div class="chk-time">' + fmtClock(b.gecontroleerdAt) + "</div>" : "";
       return '<td class="sc-chk" data-th="Gecontroleerd"><label class="chk-box ' + (b.gecontroleerd ? "on" : "") + (canEdit ? "" : " ro") + '">' +
-        '<input type="checkbox" ' + (b.gecontroleerd ? "checked" : "") + (canEdit ? "" : " disabled") + ' data-scchk="' + b.id + '">' + svg("check", "icon-sm") + "</label></td>";
+        '<input type="checkbox" ' + (b.gecontroleerd ? "checked" : "") + (canEdit ? "" : " disabled") + ' data-scchk="' + b.id + '">' + svg("check", "icon-sm") + "</label>" + timeCell + "</td>";
     }
     function mistCell(b) {
       var items = [["mist_tolkrol", "Tolkrol"], ["mist_kabels", "Kabels"], ["mist_doekjes", "Doekjes"]];
@@ -2094,7 +2097,11 @@
     var c = ctx(), u = c.u;
     var lc = S.getLC(c.h, c.d, c.dd);
     var tr = S.getTrolley(c.h, c.d, c.dd);
-    var canLoad = !state.viewOnly && opWindowOK(u, "lc", c) && S.canOpShift(u, c.h, c.d, c.dd, "lc", "LC");
+    var dashView = state.viewOnly;          // geopend via 'Bekijk voortgang' op het senior-dashboard
+    var isBinnen = S.isSetup(u);
+    var showTimes = dashView && isBinnen;   // afvinktijden alleen voor de binnendienst in de dashboard-weergave
+    // In de dashboard-weergave mag de binnendienst zelf bewerken (zoals de controleur); anders de LC binnen het venster.
+    var canLoad = dashView ? (isBinnen && !S.isFutureDay(c.d)) : (opWindowOK(u, "lc", c) && S.canOpShift(u, c.h, c.d, c.dd, "lc", "LC"));
     var canSetup = !state.viewOnly && S.level(u) >= 3;
     var isPM = c.dd === "PM";
     var st = S.lcStats(c.h, c.d, c.dd);
@@ -2117,11 +2124,12 @@
         ? '<label class="chk-box grey ro" title="Hoeft niet geladen te worden"><input type="checkbox" checked disabled>' + svg("check", "icon-sm") + "</label>"
         : '<label class="chk-box ' + (v.geladen ? "on" : "") + (canLoad ? "" : " ro") + '"><input type="checkbox" ' + (v.geladen ? "checked" : "") + (canLoad ? "" : " disabled") + ' data-lcgel="' + v.nr + '">' + svg("check", "icon-sm") + "</label>";
       var rowCls = noLoad ? "lc-noload" : (v.geladen ? "sc-done" : "");
+      var timeCell = (showTimes && v.geladen && v.geladenAt) ? '<div class="chk-time">' + fmtClock(v.geladenAt) + "</div>" : "";
       return "<tr class=\"" + rowCls + "\"><td class=\"lc-nr cellname\">Vak " + v.nr + "</td>" +
         '<td class="cellsub" data-th="Vertrek">' + (v.vertrek ? esc(v.vertrek) : "—") + '</td><td data-th="Bus">' + busCell + "</td>" +
         '<td class="cellsub" data-th="Rit">' + (v.rit ? esc(v.rit) : "—") + '</td><td data-th="Type">' + typeCell + "</td>" +
         '<td data-th="ZE" style="text-align:center">' + (v.ze ? '<span class="badge dock">ZE</span>' : "") + "</td>" +
-        '<td class="sc-chk" data-th="Geladen">' + chkCell + "</td></tr>";
+        '<td class="sc-chk" data-th="Geladen">' + chkCell + timeCell + "</td></tr>";
     }).join("") : '<tr><td colspan="7"><div class="cellsub" style="padding:14px">De binnendienst zet de vakken klaar via het dashboard.</div></td></tr>';
     var table = '<div class="panel" style="padding:0"><div class="table-scroll"><table class="table lc-table">' +
       "<thead><tr><th>Vak</th><th>Vertrek</th><th>Bus</th><th>Rit</th><th>Type</th><th>ZE</th><th>Geladen</th></tr></thead><tbody>" + rows + "</tbody></table></div></div>";
