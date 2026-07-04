@@ -427,6 +427,42 @@
       '<button class="btn btn-ghost btn-sm" data-notifseen>Gezien</button></div>' + rows + "</div>";
   }
 
+  // Match tussen een oproep (shift gezocht) en een aangeboden shift op dezelfde dag/dagdeel binnen de hub.
+  function shiftCalloutMatches(u) {
+    var openShifts = S.shiftsForHub(u.hubId).filter(function (s) { return s.status === "open"; });
+    var openCallouts = S.calloutsForHub(u.hubId).filter(function (c) { return c.status === "open"; });
+    var asSearcher = [], asOfferer = [];
+    // Ik zoek (mijn oproep) en er staat een shift die ik kan overnemen.
+    openCallouts.filter(function (c) { return c.aanbiederId === u.id; }).forEach(function (c) {
+      openShifts.forEach(function (s) {
+        if (s.datum === c.datum && s.dagdeel === c.dagdeel && s.aanbiederId !== u.id && S.can.claimShift(u, s)) asSearcher.push({ callout: c, shift: s });
+      });
+    });
+    // Ik bied aan (mijn shift) en iemand zoekt een shift op die dag/dagdeel.
+    openShifts.filter(function (s) { return s.aanbiederId === u.id; }).forEach(function (s) {
+      openCallouts.forEach(function (c) {
+        if (c.datum === s.datum && c.dagdeel === s.dagdeel && c.aanbiederId !== u.id && S.can.claimShift(S.userById(c.aanbiederId), s)) asOfferer.push({ shift: s, callout: c });
+      });
+    });
+    return { asSearcher: asSearcher, asOfferer: asOfferer };
+  }
+  function matchBanner(u) {
+    var m = shiftCalloutMatches(u);
+    if (!m.asSearcher.length && !m.asOfferer.length) return "";
+    var rows = "";
+    m.asSearcher.forEach(function (x) {
+      var ab = S.userById(x.shift.aanbiederId);
+      rows += '<div class="notif-row ok">' + svg("swap", "icon-sm") + "<span>Er staat een shift op <b>" + esc(fmtDate(x.shift.datum) + " · " + x.shift.dagdeel) + "</b> van " + fullName(ab) + " die je zoekt. </span>" +
+        '<button class="btn btn-primary btn-sm" data-matchclaim="' + x.shift.id + "|" + x.callout.id + '">' + svg("check", "icon-sm") + "Overnemen</button></div>";
+    });
+    m.asOfferer.forEach(function (x) {
+      var zoeker = S.userById(x.callout.aanbiederId);
+      rows += '<div class="notif-row ok">' + svg("search", "icon-sm") + "<span><b>" + fullName(zoeker) + "</b> zoekt een shift op <b>" + esc(fmtDate(x.shift.datum) + " · " + x.shift.dagdeel) + "</b> — die jij aanbiedt. </span>" +
+        '<button class="btn btn-dark btn-sm" data-matchgive="' + x.shift.id + "|" + x.callout.aanbiederId + '">' + svg("swap", "icon-sm") + "Aan " + esc(zoeker.voornaam) + " geven</button></div>";
+    });
+    return '<div class="notif-banner match-banner"><div class="notif-head">' + svg("swap", "icon-sm") + "<b>Match — shift &amp; zoekopdracht</b></div>" + rows + "</div>";
+  }
+
   function viewBoard() {
     var u = S.currentUser();
     var hub = S.hubById(u.hubId);
@@ -434,6 +470,7 @@
     if (!state.boardRef) state.boardRef = ymd(new Date());
     return '' +
       notifBanner(u) +
+      matchBanner(u) +
       '<div class="page-head"><div><h2>Ruilbord</h2><p>Binnen HUB ' + esc(hub ? hub.naam : "?") + " — wie eerst aanbiedt, gaat voor.</p></div>" +
         '<div class="grow"></div>' +
         '<button class="btn btn-primary" data-offer="shift">' + svg("plus") + "Shift aanbieden</button>" +
@@ -669,6 +706,8 @@
     }); });
     var nseen = document.querySelector("[data-notifseen]");
     if (nseen) nseen.addEventListener("click", function () { var u = S.currentUser(); var ds = myDecisions(u); setNotifSeen(u, ds.length ? ds[0].it.besluitOp : new Date().toISOString()); renderApp(); });
+    document.querySelectorAll("[data-matchclaim]").forEach(function (b) { b.addEventListener("click", function () { var p = b.getAttribute("data-matchclaim").split("|"); act(function () { S.claimShift(p[0]); S.withdrawCallout(p[1]); }, "Shift overgenomen — wacht op goedkeuring."); }); });
+    document.querySelectorAll("[data-matchgive]").forEach(function (b) { b.addEventListener("click", function () { var p = b.getAttribute("data-matchgive").split("|"); act(function () { S.giveShiftTo(p[0], p[1]); }, "Shift aangeboden aan collega — wacht op goedkeuring."); }); });
     var s = el("boardSearch");
     if (s) s.addEventListener("input", function () { state.q = s.value; el("boardGrid").innerHTML = boardContent(); bindBoardActions(); });
     document.querySelectorAll("[data-offer]").forEach(function (b) { b.addEventListener("click", function () { openOfferModal(b.getAttribute("data-offer")); }); });
