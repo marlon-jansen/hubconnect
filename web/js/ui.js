@@ -2179,7 +2179,8 @@
     // Op de pendel vul je alleen de RETOUR in (wat je hebt teruggegeven qua 4-/5-laags); binnen komt uit de telling.
     function retLay(p, n) {
       return '<div class="pen-lay">' + layerLabel(n) +
-        '<div class="pen-rows"><span class="pen-r"><em>retour</em><span class="pen-arrow out">' + svg("arrowUp", "icon-sm") + "</span>" + ctl(p.id, "out" + n, p["out" + n]) + "</span></div></div>";
+        '<span class="pen-ret-lab"><em>retour</em><span class="pen-arrow out">' + svg("arrowUp", "icon-sm") + "</span></span>" +
+        ctl(p.id, "out" + n, p["out" + n]) + "</div>";
     }
     var pendelList = tr.pendels.length ? tr.pendels.map(function (p, i) {
       var meta = [];
