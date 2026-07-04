@@ -632,6 +632,13 @@ main { max-width: 1100px; margin: 0 auto; padding: 22px 18px 80px; }
 .tro-btn { width: 46px; height: 46px; border-radius: 12px; border: 0; background: var(--ink); color: #fff; font-size: 24px; font-weight: 900; line-height: 1; cursor: pointer; display: grid; place-items: center; }
 .tro-btn:hover { filter: brightness(1.25); }
 .tro-val { font-size: 28px; font-weight: 900; min-width: 44px; text-align: center; }
+.tro-btn.sm { width: 32px; height: 32px; border-radius: 9px; font-size: 18px; }
+/* Pendelcontrol tellijst */
+.pc-ctrl { display: inline-flex; align-items: center; gap: 8px; }
+.pc-val { font-size: 16px; font-weight: 900; min-width: 22px; text-align: center; }
+.pc-table td, .pc-table th { white-space: nowrap; }
+.pc-tot td { border-top: 2px solid var(--line); font-weight: 900; }
+.pc-tot b { font-weight: 900; }
 /* Pendels (Laadproces) */
 .pen-list { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
 .pen-card { border: 1px solid var(--line); border-radius: 14px; padding: 14px; background: var(--card); }

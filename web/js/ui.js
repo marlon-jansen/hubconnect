@@ -2010,10 +2010,12 @@
     var canSetup = !state.viewOnly && S.level(u) >= 3;
     var isPM = c.dd === "PM";
     var st = S.lcStats(c.h, c.d, c.dd);
+    var canPC = !state.viewOnly && S.pcCanEdit(u, c.h, c.d, c.dd);
     if (!state.lcTab) state.lcTab = "laden";
-    var seg = '<div class="seg" style="margin-bottom:16px">' +
+    var seg = '<div class="seg" style="margin-bottom:16px;flex-wrap:wrap">' +
       '<button data-lctab="laden" class="' + (state.lcTab === "laden" ? "active" : "") + '">Laden</button>' +
-      '<button data-lctab="pendels" class="' + (state.lcTab === "pendels" ? "active" : "") + '">Pendels</button></div>';
+      '<button data-lctab="pendels" class="' + (state.lcTab === "pendels" ? "active" : "") + '">Pendels</button>' +
+      '<button data-lctab="pc" class="' + (state.lcTab === "pc" ? "active" : "") + '">Pendelcontrol</button></div>';
 
     // ----- LADEN -----
     var rows = lc.vakken.length ? lc.vakken.map(function (v) {
@@ -2061,14 +2063,43 @@
       "</div></div>";
     var pendelsBody = stockBar + '<div class="pen-list">' + pendelList + "</div>";
 
-    el("app").innerHTML = moduleShell("Laadproces", seg + (state.lcTab === "pendels" ? pendelsBody : ladenBody));
+    // ----- PENDELCONTROL (tellijst) -----
+    var pcRows = S.getPCRows(c.h, c.d, c.dd), pcSt = S.pcStats(c.h, c.d, c.dd);
+    function pcCounter(idx, field, val) {
+      return '<div class="pc-ctrl">' + (canPC ? '<button class="tro-btn sm" data-pclayer="' + idx + "|" + field + '|-1">&minus;</button>' : "") +
+        '<span class="pc-val">' + (val || 0) + "</span>" + (canPC ? '<button class="tro-btn sm" data-pclayer="' + idx + "|" + field + '|1">+</button>' : "") + "</div>";
+    }
+    var pcBodyRows = pcRows.length ? pcRows.map(function (r, idx) {
+      return '<tr class="' + (r.gecontroleerd ? "sc-done" : "") + '"><td class="lc-nr cellname">Vak ' + esc(r.subrit) + "</td>" +
+        '<td data-th="Trolleys">' + (r.trolleys || 0) + '</td><td data-th="Kratten">' + (r.kratten || 0) + '</td>' +
+        '<td data-th="Vers">' + (r.versb || 0) + '</td><td data-th="Diepvries">' + (r.dvboxen || 0) + '</td><td data-th="XL">' + (r.xl || 0) + "</td>" +
+        '<td data-th="4-laags">' + pcCounter(idx, "l4", r.l4) + '</td><td data-th="5-laags">' + pcCounter(idx, "l5", r.l5) + "</td>" +
+        '<td class="sc-chk" data-th="Gecontroleerd"><label class="chk-box ' + (r.gecontroleerd ? "on" : "") + (canPC ? "" : " ro") + '"><input type="checkbox" ' + (r.gecontroleerd ? "checked" : "") + (canPC ? "" : " disabled") + ' data-pcchk="' + idx + '">' + svg("check", "icon-sm") + "</label></td></tr>";
+    }).join("") : '<tr><td colspan="9"><div class="cellsub" style="padding:14px">Nog geen tellijst geïmporteerd.' + (canPC ? " Plak 'm hierboven." : "") + "</div></td></tr>";
+    var pcTot = pcSt.tot;
+    var pcFoot = pcRows.length ? '<tr class="pc-tot"><td class="cellname">Totaal</td><td data-th="Trolleys"><b>' + pcTot.trolleys + '</b></td><td data-th="Kratten"><b>' + pcTot.kratten + '</b></td><td data-th="Vers"><b>' + pcTot.versb + '</b></td><td data-th="Diepvries"><b>' + pcTot.dvboxen + '</b></td><td data-th="XL"><b>' + pcTot.xl + '</b></td><td data-th="4-laags"><b>' + pcTot.l4 + '</b></td><td data-th="5-laags"><b>' + pcTot.l5 + "</b></td><td></td></tr>" : "";
+    var pcTable = '<div class="panel" style="padding:0"><div class="table-scroll"><table class="table pc-table"><thead><tr><th>Vak</th><th>Trolleys</th><th>Kratten</th><th>Vers</th><th>Diepvries</th><th>XL</th><th>4-laags</th><th>5-laags</th><th>Klaar</th></tr></thead><tbody>' + pcBodyRows + pcFoot + "</tbody></table></div></div>";
+    var pcImportBlock = canPC ? '<div class="kz-section" style="margin-bottom:14px"><div class="kz-h">' + svg("download", "icon-sm") + "Tellijst importeren</div>" +
+      '<p class="cellsub" style="margin:0 0 8px">Plak de debriefing-tellijst — kolommen SUBRITNR · TROLLEYS · KRATTEN · VERSBOXEN · DIEPVRIESBOXEN · KWGR.</p>' +
+      '<textarea id="pcSheet" rows="4" class="kz-sheet" placeholder="Plak hier de tellijst…"></textarea>' +
+      '<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"><button class="btn btn-primary btn-sm" id="pcImportBtn">' + svg("check", "icon-sm") + "Importeren</button>" +
+      '<button class="btn btn-ghost btn-sm" id="pcClearBtn">' + svg("trash", "icon-sm") + "Leegmaken</button></div></div>" : "";
+    var pcBody = pcImportBlock + opProgress(pcSt.done, pcSt.total, "vakken gecontroleerd") + pcTable;
+
+    var body = state.lcTab === "pendels" ? pendelsBody : state.lcTab === "pc" ? pcBody : ladenBody;
+    el("app").innerHTML = moduleShell("Laadproces", seg + body);
     bindModuleHeader(renderLC);
     document.querySelectorAll("[data-lctab]").forEach(function (b) { b.addEventListener("click", function () { state.lcTab = b.getAttribute("data-lctab"); renderLC(); }); });
     if (state.lcTab === "laden") {
       document.querySelectorAll("[data-lcbus]").forEach(function (inp) { inp.addEventListener("change", function () { try { S.lcSetBus(c.h, c.d, c.dd, parseInt(inp.getAttribute("data-lcbus"), 10), inp.value); } catch (e) { toast(e.message, "err"); } }); });
       document.querySelectorAll("[data-lcgel]").forEach(function (cb) { cb.addEventListener("change", function () { try { S.lcToggleGeladen(c.h, c.d, c.dd, parseInt(cb.getAttribute("data-lcgel"), 10)); renderLC(); } catch (e) { toast(e.message, "err"); } }); });
-    } else {
+    } else if (state.lcTab === "pendels") {
       document.querySelectorAll("[data-penbump]").forEach(function (b) { b.addEventListener("click", function () { var p = b.getAttribute("data-penbump").split("|"); try { S.pendelBump(c.h, c.d, c.dd, p[0], p[1], parseInt(p[2], 10)); renderLC(); } catch (e) { toast(e.message, "err"); } }); });
+    } else if (state.lcTab === "pc") {
+      var pib = el("pcImportBtn"); if (pib) pib.addEventListener("click", function () { try { var n = S.pcImport(c.h, c.d, c.dd, el("pcSheet").value); toast(n + " regels geïmporteerd.", "ok"); renderLC(); } catch (e) { toast(e.message, "err"); } });
+      var pcb = el("pcClearBtn"); if (pcb) pcb.addEventListener("click", function () { try { S.pcReset(c.h, c.d, c.dd); renderLC(); } catch (e) { toast(e.message, "err"); } });
+      document.querySelectorAll("[data-pcchk]").forEach(function (cb) { cb.addEventListener("change", function () { try { S.pcToggle(c.h, c.d, c.dd, parseInt(cb.getAttribute("data-pcchk"), 10)); renderLC(); } catch (e) { toast(e.message, "err"); } }); });
+      document.querySelectorAll("[data-pclayer]").forEach(function (b) { b.addEventListener("click", function () { var p = b.getAttribute("data-pclayer").split("|"); try { S.pcSetLayer(c.h, c.d, c.dd, parseInt(p[0], 10), p[1], parseInt(p[2], 10)); renderLC(); } catch (e) { toast(e.message, "err"); } }); });
     }
   }
 
