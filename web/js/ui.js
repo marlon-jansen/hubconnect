@@ -1885,6 +1885,9 @@
     var showTimes = dashView && isBinnen; // afvinktijden alleen voor de binnendienst in de dashboard-weergave
     var canEdit = dashView ? isBinnen : (opWindowOK(u, "schadecontrole", c) && S.canOpShift(u, c.h, c.d, c.dd, "schadecontrole", "Schadecontrole"));
     var st = S.schadeStats(c.h, c.d, c.dd), spSt = S.steekproefStats(c.h, c.d, c.dd);
+    var prev = S.vorigeShift(c.d, c.dd);                    // shift die deze shift controleert
+    if (!state.scTab) state.scTab = "controle";
+    if (!isBinnen || dashView) state.scTab = "controle";    // controle-tab alleen voor binnendienst, niet in dashboard-weergave
 
     function chkCell(b) {
       var timeCell = (showTimes && b.gecontroleerd && b.gecontroleerdAt) ? '<div class="chk-time">' + fmtClock(b.gecontroleerdAt) + "</div>" : "";
@@ -1918,15 +1921,42 @@
     var table = '<div class="panel" style="padding:0"><div class="table-scroll"><table class="table sc-table">' +
       "<thead><tr><th>Bus</th><th>Gecontroleerd</th><th>Ontbreekt</th><th>Steekproef</th><th>Dock</th></tr></thead><tbody>" + rows + "</tbody></table></div></div>";
 
-    el("app").innerHTML = moduleShell("Schadecontrole",
-      windowLockNote(u, "schadecontrole", c) +
+    // ----- Steekproeven controleren (binnendienst, tegen het Jumbo-systeem) -----
+    function steekcontroleBody() {
+      var plabel = fmtDate(prev.datum) + " · " + prev.dagdeel;
+      var list = S.steekproevenList(c.h, prev.datum, prev.dagdeel);
+      var cs = S.steekproefControleStats(c.h, prev.datum, prev.dagdeel);
+      var intro = '<div class="kz-h" style="margin-bottom:10px">' + svg("clipboard", "icon-sm") + "Steekproeven van " + esc(plabel) + " controleren tegen het Jumbo-systeem</div>";
+      if (!list.length) return intro + '<div class="panel"><p class="cellsub" style="margin:0">Voor ' + esc(plabel) + " zijn (nog) geen steekproeven ingevuld om te controleren.</p></div>";
+      var rows = list.map(function (b) {
+        var sp = b.steekproef, sys = (sp.systeemKratten == null ? "" : sp.systeemKratten);
+        var mismatch = sys !== "" && Number(sys) !== Number(sp.kratten), done = sp.controleGedaan;
+        var status = !done ? '<span class="cellsub">—</span>' : (mismatch ? '<span class="badge st-afgekeurd">' + svg("alertTri", "icon-sm") + "Afwijking</span>" : '<span class="badge st-goedgekeurd">' + svg("check", "icon-sm") + "Klopt</span>");
+        return "<tr class=\"" + (done && !mismatch ? "sc-done" : "") + "\"><td><div class=\"cellname\">Bus " + esc(b.bus || "?") + "</div><div class=\"cellsub\">" + esc(sp.naam || "") + (sp.rit ? " · rit " + esc(sp.rit) : "") + "</div></td>" +
+          '<td data-th="Geteld in bus" class="cellname" style="text-align:center">' + esc(sp.kratten) + "</td>" +
+          '<td data-th="Systeem (Jumbo)"><input class="lc-in" style="max-width:90px" type="number" inputmode="numeric" min="0" data-spsys="' + b.id + '" value="' + esc(sys) + '"' + (isBinnen ? "" : " disabled") + "></td>" +
+          '<td class="sc-chk" data-th="Gecontroleerd"><label class="chk-box ' + (done ? "on" : "") + (isBinnen ? "" : " ro") + '"><input type="checkbox" ' + (done ? "checked" : "") + (isBinnen ? "" : " disabled") + ' data-spctrl="' + b.id + '">' + svg("check", "icon-sm") + "</label></td>" +
+          '<td data-th="Status">' + status + "</td></tr>";
+      }).join("");
+      return intro + opProgress(cs.done, cs.total, "steekproeven gecontroleerd") +
+        '<div class="panel" style="padding:0"><div class="table-scroll"><table class="table sc-table"><thead><tr><th>Bus</th><th>Geteld in bus</th><th>Systeem (Jumbo)</th><th>Gecontroleerd</th><th>Status</th></tr></thead><tbody>' + rows + "</tbody></table></div></div>";
+    }
+    var seg = isBinnen && !dashView ? '<div class="seg" style="margin-bottom:16px;flex-wrap:wrap">' +
+      '<button data-sctab="controle" class="' + (state.scTab === "controle" ? "active" : "") + '">Deze shift</button>' +
+      '<button data-sctab="steekcontrole" class="' + (state.scTab === "steekcontrole" ? "active" : "") + '">Steekproeven controleren</button></div>' : "";
+    var controleBody = windowLockNote(u, "schadecontrole", c) +
       opProgress(st.done, st.total, "bussen gecontroleerd") +
-      opProgress(spSt.done, spSt.total, "steekproeven gedaan") +
-      table);
+      opProgress(spSt.done, spSt.total, "steekproeven gedaan") + table;
+    var body = state.scTab === "steekcontrole" ? steekcontroleBody() : controleBody;
+
+    el("app").innerHTML = moduleShell("Schadecontrole", seg + body);
     bindModuleHeader(renderSchade);
+    document.querySelectorAll("[data-sctab]").forEach(function (b) { b.addEventListener("click", function () { state.scTab = b.getAttribute("data-sctab"); renderSchade(); }); });
     document.querySelectorAll("[data-scchk]").forEach(function (cb) { cb.addEventListener("change", function () { try { S.schadeToggle(c.h, c.d, c.dd, cb.getAttribute("data-scchk"), "gecontroleerd"); renderSchade(); } catch (e) { toast(e.message, "err"); } }); });
     document.querySelectorAll("[data-scmist]").forEach(function (ch) { ch.addEventListener("click", function () { var p = ch.getAttribute("data-scmist").split("|"); try { S.schadeToggle(c.h, c.d, c.dd, p[0], p[1]); renderSchade(); } catch (e) { toast(e.message, "err"); } }); });
     document.querySelectorAll("[data-spbus]").forEach(function (b) { b.addEventListener("click", function () { openSteekproef(c, b.getAttribute("data-spbus")); }); });
+    document.querySelectorAll("[data-spsys]").forEach(function (inp) { inp.addEventListener("change", function () { try { S.steekproefControleer(c.h, prev.datum, prev.dagdeel, inp.getAttribute("data-spsys"), { systeemKratten: inp.value }); renderSchade(); } catch (e) { toast(e.message, "err"); } }); });
+    document.querySelectorAll("[data-spctrl]").forEach(function (cb) { cb.addEventListener("change", function () { try { S.steekproefControleer(c.h, prev.datum, prev.dagdeel, cb.getAttribute("data-spctrl"), { controleGedaan: cb.checked }); renderSchade(); } catch (e) { toast(e.message, "err"); } }); });
   }
 
   // Steekproef-modal per bus (zelfde velden als voorheen: naam, hr, rit, kratten).
@@ -2223,6 +2253,9 @@
     if (lcS.total === 0) todo.push("Laden is nog niet klaargezet");
     if (isPM && sc.total === 0) todo.push("Schadecontrolelijst is nog niet klaargezet");
     if (!diensten.lc.length || !diensten.schadecontrole.length || !diensten.kwaliteit.length) todo.push("Niet alle diensten zijn toegewezen");
+    // Steekproeven van de vorige shift moeten nog tegen het Jumbo-systeem gecontroleerd worden
+    var prevSc = S.vorigeShift(c.d, c.dd), scc = S.steekproefControleStats(c.h, prevSc.datum, prevSc.dagdeel);
+    if (scc.total > 0 && scc.done < scc.total) todo.push("Steekproeven van de vorige shift controleren (" + (scc.total - scc.done) + " open)");
     var todoBanner = todo.length ? '<div class="todo-banner">' + svg("alertTri", "icon-sm") + "<div><b>Nog te doen:</b> " + todo.map(esc).join(" · ") + ' <button class="link-btn" data-dashtab="klaarzetten">Naar klaarzetten</button></div></div>' : "";
     // Melding aan de senior: Kwaliteit telde een afwijking t.o.v. de trolleyvoorraad
     var qAfw = S.qtelAfwijking(c.h, c.d, c.dd);
