@@ -665,17 +665,18 @@ main { max-width: 1100px; margin: 0 auto; padding: 22px 18px 80px; }
 .pen-x { margin-left: auto; background: none; border: 0; color: var(--muted); cursor: pointer; display: inline-flex; }
 .pen-x:hover { color: #c0392b; }
 .pen-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.pen-lay { border: 1px solid var(--line); border-radius: 11px; padding: 10px; min-width: 0; }
-.pen-lay .layer-tag { font-weight: 800; display: inline-flex; }
+.pen-lay { border: 1px solid var(--line); border-radius: 12px; padding: 12px 10px; min-width: 0; background: #fafafa; display: flex; flex-direction: column; align-items: center; gap: 9px; text-align: center; }
+.pen-lay .layer-tag { font-weight: 800; display: inline-flex; justify-content: center; }
+.pen-ret-lab { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 700; font-style: italic; color: var(--muted); }
 .pen-rows { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
 .pen-r { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; color: var(--ink-soft); }
 .pen-arrow { display: inline-flex; }
 .pen-arrow.in { color: var(--green-bright); }
 .pen-arrow.out { color: var(--red-bright); }
-.pen-ctl { display: flex; align-items: center; gap: 6px; margin-left: auto; }
-.pen-btn { width: 30px; height: 30px; border: 0; border-radius: 8px; background: var(--ink); color: #fff; font-size: 17px; font-weight: 900; line-height: 1; cursor: pointer; }
+.pen-ctl { display: inline-flex; align-items: center; gap: 10px; }
+.pen-btn { width: 34px; height: 34px; border: 0; border-radius: 9px; background: var(--ink); color: #fff; font-size: 18px; font-weight: 900; line-height: 1; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
 .pen-btn:hover { filter: brightness(1.25); }
-.pen-val { min-width: 26px; text-align: center; font-weight: 900; font-size: 16px; }
+.pen-val { min-width: 28px; text-align: center; font-weight: 900; font-size: 17px; font-variant-numeric: tabular-nums; }
 /* "Op de hub"-voorraadkaart */
 .hub-stock { background: linear-gradient(180deg,#fffdf3,#fff); border: 1px solid var(--jumbo-yellow); border-radius: 16px; padding: 16px; margin-bottom: 16px; box-shadow: var(--shadow); }
 .hub-stock-h { display: flex; align-items: center; gap: 7px; font-weight: 900; font-size: 15px; margin-bottom: 12px; }
