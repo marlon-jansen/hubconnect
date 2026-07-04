@@ -459,6 +459,11 @@ main { max-width: 1100px; margin: 0 auto; padding: 22px 18px 80px; }
 .notif-row.ok .icon-sm { color: var(--green-bright); }
 .notif-row.no .icon-sm { color: var(--red); }
 .notif-reden { color: var(--ink-soft); font-weight: 700; }
+.match-banner { border-left-color: var(--blue); }
+.match-banner .notif-head .icon-sm { color: var(--blue); }
+.match-banner .notif-row { align-items: center; flex-wrap: wrap; }
+.match-banner .notif-row span { flex: 1; min-width: 180px; }
+.match-banner .notif-row .icon-sm { color: var(--blue); }
 
 /* ----- jbt chip ----- */
 .jbt-chip.on { background: var(--blue); color: #fff; border-color: var(--blue); }

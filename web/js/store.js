@@ -538,6 +538,20 @@
     if (x.status !== "afgekeurd") throw new Error("Alleen een afgekeurd verzoek kan verwijderd worden.");
     x.status = "ingetrokken"; save(); return x;
   }
+  // Match: de aanbieder geeft zijn open shift direct aan een collega die een oproep (shift gezocht) heeft geplaatst.
+  function giveShiftTo(shiftId, targetUserId) {
+    var u = currentUser();
+    var s = db.shifts.filter(function (x) { return x.id === shiftId; })[0];
+    if (!s || s.aanbiederId !== u.id) throw new Error("Dit is niet jouw shift.");
+    if (s.status !== "open") throw new Error("Deze shift staat niet meer open.");
+    var t = userById(targetUserId);
+    if (!t) throw new Error("Collega niet gevonden.");
+    if (!can.claimShift(t, s)) throw new Error("Deze collega kan deze shift niet overnemen.");
+    s.overnemerId = targetUserId; s.status = "in-afwachting"; s.fifoWarning = false;
+    // De bijbehorende oproep van die collega sluiten
+    db.callouts.forEach(function (c) { if (c.aanbiederId === targetUserId && c.status === "open" && c.datum === s.datum && c.dagdeel === s.dagdeel) c.status = "ingetrokken"; });
+    save(); return s;
+  }
 
   /* ---------- Beheer ---------- */
   function setUserRole(targetId, rol) {
@@ -1202,7 +1216,7 @@
     offerTask: offerTask, withdrawTask: withdrawTask, claimTask: claimTask, decideTask: decideTask,
     offerBackup: offerBackup, withdrawBackup: withdrawBackup, claimBackup: claimBackup, decideBackup: decideBackup,
     offerCallout: offerCallout, withdrawCallout: withdrawCallout, claimCallout: claimCallout, decideCallout: decideCallout,
-    repostRequest: repostRequest, dropRequest: dropRequest,
+    repostRequest: repostRequest, dropRequest: dropRequest, giveShiftTo: giveShiftTo,
     setUserRole: setUserRole, setUserN2: setUserN2, setUserJbt: setUserJbt, setUserHub: setUserHub, toggleUserTask: toggleUserTask, removeUser: removeUser,
     addHub: addHub, removeHub: removeHub, addCatalogTask: addCatalogTask, removeCatalogTask: removeCatalogTask,
     planningFor: planningFor, planById: planById, setPlanCell: setPlanCell, addPlanRow: addPlanRow, removePlanRow: removePlanRow,
