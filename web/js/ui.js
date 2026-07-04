@@ -1934,10 +1934,11 @@
       var rows = list.map(function (b) {
         var sp = b.steekproef, sys = (sp.systeemKratten == null ? "" : sp.systeemKratten);
         var mismatch = sys !== "" && Number(sys) !== Number(sp.kratten), done = sp.controleGedaan;
+        var sysCls = sys === "" ? "" : (mismatch ? " sys-err" : " sys-ok"); // box groen bij gelijk, rood bij afwijking
         var status = !done ? '<span class="cellsub">—</span>' : (mismatch ? '<span class="badge st-afgekeurd">' + svg("alertTri", "icon-sm") + "Afwijking</span>" : '<span class="badge st-goedgekeurd">' + svg("check", "icon-sm") + "Klopt</span>");
         return "<tr class=\"" + (done && !mismatch ? "sc-done" : "") + "\"><td><div class=\"cellname\">Bus " + esc(b.bus || "?") + "</div><div class=\"cellsub\">" + esc(sp.naam || "") + (sp.rit ? " · rit " + esc(sp.rit) : "") + "</div></td>" +
           '<td data-th="Geteld in bus" class="cellname" style="text-align:center">' + esc(sp.kratten) + "</td>" +
-          '<td data-th="Systeem (Jumbo)"><input class="lc-in" style="max-width:90px" type="number" inputmode="numeric" min="0" data-spsys="' + b.id + '" value="' + esc(sys) + '"' + (isBinnen ? "" : " disabled") + "></td>" +
+          '<td data-th="Systeem (Jumbo)"><input class="lc-in' + sysCls + '" style="max-width:90px" type="number" inputmode="numeric" min="0" data-spsys="' + b.id + '" value="' + esc(sys) + '"' + (isBinnen ? "" : " disabled") + "></td>" +
           '<td class="sc-chk" data-th="Gecontroleerd"><label class="chk-box ' + (done ? "on" : "") + (isBinnen ? "" : " ro") + '"><input type="checkbox" ' + (done ? "checked" : "") + (isBinnen ? "" : " disabled") + ' data-spctrl="' + b.id + '">' + svg("check", "icon-sm") + "</label></td>" +
           '<td data-th="Status">' + status + "</td></tr>";
       }).join("");
@@ -2142,7 +2143,8 @@
     if (!state.lcTab || state.lcTab === "pendels") state.lcTab = state.lcTab === "pendels" ? "pc" : (state.lcTab || "laden");
     var seg = '<div class="seg" style="margin-bottom:16px;flex-wrap:wrap">' +
       '<button data-lctab="laden" class="' + (state.lcTab === "laden" ? "active" : "") + '">Laden</button>' +
-      '<button data-lctab="pc" class="' + (state.lcTab === "pc" ? "active" : "") + '">Pendelcontrol</button></div>';
+      '<button data-lctab="pc" class="' + (state.lcTab === "pc" ? "active" : "") + '">Pendelcontrol</button>' +
+      '<button data-lctab="tellen" class="' + (state.lcTab === "tellen" ? "active" : "") + '">Tellen</button></div>';
 
     // ----- LADEN -----
     var rows = lc.vakken.length ? lc.vakken.map(function (v) {
@@ -2210,18 +2212,12 @@
     var pcTot = pcSt.tot;
     var pcFoot = pcRows.length ? '<tr class="pc-tot"><td class="cellname">Totaal</td><td data-th="Trolleys"><b>' + pcTot.trolleys + '</b></td><td data-th="Kratten"><b>' + pcTot.kratten + '</b></td><td data-th="Vers"><b>' + pcTot.versb + '</b></td><td data-th="Diepvries"><b>' + pcTot.dvboxen + '</b></td><td data-th="XL"><b>' + pcTot.xl + '</b></td><td data-th="4-laags"><b>' + pcTot.l4 + '</b></td><td data-th="5-laags"><b>' + pcTot.l5 + "</b></td><td></td></tr>" : "";
     var pcTable = '<div class="panel" style="padding:0"><div class="table-scroll"><table class="table pc-table"><thead><tr><th>Vak</th><th>Trolleys</th><th>Kratten</th><th>Vers</th><th>Diepvries</th><th>XL</th><th>4-laags</th><th>5-laags</th><th>Klaar</th></tr></thead><tbody>' + pcBodyRows + pcFoot + "</tbody></table></div></div>";
-    var pcImportBlock = S.isSetup(u) && !state.viewOnly ? '<div class="kz-section" style="margin-bottom:14px"><div class="kz-h">' + svg("download", "icon-sm") + "Tellijst importeren</div>" +
-      '<p class="cellsub" style="margin:0 0 8px">Plak de debriefing-tellijst — kolommen SUBRITNR · TROLLEYS · KRATTEN · VERSBOXEN · DIEPVRIESBOXEN · KWGR.</p>' +
-      '<textarea id="pcSheet" rows="4" class="kz-sheet" placeholder="Plak hier de tellijst…"></textarea>' +
-      '<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"><button class="btn btn-primary btn-sm" id="pcImportBtn">' + svg("check", "icon-sm") + "Importeren</button>" +
-      '<button class="btn btn-ghost btn-sm" id="pcClearBtn">' + svg("trash", "icon-sm") + "Leegmaken</button></div></div>" : "";
-    var pcLayout = '<div class="pc-layout">' +
-      '<div class="pc-col"><div class="pc-col-h">' + svg("van", "icon-sm") + "Pendels — retour</div><div class=\"pen-list\">" + pendelList + "</div></div>" +
-      '<div class="pc-col"><div class="pc-col-h">' + svg("clipboard", "icon-sm") + "Telling</div>" + opProgress(pcSt.done, pcSt.total, "vakken gecontroleerd") + pcTable + "</div>" +
-      "</div>";
-    var pcBody = stockBar + pcLayout + pcImportBlock;
+    // Pendelcontrol-tab: pendels met retour. Tellen-tab: de tellijst-telling (import staat in het dashboard).
+    var pcBody = stockBar + '<div class="pc-col-h">' + svg("van", "icon-sm") + "Pendels — retour</div><div class=\"pen-list\">" + pendelList + "</div>";
+    var tellenBody = opProgress(pcSt.done, pcSt.total, "vakken gecontroleerd") +
+      (pcRows.length ? "" : '<div class="cellsub" style="margin-bottom:10px">De binnendienst zet de tellijst klaar via het dashboard (Klaarzetten &rsaquo; Pendel).</div>') + pcTable;
 
-    var body = state.lcTab === "pc" ? pcBody : ladenBody;
+    var body = state.lcTab === "pc" ? pcBody : state.lcTab === "tellen" ? tellenBody : ladenBody;
     el("app").innerHTML = moduleShell("Laadproces", windowLockNote(u, "lc", c) + seg + body);
     bindModuleHeader(renderLC);
     document.querySelectorAll("[data-lctab]").forEach(function (b) { b.addEventListener("click", function () { state.lcTab = b.getAttribute("data-lctab"); renderLC(); }); });
@@ -2230,8 +2226,7 @@
       document.querySelectorAll("[data-lcgel]").forEach(function (cb) { cb.addEventListener("change", function () { try { S.lcToggleGeladen(c.h, c.d, c.dd, parseInt(cb.getAttribute("data-lcgel"), 10)); renderLC(); } catch (e) { toast(e.message, "err"); } }); });
     } else if (state.lcTab === "pc") {
       document.querySelectorAll("[data-penbump]").forEach(function (b) { b.addEventListener("click", function () { var p = b.getAttribute("data-penbump").split("|"); try { S.pendelBump(c.h, c.d, c.dd, p[0], p[1], parseInt(p[2], 10)); renderLC(); } catch (e) { toast(e.message, "err"); } }); });
-      var pib = el("pcImportBtn"); if (pib) pib.addEventListener("click", function () { try { var n = S.pcImport(c.h, c.d, c.dd, el("pcSheet").value); toast(n + " regels geïmporteerd.", "ok"); renderLC(); } catch (e) { toast(e.message, "err"); } });
-      var pcb = el("pcClearBtn"); if (pcb) pcb.addEventListener("click", function () { try { S.pcReset(c.h, c.d, c.dd); renderLC(); } catch (e) { toast(e.message, "err"); } });
+    } else if (state.lcTab === "tellen") {
       document.querySelectorAll("[data-pcchk]").forEach(function (cb) { cb.addEventListener("change", function () { try { S.pcToggle(c.h, c.d, c.dd, parseInt(cb.getAttribute("data-pcchk"), 10)); renderLC(); } catch (e) { toast(e.message, "err"); } }); });
       document.querySelectorAll("[data-pclayer]").forEach(function (b) { b.addEventListener("click", function () { var p = b.getAttribute("data-pclayer").split("|"); try { S.pcSetLayer(c.h, c.d, c.dd, parseInt(p[0], 10), p[1], parseInt(p[2], 10)); renderLC(); } catch (e) { toast(e.message, "err"); } }); });
     }
@@ -2340,7 +2335,12 @@
     var ladenBlock = ladenImport + '<div class="kz-section"><div class="kz-h">' + svg("inbox", "icon-sm") + "Laden klaarzetten</div>" +
       '<div class="lc-setup"><label>Aantal vakken</label><input type="number" min="0" max="60" id="lcAantal" value="' + (lc.aantal || lc.vakken.length) + '"><button class="btn btn-dark btn-sm" id="lcSetAantal">' + svg("check", "icon-sm") + "Instellen</button></div>" +
       '<div class="panel" style="padding:0;margin-top:10px"><div class="table-scroll"><table class="table lc-table"><thead><tr><th>Vak</th><th>Vertrek</th><th>Bus</th><th>Rit</th><th>Type</th><th>ZE</th></tr></thead><tbody>' + lcRows + "</tbody></table></div></div></div>";
-    var pendelBlock = pendelPlanBlock;
+    var pcImportBlockDash = '<div class="kz-section"><div class="kz-h">' + svg("download", "icon-sm") + "Tellijst klaarzetten (" + (c.dd === "PM" ? "PM" : "AM") + ")</div>" +
+      '<p class="cellsub" style="margin:0 0 8px">Plak de debriefing-tellijst — kolommen SUBRITNR · TROLLEYS · KRATTEN · VERSBOXEN · DIEPVRIESBOXEN · KWGR. Verschijnt bij Laadproces &rsaquo; Tellen.</p>' +
+      '<textarea id="kzPcSheet" rows="4" class="kz-sheet" placeholder="Plak hier de tellijst…"></textarea>' +
+      '<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"><button class="btn btn-primary btn-sm" id="kzPcImport">' + svg("check", "icon-sm") + "Importeren</button>" +
+      '<button class="btn btn-ghost btn-sm" id="kzPcClear">' + svg("trash", "icon-sm") + "Leegmaken</button></div></div>";
+    var pendelBlock = pendelPlanBlock + pcImportBlockDash;
 
     // ---- Schadecontrole (Voorbereiding AM) ----
     var schadeImport = '<div class="kz-section"><div class="kz-h">' + svg("download", "icon-sm") + "Schadecontrole importeren</div>" +
@@ -2369,6 +2369,8 @@
     var rsc = el("kzResetSchade"); if (rsc) rsc.addEventListener("click", function () { try { S.schadeReset(c.h, c.d, c.dd); renderDashboard(); } catch (e) { toast(e.message, "err"); } });
     var pa = el("penAdd"); if (pa) pa.addEventListener("click", function () { try { S.addPendelPlan(c.h, c.d, c.dd, el("penTijd").value); renderDashboard(); } catch (e) { toast(e.message, "err"); } });
     var pi = el("kzImportPendel"); if (pi) pi.addEventListener("click", function () { try { var r = S.pendelImport(c.h, c.d, el("kzPendelImport").value); toast(r.total + " pendels geïmporteerd (" + r.am + " AM · " + r.pm + " PM).", "ok"); renderDashboard(); } catch (e) { toast(e.message, "err"); } });
+    var pci = el("kzPcImport"); if (pci) pci.addEventListener("click", function () { try { var n = S.pcImport(c.h, c.d, c.dd, el("kzPcSheet").value); toast(n + " regels in de tellijst gezet.", "ok"); renderDashboard(); } catch (e) { toast(e.message, "err"); } });
+    var pcc = el("kzPcClear"); if (pcc) pcc.addEventListener("click", function () { try { S.pcReset(c.h, c.d, c.dd); renderDashboard(); } catch (e) { toast(e.message, "err"); } });
     document.querySelectorAll("[data-pendeldel]").forEach(function (b) { b.addEventListener("click", function () { try { S.removePendel(c.h, c.d, c.dd, b.getAttribute("data-pendeldel")); renderDashboard(); } catch (e) { toast(e.message, "err"); } }); });
     var sa = el("lcSetAantal"); if (sa) sa.addEventListener("click", function () { try { S.lcSetAantal(c.h, c.d, c.dd, el("lcAantal").value); renderDashboard(); } catch (e) { toast(e.message, "err"); } });
     document.querySelectorAll("[data-lcset]").forEach(function (inp) { inp.addEventListener("change", function () { var p = inp.getAttribute("data-lcset").split("|"); var data = {}; data[p[1]] = inp.value; try { S.lcSetupVak(c.h, c.d, c.dd, parseInt(p[0], 10), data); } catch (e) { toast(e.message, "err"); } }); });
