@@ -939,10 +939,15 @@
     if (!pcCanEdit(currentUser(), hubId, datum, dagdeel)) throw new Error("Je bent deze shift niet aangewezen voor het laadproces.");
     if (field !== "l4" && field !== "l5") return;
     var r = getPCRows(hubId, datum, dagdeel)[idx]; if (!r) return;
+    var old = r[field] || 0;
     var other = field === "l4" ? (r.l5 || 0) : (r.l4 || 0);
-    var nv = Math.max(0, (r[field] || 0) + (parseInt(delta, 10) || 0));
+    var nv = Math.max(0, old + (parseInt(delta, 10) || 0));
     if (nv + other > (r.trolleys || 0)) nv = Math.max(0, (r.trolleys || 0) - other); // 4- + 5-laags samen ≤ trolleys
-    r[field] = nv; save();
+    r[field] = nv;
+    // Sync met de doorlopende hub-trolleyvoorraad: geteld 4-/5-laags telt mee als binnengekomen.
+    var applied = nv - old;
+    if (applied) { var lay = field === "l4" ? "stock4" : "stock5"; var s = markCounted(hubId, datum); s[lay] = Math.max(0, (s[lay] || 0) + applied); }
+    save();
   }
   function pcReset(hubId, datum, dagdeel) {
     if (!pcCanEdit(currentUser(), hubId, datum, dagdeel)) throw new Error("Geen rechten.");

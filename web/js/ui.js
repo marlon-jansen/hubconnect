@@ -2136,10 +2136,9 @@
     var isPM = c.dd === "PM";
     var st = S.lcStats(c.h, c.d, c.dd);
     var canPC = !state.viewOnly && opWindowOK(u, "lc", c) && S.pcCanEdit(u, c.h, c.d, c.dd);
-    if (!state.lcTab) state.lcTab = "laden";
+    if (!state.lcTab || state.lcTab === "pendels") state.lcTab = state.lcTab === "pendels" ? "pc" : (state.lcTab || "laden");
     var seg = '<div class="seg" style="margin-bottom:16px;flex-wrap:wrap">' +
       '<button data-lctab="laden" class="' + (state.lcTab === "laden" ? "active" : "") + '">Laden</button>' +
-      '<button data-lctab="pendels" class="' + (state.lcTab === "pendels" ? "active" : "") + '">Pendels</button>' +
       '<button data-lctab="pc" class="' + (state.lcTab === "pc" ? "active" : "") + '">Pendelcontrol</button></div>';
 
     // ----- LADEN -----
@@ -2165,31 +2164,34 @@
       "<thead><tr><th>Vak</th><th>Vertrek</th><th>Bus</th><th>Rit</th><th>Type</th><th>ZE</th><th>Geladen</th></tr></thead><tbody>" + rows + "</tbody></table></div></div>";
     var ladenBody = opProgress(st.done, st.used, "vakken geladen") + table;
 
-    // ----- PENDELS -----
+    // ----- PENDELCONTROL: pendels (retour) links, telling rechts, import onder -----
     function ctl(id, field, val) {
       return '<div class="pen-ctl">' +
         (canLoad ? '<button class="pen-btn" data-penbump="' + id + "|" + field + '|-1">&minus;</button>' : "") +
         '<span class="pen-val">' + (val || 0) + "</span>" +
         (canLoad ? '<button class="pen-btn" data-penbump="' + id + "|" + field + '|1">+</button>' : "") + "</div>";
     }
-    function layBlock(p, n) {
+    // Op de pendel vul je alleen de RETOUR in (wat je hebt teruggegeven qua 4-/5-laags); binnen komt uit de telling.
+    function retLay(p, n) {
       return '<div class="pen-lay">' + layerLabel(n) +
-        '<div class="pen-rows"><span class="pen-r"><em>binnen</em><span class="pen-arrow in">' + svg("arrowDown", "icon-sm") + "</span>" + ctl(p.id, "in" + n, p["in" + n]) + "</span>" +
-        '<span class="pen-r"><em>retour</em><span class="pen-arrow out">' + svg("arrowUp", "icon-sm") + "</span>" + ctl(p.id, "out" + n, p["out" + n]) + "</span></div></div>";
+        '<div class="pen-rows"><span class="pen-r"><em>retour</em><span class="pen-arrow out">' + svg("arrowUp", "icon-sm") + "</span>" + ctl(p.id, "out" + n, p["out" + n]) + "</span></div></div>";
     }
     var pendelList = tr.pendels.length ? tr.pendels.map(function (p, i) {
+      var meta = [];
+      if (p.rit) meta.push("rit " + esc(p.rit));
+      if (p.trolleysVerwacht) meta.push(esc(p.trolleysVerwacht) + " trolleys");
       return '<div class="pen-card"><div class="pen-head">' + svg("van", "icon-sm") + "<b>Pendel " + (i + 1) + "</b>" +
         (p.tijd ? '<span class="pen-tijd">aankomst ' + esc(p.tijd) + "</span>" : "") + "</div>" +
-        '<div class="pen-grid">' + layBlock(p, 4) + layBlock(p, 5) + "</div></div>";
+        (meta.length ? '<div class="cellsub" style="margin:-2px 0 8px">' + meta.join(" · ") + "</div>" : "") +
+        '<div class="pen-grid">' + retLay(p, 4) + retLay(p, 5) + "</div></div>";
     }).join("") : '<div class="cellsub" style="padding:12px">De binnendienst zet de pendels klaar via het dashboard.</div>';
-    var stockBar = '<div class="hub-stock"><div class="hub-stock-h">' + svg("inbox", "icon-sm") + "Op de hub</div>" +
+    var stockBar = '<div class="hub-stock"><div class="hub-stock-h">' + svg("inbox", "icon-sm") + "Op de hub (gesynchroniseerd met de telling)</div>" +
       '<div class="hub-stock-grid">' +
         '<div class="hub-stock-item">' + svg("layers5", "icon-sm") + '<div><div class="hub-stock-n">' + tr.stock5 + '</div><div class="hub-stock-l">5-laags</div></div></div>' +
         '<div class="hub-stock-item">' + svg("layers4", "icon-sm") + '<div><div class="hub-stock-n">' + tr.stock4 + '</div><div class="hub-stock-l">4-laags</div></div></div>' +
       "</div></div>";
-    var pendelsBody = stockBar + '<div class="pen-list">' + pendelList + "</div>";
 
-    // ----- PENDELCONTROL (tellijst) -----
+    // ----- Telling (tellijst) -----
     var pcRows = S.getPCRows(c.h, c.d, c.dd), pcSt = S.pcStats(c.h, c.d, c.dd);
     function pcCounter(idx, field, val) {
       return '<div class="pc-ctrl">' + (canPC ? '<button class="tro-btn sm" data-pclayer="' + idx + "|" + field + '|-1">&minus;</button>' : "") +
@@ -2210,18 +2212,21 @@
       '<textarea id="pcSheet" rows="4" class="kz-sheet" placeholder="Plak hier de tellijst…"></textarea>' +
       '<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"><button class="btn btn-primary btn-sm" id="pcImportBtn">' + svg("check", "icon-sm") + "Importeren</button>" +
       '<button class="btn btn-ghost btn-sm" id="pcClearBtn">' + svg("trash", "icon-sm") + "Leegmaken</button></div></div>" : "";
-    var pcBody = pcImportBlock + opProgress(pcSt.done, pcSt.total, "vakken gecontroleerd") + pcTable;
+    var pcLayout = '<div class="pc-layout">' +
+      '<div class="pc-col"><div class="pc-col-h">' + svg("van", "icon-sm") + "Pendels — retour</div><div class=\"pen-list\">" + pendelList + "</div></div>" +
+      '<div class="pc-col"><div class="pc-col-h">' + svg("clipboard", "icon-sm") + "Telling</div>" + opProgress(pcSt.done, pcSt.total, "vakken gecontroleerd") + pcTable + "</div>" +
+      "</div>";
+    var pcBody = stockBar + pcLayout + pcImportBlock;
 
-    var body = state.lcTab === "pendels" ? pendelsBody : state.lcTab === "pc" ? pcBody : ladenBody;
+    var body = state.lcTab === "pc" ? pcBody : ladenBody;
     el("app").innerHTML = moduleShell("Laadproces", windowLockNote(u, "lc", c) + seg + body);
     bindModuleHeader(renderLC);
     document.querySelectorAll("[data-lctab]").forEach(function (b) { b.addEventListener("click", function () { state.lcTab = b.getAttribute("data-lctab"); renderLC(); }); });
     if (state.lcTab === "laden") {
       document.querySelectorAll("[data-lcbus]").forEach(function (inp) { inp.addEventListener("change", function () { try { S.lcSetBus(c.h, c.d, c.dd, parseInt(inp.getAttribute("data-lcbus"), 10), inp.value); } catch (e) { toast(e.message, "err"); } }); });
       document.querySelectorAll("[data-lcgel]").forEach(function (cb) { cb.addEventListener("change", function () { try { S.lcToggleGeladen(c.h, c.d, c.dd, parseInt(cb.getAttribute("data-lcgel"), 10)); renderLC(); } catch (e) { toast(e.message, "err"); } }); });
-    } else if (state.lcTab === "pendels") {
-      document.querySelectorAll("[data-penbump]").forEach(function (b) { b.addEventListener("click", function () { var p = b.getAttribute("data-penbump").split("|"); try { S.pendelBump(c.h, c.d, c.dd, p[0], p[1], parseInt(p[2], 10)); renderLC(); } catch (e) { toast(e.message, "err"); } }); });
     } else if (state.lcTab === "pc") {
+      document.querySelectorAll("[data-penbump]").forEach(function (b) { b.addEventListener("click", function () { var p = b.getAttribute("data-penbump").split("|"); try { S.pendelBump(c.h, c.d, c.dd, p[0], p[1], parseInt(p[2], 10)); renderLC(); } catch (e) { toast(e.message, "err"); } }); });
       var pib = el("pcImportBtn"); if (pib) pib.addEventListener("click", function () { try { var n = S.pcImport(c.h, c.d, c.dd, el("pcSheet").value); toast(n + " regels geïmporteerd.", "ok"); renderLC(); } catch (e) { toast(e.message, "err"); } });
       var pcb = el("pcClearBtn"); if (pcb) pcb.addEventListener("click", function () { try { S.pcReset(c.h, c.d, c.dd); renderLC(); } catch (e) { toast(e.message, "err"); } });
       document.querySelectorAll("[data-pcchk]").forEach(function (cb) { cb.addEventListener("change", function () { try { S.pcToggle(c.h, c.d, c.dd, parseInt(cb.getAttribute("data-pcchk"), 10)); renderLC(); } catch (e) { toast(e.message, "err"); } }); });
