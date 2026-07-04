@@ -999,12 +999,39 @@
     if (field !== "stock4" && field !== "stock5") return;
     var s = markCounted(hubId, datum); s[field] = Math.max(0, parseInt(value, 10) || 0); save();
   }
-  // Trolley-telling met +/- (kwaliteit tijdens/na de shift, of senior+). Past de doorlopende hub-voorraad aan.
+  // Trolley-voorraad corrigeren met +/- — alleen binnendienst (senior+). Past de doorlopende hub-voorraad aan.
   function trolleyBump(hubId, datum, dagdeel, field, delta) {
-    if (!(canOpShift(currentUser(), hubId, datum, dagdeel, "kwaliteit", "Kwaliteit") || isSetup(currentUser()))) throw new Error("Je bent deze shift niet aangewezen voor kwaliteit.");
+    if (!isSetup(currentUser())) throw new Error("Alleen binnendienst (senior+) mag de voorraad aanpassen.");
     if (isFutureDay(datum)) throw new Error("Je kunt trolleys niet vooruit tellen — alleen op de dag zelf.");
     if (field !== "stock4" && field !== "stock5") return;
     var s = markCounted(hubId, datum); s[field] = Math.max(0, (s[field] || 0) + (parseInt(delta, 10) || 0)); save();
+  }
+
+  /* ----- Kwaliteit telt de trolleys (aparte controle-telling, past de voorraad NIET aan) -----
+     Kwaliteit ziet de systeemvoorraad alleen-lezen en telt er zelf onder; een afwijking meldt de senior. */
+  function qtelGet(hubId, datum, dagdeel) {
+    var t = getTrolley(hubId, datum, dagdeel);
+    if (!t.qtel) t.qtel = { c4: 0, c5: 0, at: null };
+    return t.qtel;
+  }
+  function qtelBump(hubId, datum, dagdeel, field, delta) {
+    if (!(canOpShift(currentUser(), hubId, datum, dagdeel, "kwaliteit", "Kwaliteit") || isSetup(currentUser()))) throw new Error("Je bent deze shift niet aangewezen voor kwaliteit.");
+    if (isFutureDay(datum)) throw new Error("Je kunt trolleys niet vooruit tellen — alleen op de dag zelf.");
+    if (field !== "c4" && field !== "c5") return;
+    var q = qtelGet(hubId, datum, dagdeel);
+    q[field] = Math.max(0, (q[field] || 0) + (parseInt(delta, 10) || 0));
+    q.at = now(); save();
+  }
+  function qtelReset(hubId, datum, dagdeel) {
+    if (!(canOpShift(currentUser(), hubId, datum, dagdeel, "kwaliteit", "Kwaliteit") || isSetup(currentUser()))) throw new Error("Geen rechten.");
+    var q = qtelGet(hubId, datum, dagdeel); q.c4 = 0; q.c5 = 0; q.at = null; save();
+  }
+  // Afwijking tussen de Kwaliteit-telling en de systeemvoorraad (voor de dashboard-melding aan de senior).
+  function qtelAfwijking(hubId, datum, dagdeel) {
+    var t = getTrolley(hubId, datum, dagdeel);
+    var q = t.qtel || { c4: 0, c5: 0, at: null };
+    var d4 = (q.c4 || 0) - (t.stock4 || 0), d5 = (q.c5 || 0) - (t.stock5 || 0);
+    return { counted: !!q.at, c4: q.c4 || 0, c5: q.c5 || 0, d4: d4, d5: d5, has: !!q.at && (d4 !== 0 || d5 !== 0) };
   }
 
   /* ----- LC (laden) ----- */
@@ -1171,6 +1198,7 @@
     setBusSteekproef: setBusSteekproef, steekproefDone: steekproefDone, steekproefStats: steekproefStats, steekproevenList: steekproevenList, recentGecontroleerdeBussen: recentGecontroleerdeBussen, busHeeftProbleem: busHeeftProbleem,
     getKwaliteit: getKwaliteit, vakSoort: vakSoort, setVakSoort: setVakSoort, emballageSet: emballageSet, emballageVakTotal: emballageVakTotal, emballageVakArr: emballageVakArr, clearEmbVak: clearEmbVak,
     getTrolley: getTrolley, addPendelPlan: addPendelPlan, removePendel: removePendel, pendelImport: pendelImport, pendelBump: pendelBump, trolleySetStock: trolleySetStock, trolleyBump: trolleyBump, recentPendels: recentPendels, komendePendels: komendePendels,
+    qtelGet: qtelGet, qtelBump: qtelBump, qtelReset: qtelReset, qtelAfwijking: qtelAfwijking,
     getLC: getLC, lcSetAantal: lcSetAantal, lcSetupVak: lcSetupVak, lcSetBus: lcSetBus, lcToggleGeladen: lcToggleGeladen, lcImportColumns: lcImportColumns, lcReset: lcReset, lcStats: lcStats, recentGeladenBussen: recentGeladenBussen,
     getPCRows: getPCRows, pcImport: pcImport, pcToggle: pcToggle, pcSetLayer: pcSetLayer, pcReset: pcReset, pcStats: pcStats, pcCanEdit: pcCanEdit,
     shiftsForHub: shiftsForHub, taskOffersForHub: taskOffersForHub, backupsForHub: backupsForHub, calloutsForHub: calloutsForHub,

@@ -1936,20 +1936,47 @@
     }).join("");
     var table = '<div class="panel" style="padding:0"><div class="table-scroll"><table class="table"><thead><tr><th>Vak</th><th>Wat mag erin</th><th>Emballage</th></tr></thead><tbody>' + rows + "</tbody></table></div></div>";
 
-    // Trolley-voorraad tellen met +/- (K3) — symbolen van het Laadproces-tab
+    // Trolley-voorraad (systeem, alleen-lezen voor Kwaliteit) + eigen controle-telling (D-kwal-tel)
     var tr = S.getTrolley(c.h, c.d, c.dd);
+    var q = S.qtelGet(c.h, c.d, c.dd);
+    var afw = S.qtelAfwijking(c.h, c.d, c.dd);
     var future = S.isFutureDay(c.d);            // vooruit tellen mag niet — alleen op de dag zelf
-    var canCount = canEdit && !future;
-    function counter(field, n) {
+    var canCount = canEdit && !future;                          // Kwaliteit-dienst mag tellen
+    var canAdjust = S.level(u) >= 3 && !state.viewOnly && !future; // alleen senior+ mag de voorraad corrigeren
+    function voorraadItem(field, n) {
       return '<div class="tro-counter"><div class="tro-lab">' + svg(n === 5 ? "layers5" : "layers4", "icon-sm") + n + "-laags</div>" +
         '<div class="tro-ctrl">' +
-          (canCount ? '<button class="tro-btn" data-troll="' + field + '|-1">&minus;</button>' : "") +
+          (canAdjust ? '<button class="tro-btn" data-troll="' + field + '|-1">&minus;</button>' : "") +
           '<span class="tro-val">' + (tr[field] || 0) + "</span>" +
-          (canCount ? '<button class="tro-btn" data-troll="' + field + '|1">+</button>' : "") +
+          (canAdjust ? '<button class="tro-btn" data-troll="' + field + '|1">+</button>' : "") +
         "</div></div>";
     }
+    function telItem(field, n) {
+      return '<div class="tro-counter"><div class="tro-lab">' + svg(n === 5 ? "layers5" : "layers4", "icon-sm") + n + "-laags</div>" +
+        '<div class="tro-ctrl">' +
+          (canCount ? '<button class="tro-btn" data-qtel="' + field + '|-1">&minus;</button>' : "") +
+          '<span class="tro-val">' + (q[field] || 0) + "</span>" +
+          (canCount ? '<button class="tro-btn" data-qtel="' + field + '|1">+</button>' : "") +
+        "</div>" +
+        (canCount ? '<button class="btn btn-ghost btn-sm tro-volvak" data-qtelvak="' + field + '">' + svg("plus", "icon-sm") + "Vol vak (14)</button>" : "") +
+        "</div>";
+    }
     var futureHint = future ? '<div class="alert" style="margin-bottom:12px">' + svg("calendar", "icon-sm") + " Dit is een toekomstige dag — trolleys tel je alleen op de dag zelf. De getoonde stand is de overdracht van de laatste telling." + "</div>" : "";
-    var trolleyPanel = panel("inbox", "Trolley-voorraad tellen", futureHint + '<div class="tro-row">' + counter("stock5", 5) + counter("stock4", 4) + "</div>");
+    var voorraadPanel = panel("inbox", "Trolley-voorraad (systeem)",
+      (canAdjust ? "" : '<div class="cellsub" style="margin-bottom:8px">Alleen-lezen — de voorraad wordt via het laadproces bijgehouden.</div>') +
+      '<div class="tro-row">' + voorraadItem("stock5", 5) + voorraadItem("stock4", 4) +
+        '<div class="tro-counter"><div class="tro-lab">Totaal</div><div class="tro-ctrl"><span class="tro-val">' + ((tr.stock4 || 0) + (tr.stock5 || 0)) + "</span></div></div>" +
+      "</div>");
+    function afwTxt(d) { return (d >= 0 ? "+" : "") + d; }
+    var afwLine = afw.counted ? (afw.has
+      ? '<div class="tro-afw err">' + svg("alertTri", "icon-sm") + "Afwijking t.o.v. de voorraad: " + afwTxt(afw.d5) + " (5-laags), " + afwTxt(afw.d4) + " (4-laags). De senior krijgt hiervan een melding.</div>"
+      : '<div class="tro-afw ok">' + svg("check", "icon-sm") + "Telling klopt met de systeemvoorraad.</div>") : "";
+    var telPanel = panel("clipboard", "Mijn telling (Kwaliteit)",
+      '<div class="tro-row">' + telItem("c5", 5) + telItem("c4", 4) +
+        '<div class="tro-counter"><div class="tro-lab">Totaal geteld</div><div class="tro-ctrl"><span class="tro-val">' + ((q.c4 || 0) + (q.c5 || 0)) + "</span></div></div>" +
+      "</div>" + afwLine +
+      (canCount ? '<div style="margin-top:8px"><button class="btn btn-ghost btn-sm" data-qtelreset>' + svg("trash", "icon-sm") + "Telling wissen</button></div>" : ""));
+    var trolleyPanel = futureHint + voorraadPanel + telPanel;
 
     if (!state.kwTab) state.kwTab = "vakken";
     var seg = '<div class="seg" style="margin-bottom:16px">' +
@@ -1961,6 +1988,9 @@
     document.querySelectorAll("[data-vaksoort]").forEach(function (s) { s.addEventListener("change", function () { try { S.setVakSoort(c.h, c.d, c.dd, parseInt(s.getAttribute("data-vaksoort"), 10), s.value); renderKwaliteit(); } catch (e) { toast(e.message, "err"); } }); });
     document.querySelectorAll("[data-embopen]").forEach(function (b) { b.addEventListener("click", function () { openEmbVak(c, parseInt(b.getAttribute("data-embopen"), 10)); }); });
     document.querySelectorAll("[data-troll]").forEach(function (b) { b.addEventListener("click", function () { var p = b.getAttribute("data-troll").split("|"); try { S.trolleyBump(c.h, c.d, c.dd, p[0], parseInt(p[1], 10)); renderKwaliteit(); } catch (e) { toast(e.message, "err"); } }); });
+    document.querySelectorAll("[data-qtel]").forEach(function (b) { b.addEventListener("click", function () { var p = b.getAttribute("data-qtel").split("|"); try { S.qtelBump(c.h, c.d, c.dd, p[0], parseInt(p[1], 10)); renderKwaliteit(); } catch (e) { toast(e.message, "err"); } }); });
+    document.querySelectorAll("[data-qtelvak]").forEach(function (b) { b.addEventListener("click", function () { try { S.qtelBump(c.h, c.d, c.dd, b.getAttribute("data-qtelvak"), 14); renderKwaliteit(); } catch (e) { toast(e.message, "err"); } }); });
+    var qr = el("app").querySelector("[data-qtelreset]"); if (qr) qr.addEventListener("click", function () { try { S.qtelReset(c.h, c.d, c.dd); renderKwaliteit(); } catch (e) { toast(e.message, "err"); } });
   }
   function openEmbVak(c, vak) {
     var canEdit = S.canOpShift(S.currentUser(), c.h, c.d, c.dd, "kwaliteit", "Kwaliteit");
@@ -2128,6 +2158,10 @@
     if (isPM && sc.total === 0) todo.push("Schadecontrolelijst is nog niet klaargezet");
     if (!diensten.lc.length || !diensten.schadecontrole.length || !diensten.kwaliteit.length) todo.push("Niet alle diensten zijn toegewezen");
     var todoBanner = todo.length ? '<div class="todo-banner">' + svg("alertTri", "icon-sm") + "<div><b>Nog te doen:</b> " + todo.map(esc).join(" · ") + ' <button class="link-btn" data-dashtab="klaarzetten">Naar klaarzetten</button></div></div>' : "";
+    // Melding aan de senior: Kwaliteit telde een afwijking t.o.v. de trolleyvoorraad
+    var qAfw = S.qtelAfwijking(c.h, c.d, c.dd);
+    function sgn(n) { return (n >= 0 ? "+" : "") + n; }
+    var afwBanner = qAfw.has ? '<div class="todo-banner afw-banner">' + svg("alertTri", "icon-sm") + "<div><b>Trolley-afwijking (Kwaliteit):</b> de telling wijkt af van de voorraad — " + sgn(qAfw.d5) + " (5-laags), " + sgn(qAfw.d4) + " (4-laags). Kwaliteit telde " + qAfw.c5 + " / " + qAfw.c4 + " (5/4-laags).</div></div>" : "";
 
     function tile(title, icon, color, inner, mod) {
       var view = mod ? '<button class="btn btn-sm dash-view" data-viewmod="' + mod + '">' + svg("arrowRight", "icon-sm") + "Bekijk voortgang</button>" : "";
@@ -2154,7 +2188,7 @@
         return "<tr><td class=\"cellname\">Bus " + esc(b.bus || "?") + '</td><td data-th="Naam">' + esc(b.steekproef.naam) + '</td><td data-th="hr-nummer">' + esc(b.steekproef.hr) + '</td><td data-th="Rit">' + esc(b.steekproef.rit || "-") + '</td><td data-th="Kratten">' + esc(b.steekproef.kratten) + "</td></tr>";
       }).join("") + "</tbody></table>" : '<div class="cellsub" style="padding:12px">Nog geen steekproeven ingevuld.</div>';
     var spPanel = panel("clipboard", "Steekproeven schadecontrole", spList);
-    return todoBanner + grid + spPanel;
+    return todoBanner + afwBanner + grid + spPanel;
   }
 
   function dashKlaarzetten(c) {
