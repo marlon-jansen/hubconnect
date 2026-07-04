@@ -778,21 +778,48 @@
     if (soortId !== "emb5") delete k.emballage[vak]; // alleen emballage-vakken worden geteld
     save();
   }
+  // Emballage-voorraad per (hub + vak): DOORLOPEND over alle dagen/shifts (AM/PM), blijft staan
+  // tot de binnendienst het vak leeghaalt. Opgeslagen onder een gereserveerde kwaliteit-sleutel
+  // `hub|__STOCK__|__STOCK__` zodat de bestaande kwaliteit-tabel het persisteert (geen serverwijziging).
+  // Eenmalige migratie: overnemen van de meest recente per-shift emballage-telling van deze hub.
+  var EMB_STOCK = "__STOCK__";
+  function embStockHub(hubId) {
+    if (!db.kwaliteit) db.kwaliteit = {};
+    var sk = hubId + "|" + EMB_STOCK + "|" + EMB_STOCK;
+    if (!db.kwaliteit[sk]) {
+      var ent = { emballage: {}, soort: {} };
+      var best = null, bestOrd = "";
+      Object.keys(db.kwaliteit).forEach(function (kk) {
+        var p = kk.split("|"); if (p[0] !== hubId || p[1] === EMB_STOCK) return;
+        var e = db.kwaliteit[kk] && db.kwaliteit[kk].emballage;
+        if (!e || !Object.keys(e).length) return;
+        var ord = p[1] + (p[2] === "AM" ? "0" : "1");
+        if (ord > bestOrd) { bestOrd = ord; best = e; }
+      });
+      if (best) ent.emballage = JSON.parse(JSON.stringify(best));
+      db.kwaliteit[sk] = ent;
+    }
+    return db.kwaliteit[sk].emballage;
+  }
+  function embVakArr(hubId, vak) {
+    var h = embStockHub(hubId);
+    if (!h[vak]) { h[vak] = []; for (var i = 0; i < EMB_TROLLEYS; i++) h[vak].push(0); }
+    return h[vak];
+  }
+  function emballageVakArr(hubId, vak) { return embStockHub(hubId)[vak] || []; }
   function emballageSet(hubId, datum, dagdeel, vak, idx, value) {
     if (!canOpShift(currentUser(), hubId, datum, dagdeel, "kwaliteit", "Kwaliteit")) throw new Error("Je bent deze shift niet aangewezen voor kwaliteit.");
-    var k = getKwaliteit(hubId, datum, dagdeel);
-    if (vakSoortOf(k, vak) !== "emb5") throw new Error("Dit vak is niet ingesteld op emballage.");
-    if (!k.emballage[vak]) { k.emballage[vak] = []; for (var i = 0; i < EMB_TROLLEYS; i++) k.emballage[vak].push(0); }
-    k.emballage[vak][idx] = Math.max(0, parseInt(value, 10) || 0); save();
+    if (vakSoortOf(getKwaliteit(hubId, datum, dagdeel), vak) !== "emb5") throw new Error("Dit vak is niet ingesteld op emballage.");
+    var arr = embVakArr(hubId, vak);
+    arr[idx] = Math.max(0, parseInt(value, 10) || 0); save();
   }
   function emballageVakTotal(hubId, datum, dagdeel, vak) {
-    var arr = getKwaliteit(hubId, datum, dagdeel).emballage[vak] || [];
-    return arr.reduce(function (a, b) { return a + (b || 0); }, 0);
+    return (embStockHub(hubId)[vak] || []).reduce(function (a, b) { return a + (b || 0); }, 0);
   }
   // Binnendienst kan een emballagevak leeghalen (staat los van de trolley-telling).
   function clearEmbVak(hubId, datum, dagdeel, vak) {
     if (!isSetup(currentUser())) throw new Error("Alleen binnendienst (senior+) mag een vak leeghalen.");
-    var k = getKwaliteit(hubId, datum, dagdeel); delete k.emballage[vak]; save();
+    delete embStockHub(hubId)[vak]; save();
   }
 
   /* ----- Trolley-voorraad: ÉÉN doorlopende voorraad per hub (loopt door tussen dagdelen én dagen) ----- */
@@ -1058,7 +1085,7 @@
     getDiensten: getDiensten, setDienst: setDienst, importSheet: importSheet,
     getSchade: getSchade, schadeImportColumns: schadeImportColumns, schadeAddBus: schadeAddBus, schadeToggle: schadeToggle, schadeSetDock: schadeSetDock, schadeSetOpmerking: schadeSetOpmerking, schadeRemove: schadeRemove, schadeReset: schadeReset, schadeStats: schadeStats,
     setBusSteekproef: setBusSteekproef, steekproefDone: steekproefDone, steekproefStats: steekproefStats, steekproevenList: steekproevenList, recentGecontroleerdeBussen: recentGecontroleerdeBussen, busHeeftProbleem: busHeeftProbleem,
-    getKwaliteit: getKwaliteit, vakSoort: vakSoort, setVakSoort: setVakSoort, emballageSet: emballageSet, emballageVakTotal: emballageVakTotal, clearEmbVak: clearEmbVak,
+    getKwaliteit: getKwaliteit, vakSoort: vakSoort, setVakSoort: setVakSoort, emballageSet: emballageSet, emballageVakTotal: emballageVakTotal, emballageVakArr: emballageVakArr, clearEmbVak: clearEmbVak,
     getTrolley: getTrolley, addPendelPlan: addPendelPlan, removePendel: removePendel, pendelBump: pendelBump, trolleySetStock: trolleySetStock, trolleyBump: trolleyBump, recentPendels: recentPendels, komendePendels: komendePendels,
     getLC: getLC, lcSetAantal: lcSetAantal, lcSetupVak: lcSetupVak, lcSetBus: lcSetBus, lcToggleGeladen: lcToggleGeladen, lcImportColumns: lcImportColumns, lcReset: lcReset, lcStats: lcStats, recentGeladenBussen: recentGeladenBussen,
     shiftsForHub: shiftsForHub, taskOffersForHub: taskOffersForHub, backupsForHub: backupsForHub, calloutsForHub: calloutsForHub,

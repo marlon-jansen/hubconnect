@@ -1964,7 +1964,7 @@
   }
   function openEmbVak(c, vak) {
     var canEdit = S.canOpShift(S.currentUser(), c.h, c.d, c.dd, "kwaliteit", "Kwaliteit");
-    var arr = S.getKwaliteit(c.h, c.d, c.dd).emballage[vak] || [];
+    var arr = S.emballageVakArr(c.h, vak) || [];
     var trolleys = "";
     for (var t = 0; t < S.EMB_TROLLEYS; t++) {
       trolleys += '<div class="emb-trolley"><div class="emb-tnr">Trolley ' + (t + 1) + "</div>" +
