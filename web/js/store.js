@@ -766,23 +766,54 @@
   function newBus(naam, bus, kenteken) { return { id: uid("bus"), naam: (naam || "").trim(), bus: (bus || "").trim(), kenteken: (kenteken || "").trim(), dock: "", opmerking: "", gecontroleerd: false, mist_tolkrol: false, mist_kabels: false, mist_doekjes: false, steekproef: null }; }
   // Probleembus: er mist iets bij de schadecontrole (voor Bussenbeheer).
   function busHeeftProbleem(b) { return !!(b.mist_tolkrol || b.mist_kabels || b.mist_doekjes); }
+
+  /* ----- Doorlopende gebreken per bus -----
+     Een ontbrekend onderdeel blijft per (hub + busnummer) openstaan op volgende dagen/shifts,
+     tot de schadecontrole het in een latere shift als opgelost invoert. Opgeslagen in de
+     kwaliteit-tabel onder sentinel `hub|__GEBREKEN__|__GEBREKEN__` (emballage-JSONB), zodat het
+     zonder serverwijziging persisteert. */
+  var MIST_FIELDS = ["mist_tolkrol", "mist_kabels", "mist_doekjes"];
+  function gebrekenStore(hubId) {
+    if (!db.kwaliteit) db.kwaliteit = {};
+    var k = hubId + "|__GEBREKEN__|__GEBREKEN__";
+    if (!db.kwaliteit[k] || !db.kwaliteit[k].emballage) db.kwaliteit[k] = { emballage: {}, soort: {} };
+    return db.kwaliteit[k].emballage; // map: busnummer -> { mist_tolkrol, mist_kabels, mist_doekjes, updatedAt }
+  }
+  function readGebrek(hubId, busnr) {
+    var b = (busnr || "").trim(), g = b && gebrekenStore(hubId)[b];
+    return { mist_tolkrol: !!(g && g.mist_tolkrol), mist_kabels: !!(g && g.mist_kabels), mist_doekjes: !!(g && g.mist_doekjes) };
+  }
+  function setGebrek(hubId, busnr, field, val) {
+    var b = (busnr || "").trim(); if (!b || MIST_FIELDS.indexOf(field) === -1) return;
+    var m = gebrekenStore(hubId);
+    if (!m[b]) m[b] = { mist_tolkrol: false, mist_kabels: false, mist_doekjes: false, updatedAt: null };
+    m[b][field] = !!val; m[b].updatedAt = now();
+  }
+  // Nieuwe bus erft openstaande gebreken van hetzelfde busnummer (doorloop naar volgende dagen).
+  function applyGebreken(hubId, bus) {
+    if (!bus || !bus.bus) return bus;
+    var g = readGebrek(hubId, bus.bus);
+    bus.mist_tolkrol = g.mist_tolkrol; bus.mist_kabels = g.mist_kabels; bus.mist_doekjes = g.mist_doekjes;
+    return bus;
+  }
   function schadeImportColumns(hubId, datum, dagdeel, busText, kentekenText, naamText) {
     if (!isSetup(currentUser())) throw new Error("Alleen binnendienst (senior+) mag importeren.");
     var s = getSchade(hubId, datum, dagdeel);
     var bus = splitLines(busText), kent = splitLines(kentekenText), naam = splitLines(naamText);
     var n = Math.max(bus.length, kent.length, naam.length);
-    for (var i = 0; i < n; i++) { if (!(bus[i] || kent[i] || naam[i])) continue; s.buses.push(newBus(naam[i], bus[i], kent[i])); }
+    for (var i = 0; i < n; i++) { if (!(bus[i] || kent[i] || naam[i])) continue; s.buses.push(applyGebreken(hubId, newBus(naam[i], bus[i], kent[i]))); }
     save();
   }
   function schadeAddBus(hubId, datum, dagdeel, naam, bus, kenteken) {
     if (!isSetup(currentUser())) throw new Error("Alleen binnendienst (senior+) mag bussen toevoegen.");
-    getSchade(hubId, datum, dagdeel).buses.push(newBus(naam, bus, kenteken)); save();
+    getSchade(hubId, datum, dagdeel).buses.push(applyGebreken(hubId, newBus(naam, bus, kenteken))); save();
   }
   function schadeToggle(hubId, datum, dagdeel, busId, field) {
     if (!canOpShift(currentUser(), hubId, datum, dagdeel, "schadecontrole", "Schadecontrole")) throw new Error("Je bent deze shift niet aangewezen voor de schadecontrole.");
     var b = getSchade(hubId, datum, dagdeel).buses.filter(function (x) { return x.id === busId; })[0]; if (!b) return;
     b[field] = !b[field];
     if (field === "gecontroleerd") b.gecontroleerdAt = b.gecontroleerd ? now() : null;
+    else if (MIST_FIELDS.indexOf(field) !== -1) setGebrek(hubId, b.bus, field, b[field]); // ontbrekend onderdeel loopt door
     save();
   }
   // Recentst gecontroleerde bussen (voor het dashboard).
@@ -1180,7 +1211,7 @@
       var jbt = tokHas(opmText, "jbt"); // "JBT" in de opmerking(en) → hoeft niet geladen te worden
       if (!bus && !rit) continue; // lege regel
       // schade alleen voor regels met een echte bus
-      if (bus && doSchade) schade.buses.push(newBus(naam, bus, kent));
+      if (bus && doSchade) schade.buses.push(applyGebreken(hubId, newBus(naam, bus, kent)));
       // lc-vak — ritnummer is altijd aan het vaknummer gekoppeld, ook zonder bus
       if (doLaden) {
         while (lc.vakken.length < volg) lc.vakken.push(newVak(lc.vakken.length + 1));
