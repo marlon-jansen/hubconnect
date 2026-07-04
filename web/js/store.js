@@ -742,6 +742,27 @@
     var b = getSchade(hubId, datum, dagdeel).buses;
     return { done: b.filter(steekproefDone).length, total: 5 };
   }
+  // Welke shift wordt door DEZE shift gecontroleerd? PM controleert de AM van dezelfde dag; AM de PM van de vorige dag.
+  function vorigeShift(datum, dagdeel) {
+    if (dagdeel === "PM") return { datum: datum, dagdeel: "AM" };
+    var d = new Date(datum + "T00:00:00"); d.setDate(d.getDate() - 1);
+    var pd = d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2);
+    return { datum: pd, dagdeel: "PM" };
+  }
+  // Binnendienst controleert een steekproef tegen het Jumbo-systeem (aantal kratten).
+  function steekproefControleer(hubId, datum, dagdeel, busId, data) {
+    if (!isSetup(currentUser())) throw new Error("Alleen binnendienst (senior+) mag steekproeven controleren.");
+    var b = getSchade(hubId, datum, dagdeel).buses.filter(function (x) { return x.id === busId; })[0];
+    if (!b || !b.steekproef) return;
+    if (data.systeemKratten !== undefined) b.steekproef.systeemKratten = data.systeemKratten;
+    if (data.controleGedaan !== undefined) { b.steekproef.controleGedaan = !!data.controleGedaan; b.steekproef.controleAt = data.controleGedaan ? now() : null; }
+    save();
+  }
+  function steekproefControleStats(hubId, datum, dagdeel) {
+    var list = getSchade(hubId, datum, dagdeel).buses.filter(steekproefDone);
+    var done = list.filter(function (b) { return b.steekproef && b.steekproef.controleGedaan; }).length;
+    return { total: list.length, done: done };
+  }
   function newBus(naam, bus, kenteken) { return { id: uid("bus"), naam: (naam || "").trim(), bus: (bus || "").trim(), kenteken: (kenteken || "").trim(), dock: "", opmerking: "", gecontroleerd: false, mist_tolkrol: false, mist_kabels: false, mist_doekjes: false, steekproef: null }; }
   // Probleembus: er mist iets bij de schadecontrole (voor Bussenbeheer).
   function busHeeftProbleem(b) { return !!(b.mist_tolkrol || b.mist_kabels || b.mist_doekjes); }
@@ -1226,6 +1247,7 @@
     getDiensten: getDiensten, setDienst: setDienst, importSheet: importSheet,
     getSchade: getSchade, schadeImportColumns: schadeImportColumns, schadeAddBus: schadeAddBus, schadeToggle: schadeToggle, schadeSetDock: schadeSetDock, schadeSetOpmerking: schadeSetOpmerking, schadeRemove: schadeRemove, schadeReset: schadeReset, schadeStats: schadeStats,
     setBusSteekproef: setBusSteekproef, steekproefDone: steekproefDone, steekproefStats: steekproefStats, steekproevenList: steekproevenList, recentGecontroleerdeBussen: recentGecontroleerdeBussen, busHeeftProbleem: busHeeftProbleem,
+    vorigeShift: vorigeShift, steekproefControleer: steekproefControleer, steekproefControleStats: steekproefControleStats,
     getKwaliteit: getKwaliteit, vakSoort: vakSoort, setVakSoort: setVakSoort, emballageSet: emballageSet, emballageVakTotal: emballageVakTotal, emballageVakArr: emballageVakArr, clearEmbVak: clearEmbVak,
     getTrolley: getTrolley, addPendelPlan: addPendelPlan, removePendel: removePendel, pendelImport: pendelImport, pendelBump: pendelBump, trolleySetStock: trolleySetStock, trolleyBump: trolleyBump, recentPendels: recentPendels, komendePendels: komendePendels,
     qtelGet: qtelGet, qtelBump: qtelBump, qtelReset: qtelReset, qtelAfwijking: qtelAfwijking,
