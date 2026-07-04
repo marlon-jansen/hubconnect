@@ -393,6 +393,7 @@ main { max-width: 1100px; margin: 0 auto; padding: 22px 18px 80px; }
 
 @media (prefers-reduced-motion: reduce) {
   .l3 .rise { transition: none; opacity: 1; transform: none; }
+  .live-dot::after { animation: none; }
 }
 
 /* ----- Auth back ----- */
@@ -740,6 +741,11 @@ main { max-width: 1100px; margin: 0 auto; padding: 22px 18px 80px; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .live-badge.vo-badge { color: #446; background: #e8ebf5; }
 .live-badge.vo-badge .icon { animation: none; }
+/* LIVE-indicator: rood pulserend bolletje + LIVE (header, elke pagina) */
+.live-ind { display: inline-flex; align-items: center; gap: 7px; font-weight: 900; font-size: 13px; letter-spacing: .1em; color: #f5333f; flex: 0 0 auto; }
+.live-dot { position: relative; width: 11px; height: 11px; border-radius: 50%; background: #f5333f; flex: 0 0 auto; }
+.live-dot::after { content: ""; position: absolute; inset: 0; border-radius: 50%; background: #f5333f; animation: livePulse 1.6s ease-out infinite; }
+@keyframes livePulse { 0% { transform: scale(1); opacity: .65; } 100% { transform: scale(2.8); opacity: 0; } }
 .vo-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; background: #eef1f8; border: 1px solid #d5daec; border-radius: 12px; padding: 8px 12px; margin: 0 0 14px; }
 .dash-view { margin-top: auto; width: 100%; justify-content: center; background: var(--jumbo-yellow); color: var(--ink); border: 0; font-weight: 800; padding-top: 10px; padding-bottom: 10px; }
 .dash-view:hover { background: var(--jumbo-yellow-dark, #e0a800); }
