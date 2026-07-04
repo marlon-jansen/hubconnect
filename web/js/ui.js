@@ -2185,7 +2185,7 @@
         (meta.length ? '<div class="cellsub" style="margin:-2px 0 8px">' + meta.join(" · ") + "</div>" : "") +
         '<div class="pen-grid">' + retLay(p, 4) + retLay(p, 5) + "</div></div>";
     }).join("") : '<div class="cellsub" style="padding:12px">De binnendienst zet de pendels klaar via het dashboard.</div>';
-    var stockBar = '<div class="hub-stock"><div class="hub-stock-h">' + svg("inbox", "icon-sm") + "Op de hub (gesynchroniseerd met de telling)</div>" +
+    var stockBar = '<div class="hub-stock"><div class="hub-stock-h">' + svg("inbox", "icon-sm") + "Op de hub</div>" +
       '<div class="hub-stock-grid">' +
         '<div class="hub-stock-item">' + svg("layers5", "icon-sm") + '<div><div class="hub-stock-n">' + tr.stock5 + '</div><div class="hub-stock-l">5-laags</div></div></div>' +
         '<div class="hub-stock-item">' + svg("layers4", "icon-sm") + '<div><div class="hub-stock-n">' + tr.stock4 + '</div><div class="hub-stock-l">4-laags</div></div></div>' +
@@ -2207,7 +2207,7 @@
     var pcTot = pcSt.tot;
     var pcFoot = pcRows.length ? '<tr class="pc-tot"><td class="cellname">Totaal</td><td data-th="Trolleys"><b>' + pcTot.trolleys + '</b></td><td data-th="Kratten"><b>' + pcTot.kratten + '</b></td><td data-th="Vers"><b>' + pcTot.versb + '</b></td><td data-th="Diepvries"><b>' + pcTot.dvboxen + '</b></td><td data-th="XL"><b>' + pcTot.xl + '</b></td><td data-th="4-laags"><b>' + pcTot.l4 + '</b></td><td data-th="5-laags"><b>' + pcTot.l5 + "</b></td><td></td></tr>" : "";
     var pcTable = '<div class="panel" style="padding:0"><div class="table-scroll"><table class="table pc-table"><thead><tr><th>Vak</th><th>Trolleys</th><th>Kratten</th><th>Vers</th><th>Diepvries</th><th>XL</th><th>4-laags</th><th>5-laags</th><th>Klaar</th></tr></thead><tbody>' + pcBodyRows + pcFoot + "</tbody></table></div></div>";
-    var pcImportBlock = canPC ? '<div class="kz-section" style="margin-bottom:14px"><div class="kz-h">' + svg("download", "icon-sm") + "Tellijst importeren</div>" +
+    var pcImportBlock = S.isSetup(u) && !state.viewOnly ? '<div class="kz-section" style="margin-bottom:14px"><div class="kz-h">' + svg("download", "icon-sm") + "Tellijst importeren</div>" +
       '<p class="cellsub" style="margin:0 0 8px">Plak de debriefing-tellijst — kolommen SUBRITNR · TROLLEYS · KRATTEN · VERSBOXEN · DIEPVRIESBOXEN · KWGR.</p>' +
       '<textarea id="pcSheet" rows="4" class="kz-sheet" placeholder="Plak hier de tellijst…"></textarea>' +
       '<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"><button class="btn btn-primary btn-sm" id="pcImportBtn">' + svg("check", "icon-sm") + "Importeren</button>" +
