@@ -2065,11 +2065,21 @@
     var afwLine = afw.counted ? (afw.has
       ? '<div class="tro-afw err">' + svg("alertTri", "icon-sm") + "Afwijking t.o.v. de voorraad: " + afwTxt(afw.d5) + " (5-laags), " + afwTxt(afw.d4) + " (4-laags). De senior krijgt hiervan een melding.</div>"
       : '<div class="tro-afw ok">' + svg("check", "icon-sm") + "Telling klopt met de systeemvoorraad.</div>") : "";
+    var voltooiRow = "";
+    if (canCount) {
+      voltooiRow = '<div class="tro-voltooid">' +
+        (q.voltooid
+          ? '<span class="badge st-goedgekeurd">' + svg("check", "icon-sm") + "Telling voltooid</span>" +
+            '<button class="btn btn-ghost btn-sm" data-qtelheropen>' + svg("refresh", "icon-sm") + "Heropenen</button>"
+          : '<button class="btn btn-primary btn-sm" data-qtelvoltooi>' + svg("check", "icon-sm") + "Telling voltooien</button>") +
+        '<button class="btn btn-ghost btn-sm" data-qtelreset>' + svg("trash", "icon-sm") + "Telling wissen</button></div>";
+    } else if (q.voltooid) {
+      voltooiRow = '<div class="tro-voltooid"><span class="badge st-goedgekeurd">' + svg("check", "icon-sm") + "Telling voltooid</span></div>";
+    }
     var telPanel = panel("clipboard", "Mijn telling (Kwaliteit)",
       '<div class="tro-row">' + telItem("c5", 5) + telItem("c4", 4) +
         '<div class="tro-counter"><div class="tro-lab">Totaal geteld</div><div class="tro-ctrl"><span class="tro-val">' + ((q.c4 || 0) + (q.c5 || 0)) + "</span></div></div>" +
-      "</div>" + afwLine +
-      (canCount ? '<div style="margin-top:8px"><button class="btn btn-ghost btn-sm" data-qtelreset>' + svg("trash", "icon-sm") + "Telling wissen</button></div>" : ""));
+      "</div>" + afwLine + voltooiRow);
     var trolleyPanel = futureHint + voorraadPanel + telPanel;
 
     if (!state.kwTab) state.kwTab = "vakken";
@@ -2085,6 +2095,8 @@
     document.querySelectorAll("[data-qtel]").forEach(function (b) { b.addEventListener("click", function () { var p = b.getAttribute("data-qtel").split("|"); try { S.qtelBump(c.h, c.d, c.dd, p[0], parseInt(p[1], 10)); renderKwaliteit(); } catch (e) { toast(e.message, "err"); } }); });
     document.querySelectorAll("[data-qtelvak]").forEach(function (b) { b.addEventListener("click", function () { try { S.qtelBump(c.h, c.d, c.dd, b.getAttribute("data-qtelvak"), 14); renderKwaliteit(); } catch (e) { toast(e.message, "err"); } }); });
     var qr = el("app").querySelector("[data-qtelreset]"); if (qr) qr.addEventListener("click", function () { try { S.qtelReset(c.h, c.d, c.dd); renderKwaliteit(); } catch (e) { toast(e.message, "err"); } });
+    var qv = el("app").querySelector("[data-qtelvoltooi]"); if (qv) qv.addEventListener("click", function () { try { S.qtelVoltooien(c.h, c.d, c.dd, true); toast("Telling voltooid.", "ok"); renderKwaliteit(); } catch (e) { toast(e.message, "err"); } });
+    var qh = el("app").querySelector("[data-qtelheropen]"); if (qh) qh.addEventListener("click", function () { try { S.qtelVoltooien(c.h, c.d, c.dd, false); toast("Telling heropend.", "ok"); renderKwaliteit(); } catch (e) { toast(e.message, "err"); } });
   }
   function openEmbVak(c, vak) {
     var canEdit = S.canOpShift(S.currentUser(), c.h, c.d, c.dd, "kwaliteit", "Kwaliteit");
@@ -2283,7 +2295,12 @@
       tile("Laden", "inbox", "orange", '<div class="dash-row">' + ring(lcS.pct, "o") + '<div><div class="dash-big">' + lcS.done + " / " + lcS.used + '</div><div class="cellsub">vakken geladen</div></div></div>' + '<div class="dash-recent-title">Recent geladen</div>' + recentGeladen, "lc") +
       tile("Schadecontrole", "shield", "green", '<div class="dash-row">' + ring(sc.pct, "g") + '<div><div class="dash-big">' + sc.done + " / " + sc.total + '</div><div class="cellsub">bussen gecontroleerd</div></div></div>' + '<div class="dash-recent-title">Recent gecontroleerd</div>' + recentSchade, "schadecontrole") +
       tile("Trolley-voorraad", "inbox", "blue", '<div class="dash-stocks"><div><div class="dash-big">' + tr.stock4 + '</div><div class="cellsub">4-laags</div></div><div><div class="dash-big">' + tr.stock5 + '</div><div class="cellsub">5-laags</div></div></div>' + '<div class="dash-recent-title">Volgende pendels</div>' + komendePendels, "lc") +
-      tile("Emballage per vak", "tag", "purple", vakTotals ? '<div class="emb-vaktots">' + vakTotals + "</div>" : '<div class="cellsub">Nog niets geteld</div>', "kwaliteit") +
+      tile("Kwaliteit", "award", "purple",
+        (qAfw.voltooid
+          ? '<div class="dash-telstatus ok">' + svg("check", "icon-sm") + "Trolley-telling voltooid</div>"
+          : '<div class="dash-telstatus">' + svg("clock", "icon-sm") + "Trolley-telling nog niet voltooid</div>") +
+        '<div class="dash-recent-title">Emballage per vak</div>' +
+        (vakTotals ? '<div class="emb-vaktots">' + vakTotals + "</div>" : '<div class="cellsub">Nog niets geteld</div>'), "kwaliteit") +
       "</div>";
     var spItems = S.steekproevenList(c.h, c.d, c.dd);
     var spList = spItems.length ? '<table class="table"><thead><tr><th>Bus</th><th>Naam</th><th>hr-nummer</th><th>Rit</th><th>Kratten</th></tr></thead><tbody>' +
