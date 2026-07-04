@@ -916,7 +916,7 @@
   function getPCRows(hubId, datum, dagdeel) { return pcStore(hubId, datum, dagdeel).rows; }
   function num(x) { var v = parseInt(String(x == null ? "" : x).replace(/[^0-9-]/g, ""), 10); return isNaN(v) ? 0 : Math.max(0, v); }
   function pcImport(hubId, datum, dagdeel, text) {
-    if (!pcCanEdit(currentUser(), hubId, datum, dagdeel)) throw new Error("Je bent deze shift niet aangewezen voor het laadproces.");
+    if (!isSetup(currentUser())) throw new Error("Alleen de binnendienst (senior+) mag de tellijst importeren.");
     var lines = (text || "").split(/\r?\n/).map(function (l) { return l.replace(/\s+$/, ""); }).filter(function (l) { return l.trim(); });
     if (!lines.length) throw new Error("Plak de tellijst.");
     function cells(l) { return l.indexOf("\t") !== -1 ? l.split("\t") : l.trim().split(/ {2,}|;|,/); }
@@ -950,7 +950,7 @@
     save();
   }
   function pcReset(hubId, datum, dagdeel) {
-    if (!pcCanEdit(currentUser(), hubId, datum, dagdeel)) throw new Error("Geen rechten.");
+    if (!isSetup(currentUser())) throw new Error("Alleen de binnendienst (senior+) mag de tellijst leegmaken.");
     pcStore(hubId, datum, dagdeel).rows = []; save();
   }
   function pcStats(hubId, datum, dagdeel) {
