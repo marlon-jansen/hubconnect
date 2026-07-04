@@ -1097,7 +1097,7 @@
      Kwaliteit ziet de systeemvoorraad alleen-lezen en telt er zelf onder; een afwijking meldt de senior. */
   function qtelGet(hubId, datum, dagdeel) {
     var t = getTrolley(hubId, datum, dagdeel);
-    if (!t.qtel) t.qtel = { c4: 0, c5: 0, at: null };
+    if (!t.qtel) t.qtel = { c4: 0, c5: 0, at: null, voltooid: false, voltooidAt: null };
     return t.qtel;
   }
   function qtelBump(hubId, datum, dagdeel, field, delta) {
@@ -1106,18 +1106,28 @@
     if (field !== "c4" && field !== "c5") return;
     var q = qtelGet(hubId, datum, dagdeel);
     q[field] = Math.max(0, (q[field] || 0) + (parseInt(delta, 10) || 0));
-    q.at = now(); save();
+    q.at = now(); q.voltooid = false; q.voltooidAt = null; // opnieuw tellen heropent de telling
+    save();
   }
   function qtelReset(hubId, datum, dagdeel) {
     if (!(canOpShift(currentUser(), hubId, datum, dagdeel, "kwaliteit", "Kwaliteit") || isSetup(currentUser()))) throw new Error("Geen rechten.");
-    var q = qtelGet(hubId, datum, dagdeel); q.c4 = 0; q.c5 = 0; q.at = null; save();
+    var q = qtelGet(hubId, datum, dagdeel); q.c4 = 0; q.c5 = 0; q.at = null; q.voltooid = false; q.voltooidAt = null; save();
+  }
+  // Kwaliteit markeert de trolley-telling als voltooid (of heropent 'm).
+  function qtelVoltooien(hubId, datum, dagdeel, val) {
+    if (!(canOpShift(currentUser(), hubId, datum, dagdeel, "kwaliteit", "Kwaliteit") || isSetup(currentUser()))) throw new Error("Je bent deze shift niet aangewezen voor kwaliteit.");
+    if (isFutureDay(datum)) throw new Error("Je kunt trolleys niet vooruit tellen — alleen op de dag zelf.");
+    var q = qtelGet(hubId, datum, dagdeel);
+    q.voltooid = val !== false; q.voltooidAt = q.voltooid ? now() : null;
+    if (q.voltooid && !q.at) q.at = now();
+    save();
   }
   // Afwijking tussen de Kwaliteit-telling en de systeemvoorraad (voor de dashboard-melding aan de senior).
   function qtelAfwijking(hubId, datum, dagdeel) {
     var t = getTrolley(hubId, datum, dagdeel);
     var q = t.qtel || { c4: 0, c5: 0, at: null };
     var d4 = (q.c4 || 0) - (t.stock4 || 0), d5 = (q.c5 || 0) - (t.stock5 || 0);
-    return { counted: !!q.at, c4: q.c4 || 0, c5: q.c5 || 0, d4: d4, d5: d5, has: !!q.at && (d4 !== 0 || d5 !== 0) };
+    return { counted: !!q.at, voltooid: !!q.voltooid, c4: q.c4 || 0, c5: q.c5 || 0, d4: d4, d5: d5, has: !!q.at && (d4 !== 0 || d5 !== 0) };
   }
 
   /* ----- LC (laden) ----- */
@@ -1286,7 +1296,7 @@
     vorigeShift: vorigeShift, steekproefControleer: steekproefControleer, steekproefControleStats: steekproefControleStats,
     getKwaliteit: getKwaliteit, vakSoort: vakSoort, setVakSoort: setVakSoort, emballageSet: emballageSet, emballageVakTotal: emballageVakTotal, emballageVakArr: emballageVakArr, clearEmbVak: clearEmbVak,
     getTrolley: getTrolley, addPendelPlan: addPendelPlan, removePendel: removePendel, pendelImport: pendelImport, pendelBump: pendelBump, trolleySetStock: trolleySetStock, trolleyBump: trolleyBump, recentPendels: recentPendels, komendePendels: komendePendels,
-    qtelGet: qtelGet, qtelBump: qtelBump, qtelReset: qtelReset, qtelAfwijking: qtelAfwijking,
+    qtelGet: qtelGet, qtelBump: qtelBump, qtelReset: qtelReset, qtelVoltooien: qtelVoltooien, qtelAfwijking: qtelAfwijking,
     getLC: getLC, lcSetAantal: lcSetAantal, lcSetupVak: lcSetupVak, lcSetBus: lcSetBus, lcToggleGeladen: lcToggleGeladen, lcImportColumns: lcImportColumns, lcReset: lcReset, lcStats: lcStats, recentGeladenBussen: recentGeladenBussen,
     getPCRows: getPCRows, pcImport: pcImport, pcToggle: pcToggle, pcSetLayer: pcSetLayer, pcReset: pcReset, pcStats: pcStats, pcCanEdit: pcCanEdit,
     shiftsForHub: shiftsForHub, taskOffersForHub: taskOffersForHub, backupsForHub: backupsForHub, calloutsForHub: calloutsForHub,
