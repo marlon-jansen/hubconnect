@@ -633,6 +633,11 @@ main { max-width: 1100px; margin: 0 auto; padding: 22px 18px 80px; }
 .tro-btn:hover { filter: brightness(1.25); }
 .tro-val { font-size: 28px; font-weight: 900; min-width: 44px; text-align: center; }
 .tro-btn.sm { width: 32px; height: 32px; border-radius: 9px; font-size: 18px; }
+.tro-volvak { margin-top: 10px; width: 100%; justify-content: center; }
+.tro-afw { display: flex; align-items: center; gap: 8px; margin-top: 12px; padding: 10px 12px; border-radius: 10px; font-weight: 700; font-size: 13px; }
+.tro-afw.err { background: var(--red-soft); color: var(--red); }
+.tro-afw.ok { background: var(--green-soft); color: var(--green); }
+.tro-afw .icon { flex: 0 0 auto; }
 /* Pendelcontrol tellijst */
 .pc-ctrl { display: inline-flex; align-items: center; gap: 8px; }
 .pc-val { font-size: 16px; font-weight: 900; min-width: 22px; text-align: center; }
@@ -870,6 +875,8 @@ main { max-width: 1100px; margin: 0 auto; padding: 22px 18px 80px; }
 .todo-banner { display: flex; gap: 10px; align-items: flex-start; background: var(--orange-soft); color: #92500c; border-radius: 12px; padding: 12px 14px; margin-bottom: 14px; font-weight: 600; font-size: 13.5px; }
 .todo-banner .icon { color: var(--orange); flex: 0 0 auto; margin-top: 1px; }
 .todo-banner b { font-weight: 800; }
+.todo-banner.afw-banner { background: var(--red-soft); color: var(--red); }
+.todo-banner.afw-banner .icon { color: var(--red); }
 .dienst-block { padding: 12px 16px; }
 .dienst-who { font-weight: 700; color: var(--jumbo-yellow-dark); margin-left: 6px; font-size: 13px; }
 
