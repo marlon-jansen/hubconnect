@@ -694,6 +694,21 @@
     var d = getDiensten(hubId, datum, dagdeel)[moduleKey] || [];
     return d.indexOf(u.id) !== -1; // alleen uitvoerrecht via expliciete dienst-toewijzing (dashboard), niet via de taak in personeelsbeheer
   }
+  // Tijdvensters per taak: PM begint op onderstaand tijdstip; ervoor is het AM.
+  var PM_START = { lc: 13 * 60, pc: 13 * 60, kwaliteit: 16 * 60, schadecontrole: 16 * 60 };
+  // Welke shift bij het (opnieuw) openen standaard actief is, op basis van de klok.
+  function defaultDagdeelFor(moduleKey) {
+    var d = new Date(), m = d.getHours() * 60 + d.getMinutes();
+    var s = PM_START[moduleKey] != null ? PM_START[moduleKey] : 13 * 60;
+    return m >= s ? "PM" : "AM";
+  }
+  // Mag de taakuitvoerder deze (datum, dagdeel) NU nog bewerken? Alleen vandaag én binnen het eigen tijdvenster.
+  function withinShiftWindow(moduleKey, datum, dagdeel) {
+    if (datum !== todayYmd()) return false;
+    var d = new Date(), m = d.getHours() * 60 + d.getMinutes();
+    var s = PM_START[moduleKey] != null ? PM_START[moduleKey] : 13 * 60;
+    return dagdeel === "PM" ? m >= s : m < s;
+  }
 
   /* ----- Schadecontrole ----- */
   function getSchade(hubId, datum, dagdeel) { if (!db.schade) db.schade = {}; var k = opKey(hubId, datum, dagdeel); if (!db.schade[k]) db.schade[k] = { buses: [], steekproeven: [] }; if (!db.schade[k].steekproeven) db.schade[k].steekproeven = []; return db.schade[k]; }
@@ -1193,6 +1208,7 @@
     planningFor: planningFor, planById: planById, setPlanCell: setPlanCell, addPlanRow: addPlanRow, removePlanRow: removePlanRow,
     reload: reload, DOCKS: DOCKS, EMB_TROLLEYS: EMB_TROLLEYS, EMB_VAKKEN: EMB_VAKKEN, VAK_NUMMERS: VAK_NUMMERS, VAK_SOORTEN: VAK_SOORTEN, vakSoortLabel: vakSoortLabel,
     isSunday: isSunday, dagdelenVoor: dagdelenVoor, isFutureDay: isFutureDay, todayYmd: todayYmd, isSetup: isSetup, canOpShift: canOpShift,
+    defaultDagdeelFor: defaultDagdeelFor, withinShiftWindow: withinShiftWindow,
     getDiensten: getDiensten, setDienst: setDienst, importSheet: importSheet,
     getSchade: getSchade, schadeImportColumns: schadeImportColumns, schadeAddBus: schadeAddBus, schadeToggle: schadeToggle, schadeSetDock: schadeSetDock, schadeSetOpmerking: schadeSetOpmerking, schadeRemove: schadeRemove, schadeReset: schadeReset, schadeStats: schadeStats,
     setBusSteekproef: setBusSteekproef, steekproefDone: steekproefDone, steekproefStats: steekproefStats, steekproevenList: steekproevenList, recentGecontroleerdeBussen: recentGecontroleerdeBussen, busHeeftProbleem: busHeeftProbleem,

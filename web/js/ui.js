@@ -1803,7 +1803,22 @@
   }
   function bindShiftBar(rer) {
     document.querySelectorAll("[data-opday]").forEach(function (b) { b.addEventListener("click", function () { var m = new Date(state.opDate + "T00:00:00"); m.setDate(m.getDate() + parseInt(b.getAttribute("data-opday"), 10)); state.opDate = ymd(m); ensureShiftState(); rer(); }); });
-    document.querySelectorAll("[data-opshift]").forEach(function (b) { b.addEventListener("click", function () { state.opShift = b.getAttribute("data-opshift"); rer(); }); });
+    document.querySelectorAll("[data-opshift]").forEach(function (b) { b.addEventListener("click", function () { state.opShift = b.getAttribute("data-opshift"); state.opShiftUserSet = true; rer(); }); });
+  }
+  // Zet bij het (opnieuw) openen van een taakmodule de shift-kiezer op de juiste shift voor die taak,
+  // op basis van de klok en de tijdvensters — tot de gebruiker zelf een shift kiest (opShiftUserSet).
+  function autoShift(moduleKey) {
+    if (!state.opDate) state.opDate = ymd(new Date());
+    if (!state.opShiftUserSet) state.opShift = S.defaultDagdeelFor(moduleKey);
+  }
+  // Mag de taakuitvoerder deze shift nu nog bewerken? (binnendienst/senior+ mag altijd.)
+  function opWindowOK(u, moduleKey, c) { return S.isSetup(u) || S.withinShiftWindow(moduleKey, c.d, c.dd); }
+  // Melding wanneer je wél de dienst hebt maar buiten het tijdvenster valt → alleen-lezen.
+  function windowLockNote(u, moduleKey, c) {
+    if (state.viewOnly || S.isSetup(u)) return "";
+    if (!S.canOpShift(u, c.h, c.d, c.dd, moduleKey)) return "";
+    if (S.withinShiftWindow(moduleKey, c.d, c.dd)) return "";
+    return '<div class="alert" style="margin-bottom:12px">' + svg("lock", "icon-sm") + " Buiten de tijd van deze " + c.dd + "-shift — je kunt nu alleen bekijken, niet meer aanpassen.</div>";
   }
   function opProgress(done, total, label) {
     var pct = total ? Math.round(done / total * 100) : 0;
@@ -1824,9 +1839,10 @@
 
   /* ---------- Schadecontrole (alleen afvinken) ---------- */
   function renderSchade() {
+    autoShift("schadecontrole");
     var c = ctx(), u = c.u;
     var s = S.getSchade(c.h, c.d, c.dd);
-    var canEdit = !state.viewOnly && S.canOpShift(u, c.h, c.d, c.dd, "schadecontrole", "Schadecontrole");
+    var canEdit = !state.viewOnly && opWindowOK(u, "schadecontrole", c) && S.canOpShift(u, c.h, c.d, c.dd, "schadecontrole", "Schadecontrole");
     var st = S.schadeStats(c.h, c.d, c.dd), spSt = S.steekproefStats(c.h, c.d, c.dd);
 
     function chkCell(b) {
@@ -1861,6 +1877,7 @@
       "<thead><tr><th>Bus</th><th>Gecontroleerd</th><th>Ontbreekt</th><th>Steekproef</th><th>Dock</th></tr></thead><tbody>" + rows + "</tbody></table></div></div>";
 
     el("app").innerHTML = moduleShell("Schadecontrole",
+      windowLockNote(u, "schadecontrole", c) +
       opProgress(st.done, st.total, "bussen gecontroleerd") +
       opProgress(spSt.done, spSt.total, "steekproeven gedaan") +
       table);
@@ -1925,8 +1942,9 @@
 
   /* ---------- Kwaliteit (vak-soort + emballage per vak) ---------- */
   function renderKwaliteit() {
+    autoShift("kwaliteit");
     var c = ctx(), u = c.u;
-    var canEdit = !state.viewOnly && S.canOpShift(u, c.h, c.d, c.dd, "kwaliteit", "Kwaliteit");
+    var canEdit = !state.viewOnly && opWindowOK(u, "kwaliteit", c) && S.canOpShift(u, c.h, c.d, c.dd, "kwaliteit", "Kwaliteit");
     function soortOpts(sel) { return S.VAK_SOORTEN.map(function (s) { return '<option value="' + s.id + '"' + (sel === s.id ? " selected" : "") + ">" + esc(s.label) + "</option>"; }).join(""); }
     var rows = S.VAK_NUMMERS.map(function (i) {
       var soort = S.vakSoort(c.h, c.d, c.dd, i), isEmb = soort === "emb5", tot = isEmb ? S.emballageVakTotal(c.h, c.d, c.dd, i) : 0;
@@ -1982,7 +2000,7 @@
     var seg = '<div class="seg" style="margin-bottom:16px">' +
       '<button data-kwtab="vakken" class="' + (state.kwTab === "vakken" ? "active" : "") + '">Vakken</button>' +
       '<button data-kwtab="trolleys" class="' + (state.kwTab === "trolleys" ? "active" : "") + '">Trolleys tellen</button></div>';
-    el("app").innerHTML = moduleShell("Kwaliteit", seg + (state.kwTab === "trolleys" ? trolleyPanel : table));
+    el("app").innerHTML = moduleShell("Kwaliteit", windowLockNote(u, "kwaliteit", c) + seg + (state.kwTab === "trolleys" ? trolleyPanel : table));
     bindModuleHeader(renderKwaliteit);
     document.querySelectorAll("[data-kwtab]").forEach(function (b) { b.addEventListener("click", function () { state.kwTab = b.getAttribute("data-kwtab"); renderKwaliteit(); }); });
     document.querySelectorAll("[data-vaksoort]").forEach(function (s) { s.addEventListener("change", function () { try { S.setVakSoort(c.h, c.d, c.dd, parseInt(s.getAttribute("data-vaksoort"), 10), s.value); renderKwaliteit(); } catch (e) { toast(e.message, "err"); } }); });
@@ -2033,14 +2051,15 @@
 
   /* ---------- LC (laden + pendels) ---------- */
   function renderLC() {
+    autoShift("lc");
     var c = ctx(), u = c.u;
     var lc = S.getLC(c.h, c.d, c.dd);
     var tr = S.getTrolley(c.h, c.d, c.dd);
-    var canLoad = !state.viewOnly && S.canOpShift(u, c.h, c.d, c.dd, "lc", "LC");
+    var canLoad = !state.viewOnly && opWindowOK(u, "lc", c) && S.canOpShift(u, c.h, c.d, c.dd, "lc", "LC");
     var canSetup = !state.viewOnly && S.level(u) >= 3;
     var isPM = c.dd === "PM";
     var st = S.lcStats(c.h, c.d, c.dd);
-    var canPC = !state.viewOnly && S.pcCanEdit(u, c.h, c.d, c.dd);
+    var canPC = !state.viewOnly && opWindowOK(u, "lc", c) && S.pcCanEdit(u, c.h, c.d, c.dd);
     if (!state.lcTab) state.lcTab = "laden";
     var seg = '<div class="seg" style="margin-bottom:16px;flex-wrap:wrap">' +
       '<button data-lctab="laden" class="' + (state.lcTab === "laden" ? "active" : "") + '">Laden</button>' +
@@ -2117,7 +2136,7 @@
     var pcBody = pcImportBlock + opProgress(pcSt.done, pcSt.total, "vakken gecontroleerd") + pcTable;
 
     var body = state.lcTab === "pendels" ? pendelsBody : state.lcTab === "pc" ? pcBody : ladenBody;
-    el("app").innerHTML = moduleShell("Laadproces", seg + body);
+    el("app").innerHTML = moduleShell("Laadproces", windowLockNote(u, "lc", c) + seg + body);
     bindModuleHeader(renderLC);
     document.querySelectorAll("[data-lctab]").forEach(function (b) { b.addEventListener("click", function () { state.lcTab = b.getAttribute("data-lctab"); renderLC(); }); });
     if (state.lcTab === "laden") {
