@@ -645,8 +645,9 @@ main { max-width: 1100px; margin: 0 auto; padding: 22px 18px 80px; }
 .tro-afw.ok { background: var(--green-soft); color: var(--green); }
 .tro-afw .icon { flex: 0 0 auto; }
 .tro-voltooid { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; align-items: center; }
-.dash-telstatus { display: flex; align-items: center; gap: 6px; font-weight: 800; font-size: 13px; margin-bottom: 10px; color: var(--muted); }
+.dash-telstatus { display: flex; align-items: center; gap: 6px; font-weight: 800; font-size: 13px; margin-bottom: 6px; color: var(--muted); }
 .dash-telstatus.ok, .dash-telstatus.ok .icon { color: var(--green-bright); }
+.dash-telstatus.err, .dash-telstatus.err .icon { color: var(--red); }
 /* Pendelcontrol tellijst */
 .pc-ctrl { display: inline-flex; align-items: center; gap: 8px; }
 .pc-val { font-size: 16px; font-weight: 900; min-width: 22px; text-align: center; }
@@ -715,6 +716,9 @@ main { max-width: 1100px; margin: 0 auto; padding: 22px 18px 80px; }
 .dash-row { display: flex; align-items: center; gap: 14px; }
 .dash-big { font-size: 28px; font-weight: 900; line-height: 1; }
 .dash-stocks { display: flex; gap: 22px; }
+.dash-troll { display: flex; flex-direction: column; gap: 4px; }
+.dash-troll-ctrl { display: inline-flex; align-items: center; gap: 8px; }
+.lc-filter { display: inline-flex; align-items: center; gap: 8px; margin-bottom: 12px; font-weight: 700; font-size: 13.5px; cursor: pointer; }
 .dash-ring { --p: 0; width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; flex: 0 0 auto;
   background: conic-gradient(var(--green-bright) calc(var(--p) * 1%), #eceae4 0); position: relative; }
 .dash-ring::before { content: ""; position: absolute; inset: 8px; background: #fff; border-radius: 50%; }
@@ -740,16 +744,13 @@ main { max-width: 1100px; margin: 0 auto; padding: 22px 18px 80px; }
 }
 
 /* ----- operationele modules ----- */
-.live-badge { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 800; color: var(--green-bright); background: #dff5e6; padding: 5px 11px; border-radius: 999px; }
-.live-badge .icon { animation: spin 4s linear infinite; }
-@keyframes spin { to { transform: rotate(360deg); } }
+.live-badge { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 800; color: var(--green-bright); background: #dff5e6; padding: 5px 11px; border-radius: 999px; }
 .live-badge.vo-badge { color: #446; background: #e8ebf5; }
 .live-badge.vo-badge .icon { animation: none; }
-/* LIVE-indicator: rood pulserend bolletje + LIVE (header, elke pagina) */
-.live-ind { display: inline-flex; align-items: center; gap: 7px; font-weight: 900; font-size: 13px; letter-spacing: .1em; color: #f5333f; flex: 0 0 auto; }
-.live-dot { position: relative; width: 11px; height: 11px; border-radius: 50%; background: #f5333f; flex: 0 0 auto; }
-.live-dot::after { content: ""; position: absolute; inset: 0; border-radius: 50%; background: #f5333f; animation: livePulse 1.6s ease-out infinite; }
-@keyframes livePulse { 0% { transform: scale(1); opacity: .65; } 100% { transform: scale(2.8); opacity: 0; } }
+/* pulserende groene bol in de live-badge */
+.live-dot { position: relative; width: 9px; height: 9px; border-radius: 50%; background: var(--green-bright); flex: 0 0 auto; }
+.live-dot::after { content: ""; position: absolute; inset: 0; border-radius: 50%; background: var(--green-bright); animation: livePulse 1.6s ease-out infinite; }
+@keyframes livePulse { 0% { transform: scale(1); opacity: .6; } 100% { transform: scale(2.8); opacity: 0; } }
 .vo-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; background: #eef1f8; border: 1px solid #d5daec; border-radius: 12px; padding: 8px 12px; margin: 0 0 14px; }
 .dash-view { margin-top: auto; width: 100%; justify-content: center; background: var(--jumbo-yellow); color: var(--ink); border: 0; font-weight: 800; padding-top: 10px; padding-bottom: 10px; }
 .dash-view:hover { background: var(--jumbo-yellow-dark, #e0a800); }
@@ -953,6 +954,11 @@ main { max-width: 1100px; margin: 0 auto; padding: 22px 18px 80px; }
   .table:not(.table-grid) td[colspan] { display: block; padding: 14px 0; text-align: left; }
   .table:not(.table-grid) td[colspan]::before { content: none; }
   .table-scroll:has(.table:not(.table-grid)) { overflow-x: visible; }
+  /* geladen/gecontroleerde (of no-load) kaartjes egaal kleuren: kleur op het hele kaartje, cellen transparant */
+  .table:not(.table-grid) tr.sc-done { background: var(--green-soft); border-color: #cfe8d8; }
+  .table:not(.table-grid) tr.lc-noload { background: #f2f2ef; }
+  .table:not(.table-grid) tr.sc-done td, .table:not(.table-grid) tr.lc-noload td { background: transparent; }
+  .table:not(.table-grid) tr.sc-done td, .table:not(.table-grid) tr.sc-done td::before { border-color: #d7ecdf; }
   .chk-box { width: 34px; height: 34px; }  /* groter aantikbaar */
   .plan-cell button { min-width: 52px; height: 34px; }
 
