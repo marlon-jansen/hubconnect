@@ -167,35 +167,88 @@
   /* ===================================================================
      LANDING
      =================================================================== */
-  // HubConnect-beeldmerk: geel afgerond vierkant met hub-en-spaken (zes nodes rond een kern).
+  // HubConnect-beeldmerk: geel afgerond vierkant met hub-en-spaken (kern + zes nodes).
+  // Detail: de kern en elke node hebben een open verbindingspunt waar de gradient
+  // doorheen schijnt — leest als knooppunten in een netwerk.
   function hubMark(h) {
     h = h || 40;
-    var c = 48, R = 26, nodes = "", lines = "";
+    var c = 48, R = 26, nodes = "", lines = "", ports = "";
     for (var i = 0; i < 6; i++) {
       var a = Math.PI / 180 * (i * 60 - 90);
       var x = Math.round((c + R * Math.cos(a)) * 10) / 10, y = Math.round((c + R * Math.sin(a)) * 10) / 10;
       lines += '<line x1="48" y1="48" x2="' + x + '" y2="' + y + '"/>';
-      nodes += '<circle cx="' + x + '" cy="' + y + '" r="5.2"/>';
+      nodes += '<circle cx="' + x + '" cy="' + y + '" r="6.2"/>';
+      ports += '<circle cx="' + x + '" cy="' + y + '" r="2.4"/>';
     }
     return '<svg class="hc-mark" width="' + h + '" height="' + h + '" viewBox="0 0 96 96" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="HubConnect">' +
-      '<defs><linearGradient id="hcg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffd23e"/><stop offset="1" stop-color="#f2b600"/></linearGradient></defs>' +
+      '<defs><linearGradient id="hcg" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="96" y2="96"><stop offset="0" stop-color="#ffd23e"/><stop offset="1" stop-color="#f2b600"/></linearGradient></defs>' +
       '<rect width="96" height="96" rx="24" fill="url(#hcg)"/>' +
-      '<g stroke="#1d1d1b" stroke-width="4.6" stroke-linecap="round">' + lines + "</g>" +
-      '<g fill="#1d1d1b">' + nodes + '<circle cx="48" cy="48" r="8.2"/></g>' +
+      '<g stroke="#1d1d1b" stroke-width="4.4" stroke-linecap="round">' + lines + "</g>" +
+      '<g fill="#1d1d1b">' + nodes + '<circle cx="48" cy="48" r="9.6"/></g>' +
+      '<g fill="url(#hcg)">' + ports + '<circle cx="48" cy="48" r="4"/></g>' +
       "</svg>";
   }
+
+  /* ---- Licht/donker-thema ---- */
+  function currentTheme() { return document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light"; }
+  function themeIcon() {
+    return currentTheme() === "dark"
+      ? '<svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.5M12 19.5V22M4.2 4.2l1.8 1.8M18 18l1.8 1.8M2 12h2.5M19.5 12H22M4.2 19.8l1.8-1.8M18 6l1.8-1.8"/></svg>'
+      : '<svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A8.5 8.5 0 1 1 11.2 3a6.6 6.6 0 0 0 9.8 9.8z"/></svg>';
+  }
+  function themeToggleBtn() {
+    return '<button class="theme-toggle" data-theme-toggle title="Licht of donker" aria-label="Wissel tussen licht en donker">' + themeIcon() + "</button>";
+  }
+  function setTheme(t) {
+    document.documentElement.setAttribute("data-theme", t);
+    try { localStorage.setItem("hc-theme", t); } catch (e) {}
+    document.querySelectorAll("[data-theme-toggle]").forEach(function (b) { b.innerHTML = themeIcon(); });
+  }
+  document.addEventListener("click", function (e) {
+    var t = e.target.closest ? e.target.closest("[data-theme-toggle]") : null;
+    if (t) { e.preventDefault(); setTheme(currentTheme() === "dark" ? "light" : "dark"); }
+  });
 
   function renderLanding() {
     var loggedIn = !!S.currentUser();
     var cta = loggedIn ? "Verder naar de hub" : "Inloggen";
+
+    // Showcase van de kernmodules (los van rechten — dit is de voorpagina)
+    var mods = [
+      { icon: "exchange",      color: "yellow", name: "RuilHub",          desc: "Shifts en taken ruilen binnen je hub." },
+      { icon: "clipboardList", color: "blue",   name: "Takenplanning",    desc: "Weekrooster maken en delen met je team." },
+      { icon: "chart",         color: "dark",   name: "Senior Dashboard", desc: "Realtime overzicht van de hele shift." },
+      { icon: "inbox",         color: "orange", name: "Laadproces",       desc: "Ritten koppelen aan bussen en trolleys." },
+      { icon: "shield",        color: "green",  name: "Schadecontrole",   desc: "Bussen controleren en afvinken." },
+      { icon: "award",         color: "purple", name: "Kwaliteit",        desc: "Emballage tellen per vak." }
+    ];
+    var vals = [
+      { icon: "clock", title: "Realtime",           desc: "Wat er in de hub gebeurt, zie je meteen. Geen appjes meer heen en weer." },
+      { icon: "van",   title: "Mobiel-first",       desc: "Voor de taken v&oacute;&oacute;r en na de rit — grote knoppen, snelle acties." },
+      { icon: "grid",  title: "Alles op &eacute;&eacute;n plek", desc: "Ruilen, plannen, laden en controleren. Alles bij elkaar." }
+    ];
+    var modCards = mods.map(function (m, i) {
+      return '<article class="l3-mod m-' + m.color + ' reveal" style="--d:' + (i * 70) + 'ms">' +
+        '<span class="l3-mod-ico">' + svg(m.icon, "icon-lg") + "</span>" +
+        "<h3>" + m.name + "</h3><p>" + m.desc + "</p></article>";
+    }).join("");
+    var valCards = vals.map(function (v, i) {
+      return '<div class="l3-val reveal" style="--d:' + (i * 90) + 'ms">' +
+        '<span class="l3-val-ico">' + svg(v.icon, "icon-lg") + "</span>" +
+        "<h3>" + v.title + "</h3><p>" + v.desc + "</p></div>";
+    }).join("");
+    var chevron = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>';
+
     el("app").innerHTML =
       '<div class="l3">' +
         '<header class="l3-nav" id="l3Nav"><div class="l3-nav-in">' +
           hubMark(28) +
           '<span class="l3-nav-name">HubConnect</span>' +
           '<div class="grow"></div>' +
+          themeToggleBtn() +
           '<button class="btn btn-dark btn-sm" data-go="login">' + cta + "</button>" +
         "</div></header>" +
+
         '<section class="l3-hero">' +
           '<div class="l3-glow" aria-hidden="true"></div>' +
           '<div class="l3-mark rise">' + hubMark(104) + "</div>" +
@@ -203,9 +256,35 @@
           '<p class="l3-tag rise d2">Alles voor je hub. Op &eacute;&eacute;n plek.</p>' +
           '<div class="l3-act rise d3"><button class="btn btn-dark btn-lg" data-go="login">' + svg("arrowRight") + cta + "</button></div>" +
           '<p class="l3-kicker rise d4">Jumbo Bezorgservice</p>' +
+          '<div class="l3-scroll" aria-hidden="true">' + chevron + "</div>" +
         "</section>" +
+
+        '<section class="l3-sec">' +
+          '<div class="l3-sec-in">' +
+            '<h2 class="l3-h2 reveal">Je hele shift, in &eacute;&eacute;n app.</h2>' +
+            '<p class="l3-sub reveal" style="--d:60ms">Van ruilen en plannen tot laden, controleren en tellen — elke stap van de bezorgservice op &eacute;&eacute;n plek.</p>' +
+            '<div class="l3-mods">' + modCards + "</div>" +
+          "</div>" +
+        "</section>" +
+
+        '<section class="l3-sec l3-vals-sec">' +
+          '<div class="l3-sec-in">' +
+            '<h2 class="l3-h2 reveal">Gemaakt voor de werkvloer.</h2>' +
+            '<div class="l3-vals">' + valCards + "</div>" +
+          "</div>" +
+        "</section>" +
+
+        '<section class="l3-sec l3-cta">' +
+          '<div class="l3-sec-in">' +
+            '<h2 class="l3-h2 reveal">Klaar voor je shift?</h2>' +
+            '<p class="l3-cta-sub reveal" style="--d:60ms">Log in en ga aan de slag.</p>' +
+            '<div class="l3-cta-act reveal" style="--d:120ms"><button class="btn btn-dark btn-lg" data-go="login">' + svg("arrowRight") + cta + "</button></div>" +
+          "</div>" +
+        "</section>" +
+
         '<footer class="l3-foot">HubConnect &middot; Jumbo Bezorgservice</footer>' +
       "</div>";
+
     document.querySelectorAll("[data-go=login]").forEach(function (b) { b.addEventListener("click", function () {
       if (S.currentUser()) { state.showLanding = false; state.module = null; render(); } // al ingelogd → direct de hub in
       else { authScreen = "login"; render(); }
@@ -216,6 +295,15 @@
     var nav = el("l3Nav");
     var onS = function () { nav.classList.toggle("scrolled", window.scrollY > 8); };
     window.addEventListener("scroll", onS, { passive: true }); onS();
+    // scroll-reveal van de secties
+    var revs = root.querySelectorAll(".reveal");
+    if (!("IntersectionObserver" in window)) { revs.forEach(function (n) { n.classList.add("in"); }); }
+    else {
+      var io = new IntersectionObserver(function (entries) {
+        entries.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); } });
+      }, { threshold: 0.12, rootMargin: "0px 0px -6% 0px" });
+      revs.forEach(function (n) { io.observe(n); });
+    }
   }
 
   /* ===================================================================
@@ -1585,6 +1673,7 @@
           '<div class="u-meta">' + esc(S.roleMeta(u.rol).label) + "</div></div>" +
         '<button class="avatar-btn" data-profile title="Profiel"><span class="avatar">' + initials(u) + "</span>" +
           '<span class="avatar-gear">' + svg("settings", "icon-sm") + "</span></button>" +
+        themeToggleBtn() +
         '<button class="btn btn-icon btn-ghost" data-logout title="Uitloggen" style="background:rgba(255,255,255,.5)">' + svg("logout", "icon-sm") + "</button>" +
       "</div></div></header>";
   }
