@@ -1364,6 +1364,12 @@ html { background: var(--bg); transition: background-color .25s var(--ease); }
 [data-theme="dark"] .todo-banner.afw-banner { color: #f8a29a; }
 [data-theme="dark"] .seg button.am-btn.active { background: rgba(251,191,36,.24); color: #ffce55; }  /* AM duidelijk leesbaar */
 [data-theme="dark"] .seg button.pm-btn.active { background: rgba(122,181,255,.24); color: #aecbff; }
+/* fifo-waarschuwing: donkerbruine tekst op donker → licht (leesbaar) */
+[data-theme="dark"] .fifo-alert { color: #f4c98a; }
+/* vaste lichte badges/segmenten → donkere translucente tint (consistent + leesbaar) */
+[data-theme="dark"] .badge.reason, [data-theme="dark"] .badge.dock { background: rgba(122,181,255,.16); color: #a9caff; }
+[data-theme="dark"] .badge.bd { background: rgba(139,92,205,.22); color: #cbacf7; }
+[data-theme="dark"] .seg-type button.bt-callout.active, [data-theme="dark"] .type-seg button.active.sr { background: rgba(139,92,205,.24); color: #cbacf7; }
 
 /* ---- Thema-keuze in het profiel (segment-knop) ---- */
 .theme-seg { display: flex; width: 100%; margin-top: 4px; }
