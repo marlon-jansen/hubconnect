@@ -794,11 +794,22 @@ main { max-width: 1100px; margin: 0 auto; padding: 22px 18px 80px; }
 .dash-troll { display: flex; flex-direction: column; gap: 4px; }
 .dash-troll-ctrl { display: inline-flex; align-items: center; gap: 8px; }
 .lc-filter { display: inline-flex; align-items: center; gap: 8px; margin-bottom: 12px; font-weight: 700; font-size: 13.5px; cursor: pointer; }
-.dash-ring { --p: 0; width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; flex: 0 0 auto;
-  background: conic-gradient(var(--green-bright) calc(var(--p) * 1%), var(--surface-2) 0); position: relative; }
-.dash-ring::before { content: ""; position: absolute; inset: 8px; background: var(--card); border-radius: 50%; }
-.dash-ring span { position: relative; font-weight: 900; font-size: 14px; }
+@property --p { syntax: "<number>"; inherits: false; initial-value: 0; }
+.dash-ring { --p: 0; width: 76px; height: 76px; border-radius: 50%; display: grid; place-items: center; flex: 0 0 auto;
+  background: conic-gradient(var(--green-bright) calc(var(--p) * 1%), var(--surface-2) 0); position: relative;
+  animation: ringFill .9s var(--ease) both; }
+@keyframes ringFill { from { --p: 0; } }
+.dash-ring::before { content: ""; position: absolute; inset: 9px; background: var(--card); border-radius: 50%; }
+.dash-ring span { position: relative; font-weight: 900; font-size: 15px; }
 .dash-orange .dash-ring, .dash-card.dash-orange .dash-ring { background: conic-gradient(var(--orange) calc(var(--p) * 1%), var(--surface-2) 0); }
+.dash-blue .dash-ring, .dash-card.dash-blue .dash-ring { background: conic-gradient(var(--blue) calc(var(--p) * 1%), var(--surface-2) 0); }
+/* Trolleyvoorraad-tab */
+.troll-body { padding: 14px 18px; }
+.troll-nums { display: flex; gap: 30px; margin-top: 8px; }
+.troll-num { display: flex; flex-direction: column; }
+.troll-status { display: inline-flex; align-items: center; gap: 7px; font-weight: 800; font-size: 13.5px; margin-top: 12px; color: var(--ink-soft); }
+.troll-status.ok { color: var(--green-bright); }
+.troll-status.err { color: var(--red); }
 .dash-recent-title { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .03em; color: var(--ink-soft); margin: 16px 0 6px; }
 .dash-recent { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .dash-recent-item { display: flex; align-items: center; gap: 8px; padding: 7px 0; font-size: 13px; font-weight: 700; border-top: 1px solid var(--line); }
@@ -815,7 +826,7 @@ main { max-width: 1100px; margin: 0 auto; padding: 22px 18px 80px; }
   .dash-recent-title { margin: 10px 0 4px; }
   .dash-recent-item { padding: 5px 0; font-size: 12.5px; }
   .dash-big { font-size: 24px; }
-  .dash-ring { width: 54px; height: 54px; }
+  .dash-ring { width: 66px; height: 66px; }
 }
 
 /* ----- operationele modules ----- */
@@ -1055,7 +1066,7 @@ button.n2-bolt:hover { background: var(--surface-2); }
 
   /* dashboard 1 kolom, ringen wat kleiner */
   .dash-grid { grid-template-columns: 1fr; }
-  .dash-ring { width: 56px; height: 56px; }
+  .dash-ring { width: 70px; height: 70px; }
 
   /* kwaliteit/emballage trolleys passend */
   .emb-grid { grid-template-columns: repeat(4, 1fr); gap: 7px; }

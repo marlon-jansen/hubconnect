@@ -2325,26 +2325,30 @@
   function renderDashboard() {
     var c = ctx(), u = c.u;
     if (!state.dashTab) state.dashTab = "overzicht";
-    var tabs = [["overzicht", "Overzicht"], ["klaarzetten", "Klaarzetten"], ["diensten", "Diensten"]];
+    var tabs = [["overzicht", "Overzicht"], ["trolley", "Trolleyvoorraad"], ["klaarzetten", "Klaarzetten"], ["diensten", "Diensten"], ["steekproeven", "Steekproeven"]];
     var seg = '<div class="seg" style="margin:14px 0 16px;flex-wrap:wrap">' + tabs.map(function (t) { return '<button data-dashtab="' + t[0] + '" class="' + (state.dashTab === t[0] ? "active" : "") + '">' + t[1] + "</button>"; }).join("") + "</div>";
-    var body = state.dashTab === "klaarzetten" ? dashKlaarzetten(c) : state.dashTab === "diensten" ? dashDiensten(c) : dashOverzicht(c);
+    var body = state.dashTab === "klaarzetten" ? dashKlaarzetten(c)
+      : state.dashTab === "diensten" ? dashDiensten(c)
+      : state.dashTab === "trolley" ? dashTrolley(c)
+      : state.dashTab === "steekproeven" ? dashSteekproeven(c)
+      : dashOverzicht(c);
     el("app").innerHTML = moduleShell("Senior Dashboard", seg + body);
     bindModuleHeader(renderDashboard);
     document.querySelectorAll("[data-dashtab]").forEach(function (b) { b.addEventListener("click", function () { state.dashTab = b.getAttribute("data-dashtab"); renderDashboard(); }); });
     if (state.dashTab === "klaarzetten") bindDashKlaarzetten(c);
     else if (state.dashTab === "diensten") bindDashDiensten(c);
-    else {
-      document.querySelectorAll("[data-viewmod]").forEach(function (b) { b.addEventListener("click", function () { state.module = b.getAttribute("data-viewmod"); state.viewOnly = true; render(); }); });
+    else if (state.dashTab === "steekproeven") {
       // Steekproeven controleren (vorige shift) — binnendienst vult systeem-kratten in en vinkt af.
       var prevS = S.vorigeShift(c.d, c.dd);
       document.querySelectorAll("[data-spsys]").forEach(function (inp) { inp.addEventListener("change", function () { try { S.steekproefControleer(c.h, prevS.datum, prevS.dagdeel, inp.getAttribute("data-spsys"), { systeemKratten: inp.value }); renderDashboard(); } catch (e) { toast(e.message, "err"); } }); });
       document.querySelectorAll("[data-spctrl]").forEach(function (cb) { cb.addEventListener("change", function () { try { S.steekproefControleer(c.h, prevS.datum, prevS.dagdeel, cb.getAttribute("data-spctrl"), { controleGedaan: cb.checked }); renderDashboard(); } catch (e) { toast(e.message, "err"); } }); });
-      // Trolley-voorraad corrigeren — alleen binnendienst, alleen via het dashboard.
-      document.querySelectorAll("[data-troll]").forEach(function (b) { b.addEventListener("click", function () { var p = b.getAttribute("data-troll").split("|"); try { S.trolleyBump(c.h, c.d, c.dd, p[0], parseInt(p[1], 10)); renderDashboard(); } catch (e) { toast(e.message, "err"); } }); });
+    } else if (state.dashTab === "overzicht") {
+      document.querySelectorAll("[data-viewmod]").forEach(function (b) { b.addEventListener("click", function () { state.module = b.getAttribute("data-viewmod"); state.viewOnly = true; render(); }); });
+      var pcBtn = el("app").querySelector("[data-viewpc]"); if (pcBtn) pcBtn.addEventListener("click", function () { state.module = "lc"; state.lcTab = "pc"; state.viewOnly = true; render(); });
     }
   }
   function dashOverzicht(c) {
-    var sc = S.schadeStats(c.h, c.d, c.dd), lcS = S.lcStats(c.h, c.d, c.dd), tr = S.getTrolley(c.h, c.d, c.dd);
+    var sc = S.schadeStats(c.h, c.d, c.dd), lcS = S.lcStats(c.h, c.d, c.dd), pc = S.pcStats(c.h, c.d, c.dd);
     var diensten = S.getDiensten(c.h, c.d, c.dd);
     var isPM = c.dd === "PM";
     // to-do waarschuwingen voor de binnendienst
@@ -2365,14 +2369,6 @@
       return '<div class="dash-card dash-' + color + '"><div class="dash-h">' + svg(icon, "icon-sm") + esc(title) + "</div>" + inner + view + "</div>";
     }
     var ring = function (pct, cls) { return '<div class="dash-ring ' + cls + '" style="--p:' + pct + '"><span>' + pct + "%</span></div>"; };
-    // Trolley-voorraad corrigeren: alleen binnendienst (senior+), niet vooruit, niet in de bekijk-modus.
-    var canTrolleyAdjust = S.isSetup(c.u) && !S.isFutureDay(c.d) && !state.viewOnly;
-    function trollAdj(field, val, label) {
-      return '<div class="dash-troll"><div class="cellsub">' + label + "</div><div class=\"dash-troll-ctrl\">" +
-        (canTrolleyAdjust ? '<button class="tro-btn sm" data-troll="' + field + '|-1">&minus;</button>' : "") +
-        '<span class="dash-big">' + (val || 0) + "</span>" +
-        (canTrolleyAdjust ? '<button class="tro-btn sm" data-troll="' + field + '|1">+</button>' : "") + "</div></div>";
-    }
     var embVakken = S.VAK_NUMMERS.filter(function (i) { return S.vakSoort(c.h, c.d, c.dd, i) === "emb5"; });
     var vakTotals = embVakken.map(function (i) { return '<div class="emb-vaktot"><span>Vak ' + i + ":</span> <b>" + S.emballageVakTotal(c.h, c.d, c.dd, i) + "</b></div>"; }).join("");
     function recentList(items, leeg) { return items.length ? '<ul class="dash-recent">' + items.join("") + "</ul>" : '<div class="cellsub dash-recent-empty">' + esc(leeg || "Nog niets.") + "</div>"; }
@@ -2384,7 +2380,7 @@
     var grid = '<div class="dash-grid">' +
       tile("Laden", "inbox", "orange", '<div class="dash-row">' + ring(lcS.pct, "o") + '<div><div class="dash-big">' + lcS.done + " / " + lcS.used + '</div><div class="cellsub">vakken geladen</div></div></div>' + '<div class="dash-recent-title">Recent geladen</div>' + recentGeladen, "lc") +
       tile("Schadecontrole", "shield", "green", '<div class="dash-row">' + ring(sc.pct, "g") + '<div><div class="dash-big">' + sc.done + " / " + sc.total + '</div><div class="cellsub">bussen gecontroleerd</div></div></div>' + '<div class="dash-recent-title">Recent gecontroleerd</div>' + recentSchade, "schadecontrole") +
-      tile("Trolley-voorraad", "inbox", "blue", '<div class="dash-stocks">' + trollAdj("stock4", tr.stock4, "4-laags") + trollAdj("stock5", tr.stock5, "5-laags") + "</div>" + '<div class="dash-recent-title">Volgende pendels</div>' + komendePendels, "lc") +
+      tile("Pendels", "van", "blue", '<div class="dash-row">' + ring(pc.pct, "b") + '<div><div class="dash-big">' + pc.done + " / " + pc.total + '</div><div class="cellsub">pendels gecontroleerd</div></div></div>' + '<div class="dash-recent-title">Volgende pendels</div>' + komendePendels + '<button class="btn btn-sm dash-view" data-viewpc>' + svg("arrowRight", "icon-sm") + "Bekijk Pendelcontrol</button>", null) +
       tile("Kwaliteit", "award", "purple",
         '<div class="dash-recent-title">Emballage per vak</div>' +
         (vakTotals ? '<div class="emb-vaktots">' + vakTotals + "</div>" : '<div class="cellsub">Nog niets geteld</div>') +
@@ -2394,6 +2390,31 @@
           : '<div class="dash-telstatus">' + svg("clock", "icon-sm") + "Nog niet voltooid</div>") +
         (qAfw.has ? '<div class="dash-telstatus err">' + svg("alertTri", "icon-sm") + "Trolleyafwijking</div>" : ""), "kwaliteit") +
       "</div>";
+    return todoBanner + grid;
+  }
+
+  // Trolleyvoorraad-tab: systeemvoorraad (alleen-lezen) + de telling van de kwaliteiter.
+  function dashTrolley(c) {
+    var tr = S.getTrolley(c.h, c.d, c.dd);
+    var afw = S.qtelAfwijking(c.h, c.d, c.dd);
+    function nums(v4, v5) {
+      return '<div class="troll-nums"><div class="troll-num"><span class="dash-big">' + (v4 || 0) + '</span><span class="cellsub">4-laags</span></div>' +
+        '<div class="troll-num"><span class="dash-big">' + (v5 || 0) + '</span><span class="cellsub">5-laags</span></div></div>';
+    }
+    var sys = panel("inbox", "Trolley-voorraad (systeem)", '<div class="troll-body"><div class="cellsub">Huidige voorraad volgens het systeem</div>' + nums(tr.stock4, tr.stock5) + "</div>");
+    var telInner = afw.counted
+      ? '<div class="cellsub">Geteld door kwaliteit</div>' + nums(afw.c4, afw.c5) +
+        '<div class="troll-status ' + (afw.voltooid ? "ok" : "") + '">' + svg(afw.voltooid ? "check" : "clock", "icon-sm") + (afw.voltooid ? "Telling voltooid" : "Telling nog niet voltooid") + "</div>" +
+        (afw.has
+          ? '<div class="troll-status err">' + svg("alertTri", "icon-sm") + "Afwijking: " + (afw.d4 > 0 ? "+" : "") + afw.d4 + " (4-laags) · " + (afw.d5 > 0 ? "+" : "") + afw.d5 + " (5-laags)</div>"
+          : '<div class="troll-status ok">' + svg("check", "icon-sm") + "Komt overeen met het systeem</div>")
+      : '<div class="cellsub">De kwaliteiter heeft nog niet geteld.</div>';
+    var tel = panel("award", "Telling kwaliteit", '<div class="troll-body">' + telInner + "</div>");
+    return sys + tel;
+  }
+
+  // Steekproeven-tab: controleren tegen het Jumbo-systeem (vorige shift) + overzicht deze shift.
+  function dashSteekproeven(c) {
     var spItems = S.steekproevenList(c.h, c.d, c.dd);
     var spList = spItems.length ? '<table class="table"><thead><tr><th>Bus</th><th>Naam</th><th>hr-nummer</th><th>Rit</th><th>Kratten</th></tr></thead><tbody>' +
       spItems.map(function (b) {
@@ -2401,7 +2422,8 @@
       }).join("") + "</tbody></table>" : '<div class="cellsub" style="padding:12px">Nog geen steekproeven ingevuld.</div>';
     var spPanel = panel("clipboard", "Steekproeven schadecontrole (deze shift)", spList);
 
-    // Steekproeven controleren tegen het Jumbo-systeem — door de binnendienst, voor de vorige shift.
+    var prevSc = S.vorigeShift(c.d, c.dd);
+    var scc = S.steekproefControleStats(c.h, prevSc.datum, prevSc.dagdeel);
     var prevLabel = fmtDate(prevSc.datum) + " · " + prevSc.dagdeel;
     var spCtrlItems = S.steekproevenList(c.h, prevSc.datum, prevSc.dagdeel);
     var spCtrlRows = spCtrlItems.length ? spCtrlItems.map(function (b) {
@@ -2418,8 +2440,7 @@
     var spCtrlPanel = panel("clipboard", "Steekproeven controleren — vorige shift (" + prevLabel + ")",
       opProgress(scc.done, scc.total, "steekproeven gecontroleerd") +
       '<div class="panel" style="padding:0"><div class="table-scroll"><table class="table sc-table"><thead><tr><th>Bus</th><th>Geteld in bus</th><th>Systeem (Jumbo)</th><th>Gecontroleerd</th><th>Status</th></tr></thead><tbody>' + spCtrlRows + "</tbody></table></div></div>");
-
-    return todoBanner + grid + spCtrlPanel + spPanel;
+    return spCtrlPanel + spPanel;
   }
 
   function dashKlaarzetten(c) {
