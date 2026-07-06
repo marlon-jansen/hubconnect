@@ -546,6 +546,35 @@
     if (x.status !== "afgekeurd") throw new Error("Alleen een afgekeurd verzoek kan verwijderd worden.");
     x.status = "ingetrokken"; save(); return x;
   }
+  // Beslissing in de historie herzien: draai de beslissing terug en zet de ruiling
+  // opnieuw "in afwachting" zodat de beoordelaar 'm opnieuw kan goed-/afkeuren.
+  function undoDecision(logId) {
+    var u = currentUser();
+    if (!can.isApprover(u)) throw new Error("Je mag beslissingen niet aanpassen.");
+    var l = (db.logs || []).filter(function (e) { return e.id === logId; })[0];
+    if (!l) throw new Error("Beslissing niet gevonden.");
+    var map = { shiftwissel: db.shifts, taakwissel: db.taskOffers, oproep: db.callouts, backup: db.backups };
+    var list = map[l.type]; if (!list) throw new Error("Onbekend type beslissing.");
+    var x = list.filter(function (o) { return o.id === l.refId; })[0];
+    if (!x) throw new Error("De bijbehorende ruiling bestaat niet meer.");
+    if (x.hubId !== u.hubId) throw new Error("Deze ruiling hoort niet bij jouw hub.");
+    // alleen de beslissing die nú de status bepaalt mag herzien worden
+    if ((l.actie === "goedgekeurd" && x.status !== "goedgekeurd") || (l.actie === "afgekeurd" && x.status !== "afgekeurd"))
+      throw new Error("Deze ruiling is inmiddels gewijzigd; herzien kan niet meer.");
+    // stats terugdraaien bij een goedkeuring
+    if (l.actie === "goedgekeurd") {
+      var a = userById(l.aanbiederId), o = userById(l.overnemerId);
+      if (l.type === "shiftwissel") { if (a && a.stats.shiftsAangeboden > 0) a.stats.shiftsAangeboden--; if (o && o.stats.shiftsOvergenomen > 0) o.stats.shiftsOvergenomen--; }
+      else if (l.type === "taakwissel") { if (a && a.stats.takenAangeboden > 0) a.stats.takenAangeboden--; if (o && o.stats.takenOvergenomen > 0) o.stats.takenOvergenomen--; }
+    }
+    // terug naar 'in afwachting' met de oorspronkelijke overnemer
+    x.overnemerId = l.overnemerId || x.lastOvernemerId || x.overnemerId;
+    x.lastOvernemerId = null;
+    x.status = "in-afwachting"; x.besluitDoorId = null; x.besluitOp = null; x.reden = "";
+    if (l.type === "shiftwissel") x.fifoWarning = false;
+    db.logs = db.logs.filter(function (e) { return e.id !== logId; });
+    save(); return x;
+  }
   // Match: de aanbieder geeft zijn open shift direct aan een collega die een oproep (shift gezocht) heeft geplaatst.
   function giveShiftTo(shiftId, targetUserId) {
     var u = currentUser();
@@ -1291,7 +1320,7 @@
     offerTask: offerTask, withdrawTask: withdrawTask, claimTask: claimTask, decideTask: decideTask,
     offerBackup: offerBackup, withdrawBackup: withdrawBackup, claimBackup: claimBackup, decideBackup: decideBackup,
     offerCallout: offerCallout, withdrawCallout: withdrawCallout, claimCallout: claimCallout, decideCallout: decideCallout,
-    repostRequest: repostRequest, dropRequest: dropRequest, giveShiftTo: giveShiftTo,
+    repostRequest: repostRequest, dropRequest: dropRequest, undoDecision: undoDecision, giveShiftTo: giveShiftTo,
     setUserRole: setUserRole, setUserN2: setUserN2, setUserJbt: setUserJbt, setUserHub: setUserHub, toggleUserTask: toggleUserTask, removeUser: removeUser,
     addHub: addHub, removeHub: removeHub, addCatalogTask: addCatalogTask, removeCatalogTask: removeCatalogTask,
     planningFor: planningFor, planById: planById, setPlanCell: setPlanCell, addPlanRow: addPlanRow, removePlanRow: removePlanRow,
