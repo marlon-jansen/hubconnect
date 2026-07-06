@@ -1170,6 +1170,33 @@
     });
   }
 
+  /* ---- Herbruikbare week/totaal-balk (Goedkeuren, Statistieken, Historie) ---- */
+  function weekBounds(refYmd) {
+    var mon = mondayOf(new Date(refYmd + "T00:00:00")), sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+    return { monS: ymd(mon), sunS: ymd(sun), mon: mon, sun: sun,
+      label: "Week " + isoWeek(mon) + " · " + mon.getDate() + "-" + (mon.getMonth() + 1) + " t/m " + sun.getDate() + "-" + (sun.getMonth() + 1) };
+  }
+  function weekBar(pre, refYmd, rangeVal) {
+    var isWeek = rangeVal !== "all", b = weekBounds(refYmd);
+    return '<div class="board-range week-bar" style="margin-bottom:14px">' +
+      '<div class="seg"><button data-' + pre + 'range="week" class="' + (isWeek ? "active" : "") + '">' + svg("calendar", "icon-sm") + "Per week</button>" +
+        '<button data-' + pre + 'range="all" class="' + (!isWeek ? "active" : "") + '">Totaal</button></div>' +
+      (isWeek ? '<div class="seg"><button data-' + pre + 'week="-1" title="Vorige">' + svg("arrowLeft", "icon-sm") + "</button>" +
+        '<button class="active" style="cursor:default;text-transform:capitalize">' + svg("calendar", "icon-sm") + esc(b.label) + "</button>" +
+        '<button data-' + pre + 'week="1" title="Volgende">' + svg("arrowRight", "icon-sm") + "</button></div>" +
+        '<button class="btn btn-ghost btn-sm" data-' + pre + 'week="0">Deze week</button>' : "") +
+      "</div>";
+  }
+  function bindWeekBar(pre, refKey, rangeKey) {
+    document.querySelectorAll("[data-" + pre + "range]").forEach(function (b) { b.addEventListener("click", function () { state[rangeKey] = b.getAttribute("data-" + pre + "range"); renderMain(); }); });
+    document.querySelectorAll("[data-" + pre + "week]").forEach(function (b) { b.addEventListener("click", function () {
+      var v = parseInt(b.getAttribute("data-" + pre + "week"), 10);
+      if (v === 0) state[refKey] = ymd(new Date());
+      else { var d = new Date(state[refKey] + "T00:00:00"); d.setDate(d.getDate() + v * 7); state[refKey] = ymd(d); }
+      renderMain();
+    }); });
+  }
+
   /* ===================================================================
      MIJN RUILVERZOEKEN
      =================================================================== */
@@ -1246,14 +1273,19 @@
      =================================================================== */
   function viewApprovals() {
     var u = S.currentUser();
+    if (!state.apprRef) state.apprRef = ymd(new Date());
+    if (!state.apprRange) state.apprRange = "week";
+    var wb = weekBounds(state.apprRef);
+    function inWk(x) { return state.apprRange !== "week" || (x.datum >= wb.monS && x.datum <= wb.sunS); }
     var p = S.pendingForApprover(u);
     var cards = [];
-    p.shifts.forEach(function (s) { cards.push(approvalShift(s)); });
-    p.tasks.forEach(function (t) { cards.push(approvalSimple(t, "task")); });
-    p.backups.forEach(function (b) { cards.push(approvalSimple(b, "backup")); });
-    p.callouts.forEach(function (c) { cards.push(approvalSimple(c, "callout")); });
-    var body = cards.length ? '<div class="grid">' + cards.join("") + "</div>" : emptyState("checkCircle", "Niets te beoordelen", "Er staan geen ruilingen in afwachting van jouw goedkeuring.");
-    return '<div class="page-head"><div><h2>Goedkeuren</h2><p>Beoordeel openstaande ruilingen binnen jouw hub.</p></div></div>' + body;
+    p.shifts.filter(inWk).forEach(function (s) { cards.push(approvalShift(s)); });
+    p.tasks.filter(inWk).forEach(function (t) { cards.push(approvalSimple(t, "task")); });
+    p.backups.filter(inWk).forEach(function (b) { cards.push(approvalSimple(b, "backup")); });
+    p.callouts.filter(inWk).forEach(function (c) { cards.push(approvalSimple(c, "callout")); });
+    var body = cards.length ? '<div class="grid">' + cards.join("") + "</div>" : emptyState("checkCircle", "Niets te beoordelen", state.apprRange === "week" ? "Geen ruilingen in afwachting deze week." : "Er staan geen ruilingen in afwachting van jouw goedkeuring.");
+    return '<div class="page-head"><div><h2>Goedkeuren</h2><p>Beoordeel openstaande ruilingen binnen jouw hub.</p></div></div>' +
+      weekBar("appr", state.apprRef, state.apprRange) + body;
   }
 
   function approvalShift(s) {
@@ -1304,6 +1336,7 @@
   }
 
   function bindApprovals() {
+    bindWeekBar("appr", "apprRef", "apprRange");
     document.querySelectorAll("[data-approve]").forEach(function (b) {
       b.addEventListener("click", function () {
         var p = b.getAttribute("data-approve").split(":");
@@ -1343,15 +1376,29 @@
   function viewStats() {
     var u = S.currentUser();
     if (state.statSort !== "shiftsOvergenomen" && state.statSort !== "shiftsAangeboden") state.statSort = "shiftsOvergenomen";
+    if (!state.statRef) state.statRef = ymd(new Date());
+    if (!state.statRange) state.statRange = "all";
+    var wb = weekBounds(state.statRef);
+    var wk = {};   // per-week telling uit de log (alleen goedgekeurde shiftwissels)
+    if (state.statRange === "week") {
+      S.logsForHub(u.hubId).forEach(function (l) {
+        if (l.type !== "shiftwissel" || l.actie !== "goedgekeurd") return;
+        var dd = (l.details && l.details.datum) || ""; if (dd < wb.monS || dd > wb.sunS) return;
+        if (l.overnemerId) (wk[l.overnemerId] = wk[l.overnemerId] || { over: 0, weg: 0 }).over++;
+        if (l.aanbiederId) (wk[l.aanbiederId] = wk[l.aanbiederId] || { over: 0, weg: 0 }).weg++;
+      });
+    }
+    function statOf(x) { if (state.statRange === "week") return wk[x.id] || { over: 0, weg: 0 }; return { over: x.stats.shiftsOvergenomen, weg: x.stats.shiftsAangeboden }; }
     var users = S.usersForHub(u.hubId);
     if (state.statQ) {
       var q = state.statQ.toLowerCase();
       users = users.filter(function (x) { return (x.voornaam + " " + x.achternaam + " " + esc(x.email)).toLowerCase().indexOf(q) !== -1; });
     }
-    var sorted = users.slice().sort(function (a, b) { return b.stats[state.statSort] - a.stats[state.statSort]; });
-    var rows = sorted.map(function (x) {
+    var sf = state.statSort === "shiftsAangeboden" ? "weg" : "over";
+    var sorted = users.slice().sort(function (a, b) { return statOf(b)[sf] - statOf(a)[sf]; });
+    var rows = sorted.map(function (x) { var st = statOf(x);
       return "<tr><td><div class=\"cellname\">" + fullName(x) + "</div><div class=\"cellsub\">" + esc(S.roleMeta(x.rol).label) + "</div></td>" +
-        '<td class="num up grp-start">' + x.stats.shiftsOvergenomen + "</td><td class=\"num down\">" + x.stats.shiftsAangeboden + "</td></tr>";
+        '<td class="num up grp-start">' + st.over + "</td><td class=\"num down\">" + st.weg + "</td></tr>";
     }).join("");
 
     var sortSel = '<select class="pill-select" id="statSort">' +
@@ -1363,6 +1410,7 @@
     var wegH = '<span class="hcol down">' + svg("arrowUp", "icon-sm") + "Weggegeven</span>";
     var search = '<div class="search"><span style="display:flex">' + svg("search", "icon-sm") + '</span><input id="statSearch" placeholder="Zoek medewerker…" value="' + esc(state.statQ || "") + '"></div>';
     return '<div class="page-head"><div><h2>Statistieken</h2><p>Telt alleen goedgekeurde ruilingen.</p></div></div>' +
+      weekBar("stat", state.statRef, state.statRange) +
       '<div class="toolbar">' + search + '<div class="grow"></div><span class="cellsub" style="margin-right:8px">Sorteer:</span>' + sortSel + "</div>" +
       panel("users", "Per medewerker", tableScroll(
         "<thead><tr><th>Medewerker</th>" +
@@ -1370,6 +1418,7 @@
         (rows || '<tr><td colspan="3"><div class="cellsub" style="padding:8px 0">Geen medewerkers gevonden.</div></td></tr>') + "</tbody>", true));
   }
   function bindStats() {
+    bindWeekBar("stat", "statRef", "statRange");
     var s = el("statSort");
     if (s) s.addEventListener("change", function () { state.statSort = s.value; renderMain(); });
     var qs = el("statSearch");
@@ -1579,7 +1628,11 @@
      =================================================================== */
   function viewLog() {
     var u = S.currentUser();
+    if (!state.logRef) state.logRef = ymd(new Date());
+    if (!state.logRange) state.logRange = "week";
+    var wb = weekBounds(state.logRef);
     var logs = S.logsForHub(u.hubId).filter(function (l) {
+      if (state.logRange === "week") { var dd = (l.details && l.details.datum) || ""; if (dd < wb.monS || dd > wb.sunS) return false; }
       if (state.logType !== "all" && l.type !== state.logType) return false;
       if (!state.logQ) return true;
       var ab = S.userById(l.aanbiederId), ov = S.userById(l.overnemerId), by = S.userById(l.doorId);
@@ -1613,11 +1666,13 @@
       '<button data-ltype="backup" class="' + (state.logType === "backup" ? "active" : "") + '">Back-up</button></div>';
 
     return '<div class="page-head"><div><h2>Historie</h2><p>Alle goed- en afkeuringen binnen jouw hub.</p></div></div>' +
+      weekBar("log", state.logRef, state.logRange) +
       '<div class="toolbar">' + typeSeg + '<div class="grow"></div><div class="search">' + svg("search", "icon-sm") + '<input id="logSearch" placeholder="Zoek op naam, datum of taak…" value="' + esc(state.logQ) + '"></div></div>' +
       '<div class="panel"><div>' + inner + "</div></div>";
   }
   function inlineArrow() { return '<svg class="icon icon-sm" style="display:inline;vertical-align:-3px;color:var(--muted)" viewBox="0 0 24 24">' + P.arrowRight + "</svg>"; }
   function bindLog() {
+    bindWeekBar("log", "logRef", "logRange");
     document.querySelectorAll("[data-ltype]").forEach(function (b) { b.addEventListener("click", function () { state.logType = b.getAttribute("data-ltype"); renderMain(); }); });
     var s = el("logSearch"); if (s) s.addEventListener("input", function () { state.logQ = s.value; var m = el("main"); m.innerHTML = viewLog(); bindLog(); var n = el("logSearch"); if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); } });
   }
