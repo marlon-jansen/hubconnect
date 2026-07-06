@@ -823,7 +823,7 @@ main { max-width: 1100px; margin: 0 auto; padding: 22px 18px 80px; }
 .pen-x { margin-left: auto; background: none; border: 0; color: var(--muted); cursor: pointer; display: inline-flex; }
 .pen-x:hover { color: #c0392b; }
 .pen-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.pen-lay { border: 1px solid var(--line); border-radius: 12px; padding: 12px 10px; min-width: 0; background: #fafafa; display: flex; flex-direction: column; align-items: center; gap: 9px; text-align: center; }
+.pen-lay { border: 1px solid var(--line); border-radius: 12px; padding: 12px 10px; min-width: 0; background: var(--surface-3); display: flex; flex-direction: column; align-items: center; gap: 9px; text-align: center; }
 .pen-lay .layer-tag { font-weight: 800; display: inline-flex; justify-content: center; }
 .pen-ret-lab { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 700; font-style: italic; color: var(--muted); }
 .pen-rows { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
@@ -1375,6 +1375,9 @@ html { background: var(--bg); transition: background-color .25s var(--ease); }
 [data-theme="dark"] .badge.reason, [data-theme="dark"] .badge.dock { background: rgba(122,181,255,.16); color: #a9caff; }
 [data-theme="dark"] .badge.bd { background: rgba(139,92,205,.22); color: #cbacf7; }
 [data-theme="dark"] .seg-type button.bt-callout.active, [data-theme="dark"] .type-seg button.active.sr { background: rgba(139,92,205,.24); color: #cbacf7; }
+/* stat-card icoon-chips: lichte kleurvlakken → donkere tint */
+[data-theme="dark"] .stat-card .s-ico.up { background: rgba(52,211,153,.16); }
+[data-theme="dark"] .stat-card .s-ico.down { background: rgba(248,113,113,.16); }
 
 /* ---- Thema-keuze in het profiel (segment-knop) ---- */
 .theme-seg { display: flex; width: 100%; margin-top: 4px; }
