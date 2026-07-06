@@ -1224,6 +1224,11 @@ html { background: var(--bg); transition: background-color .25s var(--ease); }
 [data-theme="dark"] .sc-sp-btn { color: var(--ink-fixed); }
 /* Jumbo-woordmerk houdt een lichte pil */
 [data-theme="dark"] .brand .logo-badge { background: #fff; }
+/* icoon-knoppen op de gele merk-header/auth-kop blijven donker
+   (currentColor zou anders --ink=licht volgen → onzichtbaar op geel) */
+[data-theme="dark"] .app-header .btn,
+[data-theme="dark"] .app-header .avatar-gear,
+[data-theme="dark"] .auth-head .auth-back { color: var(--ink-fixed); }
 
 /* Invoervelden: eigen, iets lichtere achtergrond dan de kaart */
 [data-theme="dark"] input,
