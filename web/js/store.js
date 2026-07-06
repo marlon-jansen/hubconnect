@@ -374,7 +374,8 @@
       reden: reden || ""
     });
     // Afgekeurd blijft "afgekeurd": de aanbieder kiest zelf of de shift terug op het bord komt (repostRequest) of niet (dropRequest).
-    if (!approve) { s.overnemerId = null; s.fifoWarning = false; }
+    // De overnemer wordt onthouden (lastOvernemerId) zodat die de afkeuring ziet + een melding krijgt.
+    if (!approve) { s.lastOvernemerId = s.overnemerId; s.overnemerId = null; s.fifoWarning = false; }
     save(); return s;
   }
 
@@ -422,7 +423,7 @@
       doorId: u.id, aanbiederId: t.aanbiederId, overnemerId: t.overnemerId, hubId: t.hubId,
       details: { datum: t.datum, dagdeel: t.dagdeel, starttijd: t.starttijd, taak: t.taak }, reden: reden || ""
     });
-    if (!approve) { t.overnemerId = null; t.status = "open"; }
+    if (!approve) { t.lastOvernemerId = t.overnemerId; t.overnemerId = null; t.status = "open"; }
     save(); return t;
   }
 
@@ -482,7 +483,7 @@
       doorId: u.id, aanbiederId: b.aanbiederId, overnemerId: b.overnemerId, hubId: b.hubId,
       details: { datum: b.datum, dagdeel: b.dagdeel, direction: b.direction, taak: b.ritOmschrijving }, reden: reden || ""
     });
-    if (!approve) { b.overnemerId = null; }
+    if (!approve) { b.lastOvernemerId = b.overnemerId; b.overnemerId = null; }
     save(); return b;
   }
 
@@ -525,7 +526,7 @@
       doorId: u.id, aanbiederId: c.aanbiederId, overnemerId: c.overnemerId, hubId: c.hubId,
       details: { datum: c.datum, dagdeel: c.dagdeel }, reden: reden || ""
     });
-    if (!approve) { c.overnemerId = null; }
+    if (!approve) { c.lastOvernemerId = c.overnemerId; c.overnemerId = null; }
     save(); return c;
   }
 

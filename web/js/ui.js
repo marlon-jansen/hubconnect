@@ -548,7 +548,12 @@
   // Meldingen voor de aanbieder: goedgekeurde/afgewezen eigen verzoeken.
   function myDecisions(u) {
     var out = [];
-    function add(list, kind) { (list || []).forEach(function (x) { if (x.aanbiederId === u.id && (x.status === "goedgekeurd" || x.status === "afgekeurd") && x.besluitOp) out.push({ kind: kind, it: x }); }); }
+    function add(list, kind) { (list || []).forEach(function (x) {
+      if (!x.besluitOp || (x.status !== "goedgekeurd" && x.status !== "afgekeurd")) return;
+      // betrokken = aanbieder, huidige overnemer (goedgekeurd) of de overnemer wiens overname is afgekeurd
+      var involved = x.aanbiederId === u.id || x.overnemerId === u.id || (x.status === "afgekeurd" && x.lastOvernemerId === u.id);
+      if (involved) out.push({ kind: kind, it: x, asOvernemer: x.aanbiederId !== u.id });
+    }); }
     add(S.db.shifts, "shift"); add(S.db.taskOffers, "task"); add(S.db.backups, "backup"); add(S.db.callouts, "callout");
     out.sort(function (a, b) { return (b.it.besluitOp || "").localeCompare(a.it.besluitOp || ""); });
     return out;
@@ -1176,7 +1181,7 @@
     var monS = ymd(mon), sunS = ymd(sun);
     // datums oplopend (maandag → zondag), daarbinnen AM vóór PM
     function mineList(arr) {
-      return arr.filter(function (x) { return (x.aanbiederId === u.id || x.overnemerId === u.id) && x.datum >= monS && x.datum <= sunS; })
+      return arr.filter(function (x) { return (x.aanbiederId === u.id || x.overnemerId === u.id || (x.status === "afgekeurd" && x.lastOvernemerId === u.id)) && x.datum >= monS && x.datum <= sunS; })
         .sort(function (a, b) { return a.datum < b.datum ? -1 : a.datum > b.datum ? 1 : (a.dagdeel < b.dagdeel ? -1 : a.dagdeel > b.dagdeel ? 1 : 0); });
     }
     var myShifts = mineList(S.db.shifts);
@@ -1184,14 +1189,14 @@
     var myCallouts = mineList(S.db.callouts);
 
     function statusCell(item, kind) {
-      var reden = (item.status === "afgekeurd" && item.reden) ? '<div class="cellsub">' + esc(item.reden) + "</div>" : "";
+      var reden = (item.status === "afgekeurd" && item.reden) ? '<div class="st-reden">' + svg("info", "icon-sm") + "<span>" + esc(item.reden) + "</span></div>" : "";
       var acts = "";
       if (item.aanbiederId === u.id && item.status === "afgekeurd") {
         acts = '<div class="mine-acts">' +
           '<button class="btn btn-sm btn-primary" data-repost="' + kind + ":" + item.id + '">' + svg("refresh", "icon-sm") + "Weer op het bord</button>" +
           '<button class="btn btn-sm btn-ghost" data-drop="' + kind + ":" + item.id + '">Laat maar</button></div>';
       }
-      return '<td data-th="Status">' + statusBadge(item.status) + reden + acts + "</td>";
+      return '<td data-th="Status"><div class="st-cell">' + statusBadge(item.status) + reden + acts + "</div></td>";
     }
     function row(item, kind) {
       var mineOffer = item.aanbiederId === u.id;
