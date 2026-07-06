@@ -1259,8 +1259,16 @@ html { background: var(--bg); transition: background-color .25s var(--ease); }
 [data-theme="dark"] .emb-rack,
 [data-theme="dark"] .hub-stock { background: rgba(253,197,0,.06); }
 
-/* ---- Thema-schakelaar (zon/maan-knop) ---- */
-.theme-toggle { display: inline-grid; place-items: center; width: 38px; height: 38px; border: 0; border-radius: 999px; cursor: pointer; background: rgba(255,255,255,.5); color: var(--ink-fixed); flex: 0 0 auto; transition: background .15s var(--ease); }
-.theme-toggle:hover { background: rgba(255,255,255,.8); }
-.l3-nav .theme-toggle { background: var(--surface-2); color: var(--ink); }
-[data-theme="dark"] .l3-nav .theme-toggle { background: var(--surface-2); color: var(--ink); }
+/* Leesbaarheid in dark: vaste lichte/donkere kleuren die anders wegvallen */
+[data-theme="dark"] .live-badge { background: rgba(52,211,153,.2); color: #4ade80; }   /* live-boxje duidelijk groen */
+[data-theme="dark"] .live-badge.vo-badge { background: rgba(122,181,255,.18); color: #a9caff; }
+[data-theme="dark"] .vo-bar { background: var(--surface-2); border-color: var(--line); }  /* 'Terug naar dashboard' weer zichtbaar */
+[data-theme="dark"] .todo-banner { color: #f4c98a; }                                     /* was #92500c (donkerbruin) → onleesbaar */
+[data-theme="dark"] .todo-banner.afw-banner { color: #f8a29a; }
+[data-theme="dark"] .seg button.am-btn.active { background: rgba(251,191,36,.24); color: #ffce55; }  /* AM duidelijk leesbaar */
+[data-theme="dark"] .seg button.pm-btn.active { background: rgba(122,181,255,.24); color: #aecbff; }
+
+/* ---- Thema-keuze in het profiel (segment-knop) ---- */
+.theme-seg { display: flex; width: 100%; margin-top: 4px; }
+.theme-seg button { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
+.theme-seg button .icon-sm { flex: 0 0 auto; }
