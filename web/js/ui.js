@@ -77,6 +77,7 @@
     moon: '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>',
     droplet: '<path d="M12 2.5s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/>',
     van: '<path d="M3 7h11v9H3z"/><path d="M14 10h4l3 3v3h-7z"/><circle cx="7" cy="18" r="1.6"/><circle cx="17" cy="18" r="1.6"/>',
+    devices: '<rect x="2" y="4.5" width="13" height="9.5" rx="1.5"/><path d="M5 18h6M8 14v4"/><rect x="15.5" y="9" width="6.5" height="12" rx="1.5"/><path d="M17.8 18.5h1.9"/>',
     bolt: '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
     tag: '<path d="M20.6 13.4 12 22l-9-9V4a1 1 0 0 1 1-1h9z"/><circle cx="7.5" cy="7.5" r="1.5"/>',
     user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
@@ -189,24 +190,29 @@
       "</svg>";
   }
 
-  /* ---- Licht/donker-thema ---- */
-  function currentTheme() { return document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light"; }
-  function themeIcon() {
-    return currentTheme() === "dark"
-      ? '<svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.5M12 19.5V22M4.2 4.2l1.8 1.8M18 18l1.8 1.8M2 12h2.5M19.5 12H22M4.2 19.8l1.8-1.8M18 6l1.8-1.8"/></svg>'
-      : '<svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A8.5 8.5 0 1 1 11.2 3a6.6 6.6 0 0 0 9.8 9.8z"/></svg>';
+  /* ---- Licht/donker-thema — keuze staat per gebruiker in het profiel ----
+     Landing & login zijn altijd donker (zie render()). Standaard: donker. */
+  function userTheme(u) {
+    u = u || S.currentUser();
+    var t = null; try { t = localStorage.getItem("hc-theme:" + (u && u.id)); } catch (e) {}
+    return t === "light" ? "light" : "dark";
   }
-  function themeToggleBtn() {
-    return '<button class="theme-toggle" data-theme-toggle title="Licht of donker" aria-label="Wissel tussen licht en donker">' + themeIcon() + "</button>";
-  }
-  function setTheme(t) {
+  function applyUserTheme(u) { document.documentElement.setAttribute("data-theme", userTheme(u)); }
+  function setUserTheme(t) {
+    var u = S.currentUser(); if (!u) return;
+    try { localStorage.setItem("hc-theme:" + u.id, t); } catch (e) {}
     document.documentElement.setAttribute("data-theme", t);
-    try { localStorage.setItem("hc-theme", t); } catch (e) {}
-    document.querySelectorAll("[data-theme-toggle]").forEach(function (b) { b.innerHTML = themeIcon(); });
   }
+  function sunIcon() { return '<svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.5M12 19.5V22M4.2 4.2l1.8 1.8M18 18l1.8 1.8M2 12h2.5M19.5 12H22M4.2 19.8l1.8-1.8M18 6l1.8-1.8"/></svg>'; }
+  function moonIcon() { return '<svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A8.5 8.5 0 1 1 11.2 3a6.6 6.6 0 0 0 9.8 9.8z"/></svg>'; }
+  // themakeuze in het profiel; live toepassen
   document.addEventListener("click", function (e) {
-    var t = e.target.closest ? e.target.closest("[data-theme-toggle]") : null;
-    if (t) { e.preventDefault(); setTheme(currentTheme() === "dark" ? "light" : "dark"); }
+    var t = e.target.closest ? e.target.closest("[data-set-theme]") : null;
+    if (!t) return;
+    e.preventDefault();
+    setUserTheme(t.getAttribute("data-set-theme"));
+    var seg = t.parentNode;
+    if (seg) seg.querySelectorAll("[data-set-theme]").forEach(function (b) { b.classList.toggle("active", b === t); });
   });
 
   function renderLanding() {
@@ -216,7 +222,6 @@
     // Showcase van de kernmodules (los van rechten — dit is de voorpagina)
     var mods = [
       { icon: "exchange",      color: "yellow", name: "RuilHub",          desc: "Shifts en taken ruilen binnen je hub." },
-      { icon: "clipboardList", color: "blue",   name: "Takenplanning",    desc: "Weekrooster maken en delen met je team." },
       { icon: "chart",         color: "dark",   name: "Senior Dashboard", desc: "Realtime overzicht van de hele shift." },
       { icon: "inbox",         color: "orange", name: "Laadproces",       desc: "Ritten koppelen aan bussen en trolleys." },
       { icon: "shield",        color: "green",  name: "Schadecontrole",   desc: "Bussen controleren en afvinken." },
@@ -224,7 +229,7 @@
     ];
     var vals = [
       { icon: "clock", title: "Realtime",           desc: "Wat er in de hub gebeurt, zie je meteen. Geen appjes meer heen en weer." },
-      { icon: "van",   title: "Mobiel-first",       desc: "Voor de taken v&oacute;&oacute;r en na de rit — grote knoppen, snelle acties." },
+      { icon: "devices", title: "Perfect voor mobiel en desktop", desc: "Voor de taken v&oacute;&oacute;r en na de rit — grote knoppen, snelle acties." },
       { icon: "grid",  title: "Alles op &eacute;&eacute;n plek", desc: "Ruilen, plannen, laden en controleren. Alles bij elkaar." }
     ];
     var modCards = mods.map(function (m, i) {
@@ -245,7 +250,6 @@
           hubMark(28) +
           '<span class="l3-nav-name">HubConnect</span>' +
           '<div class="grow"></div>' +
-          themeToggleBtn() +
           '<button class="btn btn-dark btn-sm" data-go="login">' + cta + "</button>" +
         "</div></header>" +
 
@@ -400,7 +404,6 @@
             '<div class="u-meta">' + esc(S.roleMeta(u.rol).label) + " · HUB " + esc(hub ? hub.naam : "?") + "</div></div>" +
           '<button class="avatar-btn" data-profile title="Profiel"><span class="avatar">' + initials(u) + "</span>" +
             '<span class="avatar-gear">' + svg("settings", "icon-sm") + "</span></button>" +
-          themeToggleBtn() +
           '<button class="btn btn-icon btn-ghost" data-logout title="Uitloggen" style="background:rgba(255,255,255,.5)">' + svg("logout", "icon-sm") + "</button>" +
         "</div>" +
       "</div></header>" +
@@ -1607,6 +1610,11 @@
         locked("Bus", u.n2 ? "Diesel + N2" : "Alleen diesel") +
         (u.jbtTrainer ? locked("JBT-trainer", "Ja") : "") +
       "</div>" +
+      '<div class="prof-divider">Weergave</div>' +
+      '<div class="seg theme-seg">' +
+        '<button data-set-theme="light"' + (userTheme(u) === "light" ? ' class="active"' : "") + ">" + sunIcon() + " Licht</button>" +
+        '<button data-set-theme="dark"' + (userTheme(u) === "dark" ? ' class="active"' : "") + ">" + moonIcon() + " Donker</button>" +
+      "</div>" +
       '<div class="prof-divider">Wachtwoord wijzigen</div>' +
       '<form id="cpForm">' +
         '<div class="field"><label>Huidig wachtwoord</label>' + pwInput("old", "", " required") + "</div>" +
@@ -1635,12 +1643,15 @@
   function render() {
     var u = S.currentUser();
     if (u) {
-      if (u.mustSetPassword) renderForcePassword(u);
-      else if (state.showLanding) renderLanding();   // ingelogd, maar bewust naar de voorpagina (logo-klik)
-      else if (!state.module) renderPortal();
-      else if (state.module === "ruilhub") renderApp();
-      else renderModulePage();
-    } else { if (authScreen === "login") renderLogin(); else renderLanding(); }
+      if (u.mustSetPassword) { applyUserTheme(u); renderForcePassword(u); }
+      else if (state.showLanding) { document.documentElement.setAttribute("data-theme", "dark"); renderLanding(); }   // voorpagina: altijd donker
+      else if (!state.module) { applyUserTheme(u); renderPortal(); }
+      else if (state.module === "ruilhub") { applyUserTheme(u); renderApp(); }
+      else { applyUserTheme(u); renderModulePage(); }
+    } else {
+      document.documentElement.setAttribute("data-theme", "dark");   // landing & login: altijd donker
+      if (authScreen === "login") renderLogin(); else renderLanding();
+    }
   }
 
   /* ===================================================================
@@ -1650,7 +1661,7 @@
     var senior = S.level(u) >= 3;
     function hasTask(n) { return u.taken && u.taken.indexOf(n) !== -1; }
     var m = [{ id: "ruilhub", name: "RuilHub", icon: "exchange", color: "yellow", group: "Planning", desc: "Shifts en taken ruilen binnen je hub." }];
-    if (senior) m.push({ id: "takenplanning", name: "Takenplanning", icon: "clipboardList", color: "blue", group: "Planning", desc: "Weekrooster maken & delen." });
+    // Takenplanning tijdelijk verborgen (op verzoek volledig eruit).
     if (S.can.seeBeheer(u)) m.push({ id: "personeelsbeheer", name: "Personeelsbeheer", icon: "userCog", color: "teal", group: "Beheer", desc: "Medewerkers, functies, taken en hubs." });
     if (S.can.seeBussenbeheer(u)) m.push({ id: "bussenbeheer", name: "Bussenbeheer", icon: "van", color: "gray", group: "Beheer", desc: "Bussen per shift, met focus op probleembussen." });
     // Proces-volgorde: Senior Dashboard, Laadproces, Schadecontrole, Kwaliteit.
@@ -1674,7 +1685,6 @@
           '<div class="u-meta">' + esc(S.roleMeta(u.rol).label) + "</div></div>" +
         '<button class="avatar-btn" data-profile title="Profiel"><span class="avatar">' + initials(u) + "</span>" +
           '<span class="avatar-gear">' + svg("settings", "icon-sm") + "</span></button>" +
-        themeToggleBtn() +
         '<button class="btn btn-icon btn-ghost" data-logout title="Uitloggen" style="background:rgba(255,255,255,.5)">' + svg("logout", "icon-sm") + "</button>" +
       "</div></div></header>";
   }
@@ -2345,9 +2355,7 @@
     // Steekproeven van de vorige shift moeten nog tegen het Jumbo-systeem gecontroleerd worden
     var prevSc = S.vorigeShift(c.d, c.dd), scc = S.steekproefControleStats(c.h, prevSc.datum, prevSc.dagdeel);
     if (scc.total > 0 && scc.done < scc.total) todo.push("Steekproeven van de vorige shift controleren (" + (scc.total - scc.done) + " open)");
-    var todoLinks = (needKlaarzet ? '<button class="link-btn" data-dashtab="klaarzetten">Naar klaarzetten</button> ' : "") +
-      (needDiensten ? '<button class="link-btn" data-dashtab="diensten">Naar diensten</button>' : "");
-    var todoBanner = todo.length ? '<div class="todo-banner">' + svg("alertTri", "icon-sm") + "<div><b>Nog te doen:</b> " + todo.map(esc).join(" · ") + " " + todoLinks + "</div></div>" : "";
+    var todoBanner = todo.length ? '<div class="todo-banner">' + svg("alertTri", "icon-sm") + "<div><b>Nog te doen:</b> " + todo.map(esc).join(" · ") + "</div></div>" : "";
     var qAfw = S.qtelAfwijking(c.h, c.d, c.dd);
 
     function tile(title, icon, color, inner, mod) {
