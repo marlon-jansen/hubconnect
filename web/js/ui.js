@@ -215,28 +215,74 @@
     if (seg) seg.querySelectorAll("[data-set-theme]").forEach(function (b) { b.classList.toggle("active", b === t); });
   });
 
+  /* ---- Landing-showcase: stylized dark mockups voor het scroll-toneel ---- */
+  function mkDash() {
+    function card(cls, ring) {
+      return '<div class="mk-card mk-' + cls + '">' +
+        (ring != null ? '<div class="mk-ring mk-' + cls + '" style="--mp:' + ring + '"><span></span></div>' : '<span class="mk-ico"></span>') +
+        '<div class="mk-tx"><b></b><i></i></div></div>';
+    }
+    return '<div class="mk mk-dash">' +
+      '<div class="mk-bar"><span class="mk-jumbo">JUMBO</span><span class="mk-sub">Senior Dashboard</span><span class="mk-live"><i></i>Live</span></div>' +
+      '<div class="mk-seg"><span class="on">AM</span><span>PM</span></div>' +
+      '<div class="mk-grid">' + card("o", 68) + card("g", 82) + card("b", 45) + card("p", null) + "</div></div>";
+  }
+  function mkMenu(mobile) {
+    var tiles = ["y", "d", "o", "g", "p", "b"].map(function (c) { return '<div class="mk-tile mk-' + c + '"><span class="mk-ic"></span><b></b><i></i></div>'; }).join("");
+    return '<div class="mk mk-menu' + (mobile ? " mk-mob" : "") + '">' +
+      '<div class="mk-bar"><span class="mk-jumbo">JUMBO</span><span class="mk-sub">HubConnect</span><span class="mk-ava"></span></div>' +
+      '<div class="mk-hello"><b></b><i></i></div>' +
+      '<div class="mk-tiles">' + tiles + "</div></div>";
+  }
+  function bindLandingShowcase() {
+    var stage = document.querySelector(".lp-stage"); if (!stage) return;
+    var laptop = stage.querySelector(".lp-laptop"), phone = stage.querySelector(".lp-phone");
+    var scrMenu = stage.querySelector(".lp-scr-menu"), scrDash = stage.querySelector(".lp-scr-dash"), base = stage.querySelector(".lp-base");
+    var caps = stage.querySelectorAll(".lp-cap");
+    var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+    function lerp(a, b, t) { return a + (b - a) * t; }
+    function ease(t) { return 1 - Math.pow(1 - t, 3); }
+    function setCap(i, o) { if (caps[i]) caps[i].style.opacity = String(clamp(o, 0, 1)); }
+    if (reduce) {
+      laptop.style.transform = "translate(-50%,-50%) scale(1)";
+      laptop.style.opacity = "1"; phone.style.opacity = "0"; scrMenu.style.opacity = "0";
+      setCap(0, 1); return;
+    }
+    function update() {
+      var rect = stage.getBoundingClientRect();
+      var range = Math.max(1, stage.offsetHeight - window.innerHeight);
+      var p = clamp(-rect.top / range, 0, 1);
+      var pa = clamp(p / 0.34, 0, 1);          // laptop draait naar voren
+      var pb = clamp((p - 0.34) / 0.26, 0, 1); // inzoomen op het scherm
+      var pc = clamp((p - 0.62) / 0.30, 0, 1); // wisselen naar telefoon
+      var scale = lerp(0.82, 1, ease(pa)) * lerp(1, 2.7, ease(pb));
+      laptop.style.transform = "translate(-50%,-50%) rotateX(" + lerp(24, 0, ease(pa)) + "deg) rotateY(" + lerp(-15, 0, ease(pa)) + "deg) scale(" + scale + ")";
+      laptop.style.opacity = String(1 - pc);
+      if (base) base.style.opacity = String(1 - clamp(pb * 1.4, 0, 1));
+      var menuO = clamp((p - 0.44) / 0.12, 0, 1);
+      scrMenu.style.opacity = String(menuO);
+      if (scrDash) scrDash.style.opacity = String(1 - menuO);
+      phone.style.opacity = String(pc);
+      phone.style.transform = "translate(-50%,-50%) scale(" + lerp(0.72, 1, ease(pc)) + ")";
+      setCap(0, 1 - clamp((p - 0.28) / 0.08, 0, 1));
+      setCap(1, clamp((p - 0.36) / 0.06, 0, 1) * (1 - clamp((p - 0.60) / 0.06, 0, 1)));
+      setCap(2, clamp((p - 0.68) / 0.06, 0, 1));
+    }
+    window.addEventListener("scroll", update, { passive: true });
+    window.addEventListener("resize", update);
+    update();
+  }
+
   function renderLanding() {
     var loggedIn = !!S.currentUser();
     var cta = loggedIn ? "Verder naar de hub" : "Inloggen";
 
-    // Showcase van de kernmodules (los van rechten — dit is de voorpagina)
-    var mods = [
-      { icon: "exchange",      color: "yellow", name: "RuilHub",          desc: "Shifts en taken ruilen binnen je hub." },
-      { icon: "chart",         color: "dark",   name: "Senior Dashboard", desc: "Realtime overzicht van de hele shift." },
-      { icon: "inbox",         color: "orange", name: "Laadproces",       desc: "Ritten koppelen aan bussen en trolleys." },
-      { icon: "shield",        color: "green",  name: "Schadecontrole",   desc: "Bussen controleren en afvinken." },
-      { icon: "award",         color: "purple", name: "Kwaliteit",        desc: "Emballage tellen per vak." }
-    ];
     var vals = [
       { icon: "clock", title: "Realtime",           desc: "Wat er in de hub gebeurt, zie je meteen. Geen appjes meer heen en weer." },
       { icon: "devices", title: "Perfect voor mobiel en desktop", desc: "Voor de taken v&oacute;&oacute;r en na de rit — grote knoppen, snelle acties." },
       { icon: "grid",  title: "Alles op &eacute;&eacute;n plek", desc: "Ruilen, plannen, laden en controleren. Alles bij elkaar." }
     ];
-    var modCards = mods.map(function (m, i) {
-      return '<article class="l3-mod m-' + m.color + ' reveal" style="--d:' + (i * 70) + 'ms">' +
-        '<span class="l3-mod-ico">' + svg(m.icon, "icon-lg") + "</span>" +
-        "<h3>" + m.name + "</h3><p>" + m.desc + "</p></article>";
-    }).join("");
     var valCards = vals.map(function (v, i) {
       return '<div class="l3-val reveal" style="--d:' + (i * 90) + 'ms">' +
         '<span class="l3-val-ico">' + svg(v.icon, "icon-lg") + "</span>" +
@@ -263,13 +309,28 @@
           '<div class="l3-scroll" aria-hidden="true">' + chevron + "</div>" +
         "</section>" +
 
-        '<section class="l3-sec">' +
+        '<section class="l3-sec l3-intro">' +
           '<div class="l3-sec-in">' +
             '<h2 class="l3-h2 reveal">Je hele shift, in &eacute;&eacute;n app.</h2>' +
-            '<p class="l3-sub reveal" style="--d:60ms">Van ruilen en plannen tot laden, controleren en tellen — elke stap van de bezorgservice op &eacute;&eacute;n plek.</p>' +
-            '<div class="l3-mods">' + modCards + "</div>" +
+            '<p class="l3-sub reveal" style="--d:60ms">Van het Senior Dashboard tot het menu — op je laptop &eacute;n je telefoon. Scroll maar mee.</p>' +
           "</div>" +
         "</section>" +
+
+        '<section class="lp-stage"><div class="lp-sticky">' +
+          '<div class="lp-laptop">' +
+            '<div class="lp-lid"><div class="lp-screen">' +
+              '<div class="lp-scr lp-scr-dash">' + mkDash() + "</div>" +
+              '<div class="lp-scr lp-scr-menu">' + mkMenu(false) + "</div>" +
+            "</div></div>" +
+            '<div class="lp-base"><span class="lp-notch2"></span></div>' +
+          "</div>" +
+          '<div class="lp-phone"><span class="lp-island"></span><div class="lp-phone-screen">' + mkMenu(true) + "</div></div>" +
+          '<div class="lp-caption">' +
+            '<span class="lp-cap" data-cap="0">Je Senior Dashboard — realtime.</span>' +
+            '<span class="lp-cap" data-cap="1">Alles vanuit &eacute;&eacute;n menu.</span>' +
+            '<span class="lp-cap" data-cap="2">Ook op je telefoon.</span>' +
+          "</div>" +
+        "</div></section>" +
 
         '<section class="l3-sec l3-vals-sec">' +
           '<div class="l3-sec-in">' +
@@ -308,6 +369,7 @@
       }, { threshold: 0.12, rootMargin: "0px 0px -6% 0px" });
       revs.forEach(function (n) { io.observe(n); });
     }
+    bindLandingShowcase();
   }
 
   /* ===================================================================
