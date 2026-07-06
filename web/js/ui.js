@@ -400,6 +400,7 @@
             '<div class="u-meta">' + esc(S.roleMeta(u.rol).label) + " · HUB " + esc(hub ? hub.naam : "?") + "</div></div>" +
           '<button class="avatar-btn" data-profile title="Profiel"><span class="avatar">' + initials(u) + "</span>" +
             '<span class="avatar-gear">' + svg("settings", "icon-sm") + "</span></button>" +
+          themeToggleBtn() +
           '<button class="btn btn-icon btn-ghost" data-logout title="Uitloggen" style="background:rgba(255,255,255,.5)">' + svg("logout", "icon-sm") + "</button>" +
         "</div>" +
       "</div></header>" +
