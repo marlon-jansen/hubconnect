@@ -1645,10 +1645,11 @@
       var d = l.details || {};
       var label = l.type === "shiftwissel" ? "Shiftwissel" : (l.type === "taakwissel" ? "Taakwissel" : (l.type === "oproep" ? "Oproep" : "Back-up"));
       var what = label + " — " + (d.dagdeel || "") + (d.starttijd ? " " + d.starttijd : "") + (d.taak ? " · " + d.taak : "") + (d.busType ? " · " + d.busType : "");
+      var undo = S.can.isApprover(u) ? ' · <button class="link-btn" data-undolog="' + l.id + '">' + svg("refresh", "icon-sm") + "Herzien</button>" : "";
       return '<div class="log-item"><div class="log-dot ' + (ok ? "ok" : "no") + '">' + svg(ok ? "check" : "x", "icon-sm") + "</div>" +
         '<div class="log-body"><div class="l-title">' + esc(what) + ' — <span style="color:' + (ok ? "var(--green)" : "var(--red)") + '">' + (ok ? "Goedgekeurd" : "Afgekeurd") + "</span></div>" +
           '<div class="l-desc">' + fullName(ab) + " " + inlineArrow() + " " + fullName(ov) + (l.reden ? " — <em>" + esc(l.reden) + "</em>" : "") + "</div>" +
-          '<div class="l-meta">Beoordeeld door ' + fullName(by) + " · " + fmtDateTime(l.timestamp) + "</div></div></div>";
+          '<div class="l-meta">Beoordeeld door ' + fullName(by) + " · " + fmtDateTime(l.timestamp) + undo + "</div></div></div>";
     }
     // groeperen per dag (van de ruiling)
     var byDay = {}, order = [];
@@ -1673,6 +1674,7 @@
   function inlineArrow() { return '<svg class="icon icon-sm" style="display:inline;vertical-align:-3px;color:var(--muted)" viewBox="0 0 24 24">' + P.arrowRight + "</svg>"; }
   function bindLog() {
     bindWeekBar("log", "logRef", "logRange");
+    document.querySelectorAll("[data-undolog]").forEach(function (b) { b.addEventListener("click", function () { act(function () { S.undoDecision(b.getAttribute("data-undolog")); }, "Beslissing herzien — staat weer bij Goedkeuren."); }); });
     document.querySelectorAll("[data-ltype]").forEach(function (b) { b.addEventListener("click", function () { state.logType = b.getAttribute("data-ltype"); renderMain(); }); });
     var s = el("logSearch"); if (s) s.addEventListener("input", function () { state.logQ = s.value; var m = el("main"); m.innerHTML = viewLog(); bindLog(); var n = el("logSearch"); if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); } });
   }
