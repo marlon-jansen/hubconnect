@@ -694,7 +694,9 @@ main { max-width: 1100px; margin: 0 auto; padding: 22px 18px 80px; }
 .dp-nav:hover { background: var(--jumbo-yellow); }
 .dp-week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; margin-bottom: 4px; }
 .dp-week span { text-align: center; font-size: 11px; font-weight: 800; color: var(--muted); padding: 4px 0; }
-.dp-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.dp-grid { display: grid; grid-template-columns: repeat(7, 1fr); grid-auto-rows: 34px; gap: 2px; align-items: stretch; }
+/* lege begincellen mogen de rij-hoogte niet oprekken */
+.dp-cell.empty { height: auto; }
 .dp-cell { border: 0; background: transparent; height: 32px; border-radius: 8px; font-family: inherit; font-weight: 700; font-size: 13px; cursor: pointer; color: var(--ink); display: grid; place-items: center; }
 .datepick-pop .dp-grid { gap: 1px; }
 .dp-cell:hover:not(.empty) { background: var(--jumbo-yellow-soft); }
@@ -1129,6 +1131,9 @@ button.n2-bolt:hover { background: var(--surface-2); }
   .table:not(.table-grid) tr.lc-noload { background: #f2f2ef; }
   .table:not(.table-grid) tr.sc-done td, .table:not(.table-grid) tr.lc-noload td { background: transparent; }
   .table:not(.table-grid) tr.sc-done td, .table:not(.table-grid) tr.sc-done td::before { border-color: #d7ecdf; }
+  /* emballage-vak: geel egaal over het hele kaartje i.p.v. per cel (voorheen witte randen) */
+  .table:not(.table-grid) tr.vak-emb { background: var(--jumbo-yellow-soft); border-color: #f0e2a8; }
+  .table:not(.table-grid) tr.vak-emb td { background: transparent; }
   .chk-box { width: 34px; height: 34px; }  /* groter aantikbaar */
   .plan-cell button { min-width: 52px; height: 34px; }
 
