@@ -1352,9 +1352,11 @@
       // niemand wijzigt zijn eigen functie
       var roleCell = (canRoles && !isSelf) ? '<select class="pill-select role-select" data-role="' + x.id + '">' + roleOpts(x.rol) + "</select>" : '<span class="badge role">' + esc(S.roleMeta(x.rol).label) + "</span>";
       // iedereen heeft diesel; N2 is een extra bevoegdheid
+      // N2-bevoegdheid: bliksem groen+gevuld = mag N2 rijden, grijs+leeg = niet.
+      var boltSvg = '<svg class="icon" viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>';
       var n2Cell = canEdit
-        ? '<label class="toggle n2-toggle"><input type="checkbox" data-n2="' + x.id + '" ' + (x.n2 ? "checked" : "") + '><span class="track"></span></label>'
-        : (x.n2 ? '<span class="badge n2">' + svg("bolt", "icon-sm") + "N2</span>" : '<span class="badge diesel">' + svg("van", "icon-sm") + "Diesel</span>");
+        ? '<button class="n2-bolt' + (x.n2 ? " on" : "") + '" data-n2="' + x.id + '" data-n2v="' + (x.n2 ? "1" : "0") + '" title="N2-bevoegdheid aan/uit">' + boltSvg + "</button>"
+        : '<span class="n2-bolt' + (x.n2 ? " on" : "") + '" title="' + (x.n2 ? "Mag N2 rijden" : "Alleen diesel") + '">' + boltSvg + "</span>";
       var jbtCell = canEdit
         ? '<span class="chip jbt-chip ' + (x.jbtTrainer ? "on" : "") + '" data-jbt="' + x.id + '">' + svg("cap", "icon-sm") + "JBT-trainer</span>"
         : (x.jbtTrainer ? '<span class="badge jbt">' + svg("cap", "icon-sm") + "JBT-trainer</span>" : '<span class="cellsub">—</span>');
@@ -1379,7 +1381,7 @@
 
       return "<tr><td><div class=\"cellname\">" + fullName(x) + (x.id === u.id ? " (jij)" : "") + "</div><div class=\"cellsub\">" + esc(x.email) + "</div>" +
         (showHub ? '<div class="cellsub">HUB ' + esc(hub ? hub.naam : "?") + "</div>" : "") + acct + delBtn + "</td>" +
-        '<td data-th="Functie">' + roleCell + '</td><td data-th="Bus">' + n2Cell + '</td><td data-th="JBT">' + jbtCell + "</td>" +
+        '<td data-th="Functie">' + roleCell + '</td><td data-th="N2">' + n2Cell + '</td><td data-th="JBT">' + jbtCell + "</td>" +
         '<td data-th="Taken"><div class="chips">' + (taskChips || '<span class="cellsub">—</span>') + "</div></td></tr>";
     }).join("");
 
@@ -1388,7 +1390,7 @@
 
     return '<div class="toolbar">' + search + '<div class="grow"></div>' + addBtn + "</div>" +
       panel("users", "Medewerkers" + (showHub ? " (alle hubs)" : ""), tableScroll(
-        "<thead><tr><th>Medewerker</th><th>Functie</th><th>Bus</th><th>JBT</th><th>Taken</th></tr></thead><tbody>" +
+        "<thead><tr><th>Medewerker</th><th>Functie</th><th>N2</th><th>JBT</th><th>Taken</th></tr></thead><tbody>" +
         (rows || '<tr><td colspan="5"><div class="cellsub" style="padding:8px 0">Geen medewerkers gevonden.</div></td></tr>') + "</tbody>"));
   }
 
@@ -1439,7 +1441,7 @@
     var ts = el("teamSearch");
     if (ts) ts.addEventListener("input", function () { state.teamQ = ts.value; (reRender || renderMain)(); var n = el("teamSearch"); if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); } });
     document.querySelectorAll("[data-role]").forEach(function (s) { s.addEventListener("change", function () { act(function () { S.setUserRole(s.getAttribute("data-role"), s.value); }, "Functie bijgewerkt."); }); });
-    document.querySelectorAll("[data-n2]").forEach(function (c) { c.addEventListener("change", function () { act(function () { S.setUserN2(c.getAttribute("data-n2"), c.checked); }, "N2-bevoegdheid bijgewerkt."); }); });
+    document.querySelectorAll("button[data-n2]").forEach(function (b) { b.addEventListener("click", function () { act(function () { S.setUserN2(b.getAttribute("data-n2"), b.getAttribute("data-n2v") !== "1"); }, "N2-bevoegdheid bijgewerkt."); }); });
     document.querySelectorAll("[data-tasktype]").forEach(function (b) { b.addEventListener("click", function () { var p = b.getAttribute("data-tasktype").split("|"); act(function () { S.setTaskType(p[0], p[1]); }, "Taaktype bijgewerkt."); }); });
     document.querySelectorAll("[data-jbt]").forEach(function (c) { c.addEventListener("click", function () { var id = c.getAttribute("data-jbt"); var t = S.userById(id); act(function () { S.setUserJbt(id, !t.jbtTrainer); }, "JBT-trainer bijgewerkt."); }); });
     document.querySelectorAll("[data-utask]").forEach(function (c) { c.addEventListener("click", function () { var p = c.getAttribute("data-utask").split("|"); act(function () { S.toggleUserTask(p[0], p[1]); }, "Taken bijgewerkt."); }); });
