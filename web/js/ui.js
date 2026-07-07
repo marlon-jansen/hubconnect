@@ -368,6 +368,34 @@
   /* ===================================================================
      LOGIN
      =================================================================== */
+  // Bovenaan de login/registreer-kaart: tabje om te wisselen, met een zachte crossfade.
+  function authModeSeg(active) {
+    return '<div class="auth-tabs">' +
+      '<button type="button" class="' + (active === "login" ? "active" : "") + '" data-authtab="login">Inloggen</button>' +
+      '<button type="button" class="' + (active === "register" ? "active" : "") + '" data-authtab="register">Registreren</button>' +
+      "</div>";
+  }
+  function bindAuthModeSeg() {
+    document.querySelectorAll("[data-authtab]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var m = b.getAttribute("data-authtab");
+        if (m === "login" && authScreen !== "login") switchAuthScreen("login");
+        if (m === "register" && authScreen !== "register-code" && authScreen !== "register-form") { regInvite = null; switchAuthScreen("register-code"); }
+      });
+    });
+  }
+  // Zachte overgang bij het wisselen van scherm (fade + lichte verschuiving, geen harde knip).
+  function switchAuthScreen(next) {
+    var card = el("app").querySelector(".auth-card");
+    if (!card || (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches)) { authScreen = next; render(); return; }
+    card.classList.add("auth-leave");
+    setTimeout(function () {
+      authScreen = next; render();
+      var c2 = el("app").querySelector(".auth-card");
+      if (c2) { c2.classList.add("auth-enter"); setTimeout(function () { c2.classList.add("auth-enter-active"); }, 20); }
+    }, 140);
+  }
+
   function renderLogin() {
     el("app").innerHTML =
       '<div class="auth-wrap"><div class="auth-card">' +
@@ -375,20 +403,20 @@
           '<button class="auth-back" data-back>' + svg("arrowLeft", "icon-sm") + " Terug</button>" +
           logo(38) + "<h1>Inloggen</h1><p>Welkom terug bij " + PORTAL + "</p></div>" +
         '<div class="auth-body">' +
+          authModeSeg("login") +
           '<form id="loginForm" autocomplete="on">' +
             '<div class="field"><label>E-mailadres</label>' +
               '<input type="email" name="email" placeholder="naam@jumbo.com" required></div>' +
             '<div class="field"><label>Wachtwoord</label>' +
-              pwInput("password", "Wachtwoord of eenmalige code", " required") + "</div>" +
+              pwInput("password", "Wachtwoord", " required") + "</div>" +
             '<div id="authMsg"></div>' +
             '<button class="btn btn-primary btn-block" type="submit">' + svg("arrowRight") + "Inloggen</button>" +
           "</form>" +
-          '<div class="hint" style="margin-top:14px;text-align:center">Nog geen account? Je teamleider geeft je een code — <a href="#" data-goto-register>registreer hier</a>.</div>' +
         "</div>" +
       "</div></div>";
 
     el("app").querySelector("[data-back]").addEventListener("click", function () { authScreen = "landing"; render(); });
-    el("app").querySelector("[data-goto-register]").addEventListener("click", function (e) { e.preventDefault(); authScreen = "register-code"; render(); });
+    bindAuthModeSeg();
     el("loginForm").addEventListener("submit", function (e) {
       e.preventDefault();
       var f = e.target;
@@ -407,6 +435,7 @@
           '<button class="auth-back" data-back>' + svg("arrowLeft", "icon-sm") + " Terug</button>" +
           logo(38) + "<h1>Account registreren</h1><p>Vul de code in die je van je teamleider hebt gekregen.</p></div>" +
         '<div class="auth-body">' +
+          authModeSeg("register") +
           '<form id="codeForm">' +
             '<div class="field"><label>Uitnodigingscode</label>' +
               '<input name="code" placeholder="XXXX-XXXX" required style="text-transform:uppercase;letter-spacing:2px;text-align:center;font-weight:700"></div>' +
@@ -417,6 +446,7 @@
       "</div></div>";
 
     el("app").querySelector("[data-back]").addEventListener("click", function () { authScreen = "login"; render(); });
+    bindAuthModeSeg();
     el("codeForm").addEventListener("submit", function (e) {
       e.preventDefault();
       var f = e.target;
@@ -437,7 +467,7 @@
           '<form id="regForm" autocomplete="on">' +
             '<div class="row2"><div class="field"><label>Voornaam</label><input name="voornaam" required></div>' +
               '<div class="field"><label>Achternaam</label><input name="achternaam" required></div></div>' +
-            '<div class="field"><label>Personeelsnummer</label><input name="num" inputmode="numeric" placeholder="1234567" required></div>' +
+            '<div class="field"><label>HR-nummer</label><input name="num" inputmode="numeric" placeholder="1234567" required></div>' +
             '<div class="field"><label>E-mailadres</label><input type="email" name="email" placeholder="naam@jumbo.com" required></div>' +
             '<div class="field"><label>Wachtwoord</label>' + pwInput("p1", "Min. 4 tekens", " required") + "</div>" +
             '<div class="field"><label>Herhaal wachtwoord</label>' + pwInput("p2", "", " required") + "</div>" +

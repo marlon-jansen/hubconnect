@@ -92,6 +92,10 @@ svg { display: block; }
   width: 100%; max-width: 430px; background: var(--card);
   border-radius: 20px; box-shadow: var(--shadow-lg); overflow: hidden;
 }
+.auth-card.auth-leave { opacity: 0; transform: translateY(4px) scale(.99); transition: opacity .13s var(--ease), transform .13s var(--ease); }
+.auth-card.auth-enter { opacity: 0; transform: translateY(-4px) scale(.99); }
+.auth-card.auth-enter-active { opacity: 1; transform: none; transition: opacity .22s cubic-bezier(.2,.7,.2,1), transform .22s cubic-bezier(.2,.7,.2,1); }
+/* reduced-motion: al gedekt door de globale wildcard-regel verderop in dit bestand */
 .auth-head { background: var(--jumbo-yellow); padding: 26px 28px 22px; }
 .auth-head h1 { margin: 12px 0 2px; font-size: 22px; font-weight: 900; }
 .auth-head p { margin: 0; font-size: 14px; color: var(--ink-soft); font-weight: 600; }
@@ -100,6 +104,7 @@ svg { display: block; }
 .auth-tabs button {
   flex: 1; border: 0; background: transparent; padding: 9px; border-radius: 9px;
   font-weight: 800; font-size: 14px; color: var(--muted); cursor: pointer;
+  transition: background .15s var(--ease), color .15s var(--ease), box-shadow .15s var(--ease);
 }
 .auth-tabs button.active { background: var(--card); color: var(--ink); box-shadow: var(--shadow); }
 
@@ -115,7 +120,8 @@ svg { display: block; }
 .field .hint { font-size: 12px; color: var(--muted); margin-top: 5px; }
 .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
-.alert { padding: 11px 14px; border-radius: 10px; font-size: 13px; font-weight: 700; margin-bottom: 14px; }
+.alert { padding: 11px 14px; border-radius: 10px; font-size: 13px; font-weight: 700; margin-bottom: 14px; animation: alertIn .18s var(--ease); }
+@keyframes alertIn { from { opacity: 0; transform: translateY(-4px); } }
 .alert-error { background: var(--red-soft); color: var(--red); }
 .alert-info { background: var(--blue-soft); color: var(--blue); }
 
@@ -1004,7 +1010,8 @@ main { max-width: 1100px; margin: 0 auto; padding: 22px 18px 80px; }
 .tile-grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
 .tile {
   text-align: left; border: 1px solid var(--line); background: var(--card); border-radius: 16px; padding: 22px;
-  cursor: pointer; display: flex; flex-direction: column; gap: 6px; box-shadow: var(--shadow); transition: .15s;
+  cursor: pointer; display: flex; flex-direction: column; gap: 6px; box-shadow: var(--shadow);
+  transition: transform .18s var(--ease), box-shadow .18s var(--ease);
   position: relative; overflow: hidden;
 }
 .tile:hover { transform: translateY(-4px); box-shadow: var(--shadow-lg); }
@@ -1029,7 +1036,7 @@ main { max-width: 1100px; margin: 0 auto; padding: 22px 18px 80px; }
 /* N2-bevoegdheid als bliksem: groen+gevuld = mag N2, grijs+leeg = niet */
 .n2-bolt { border: 0; background: transparent; padding: 3px; display: inline-flex; border-radius: 8px; cursor: pointer; }
 span.n2-bolt { cursor: default; }
-.n2-bolt .icon { width: 22px; height: 22px; stroke: var(--muted); fill: none; stroke-width: 2; stroke-linejoin: round; }
+.n2-bolt .icon { width: 22px; height: 22px; stroke: var(--muted); fill: none; stroke-width: 2; stroke-linejoin: round; transition: stroke .15s var(--ease), fill .15s var(--ease); }
 .n2-bolt.on .icon { stroke: var(--green-bright); fill: var(--green-bright); }
 button.n2-bolt:hover { background: var(--surface-2); }
 
