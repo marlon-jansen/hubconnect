@@ -283,7 +283,7 @@
   function registerWithCode(code, data) {
     var inv = validateInviteCode(code);
     var num = (data.personeelsnummer || "").replace(/\D/g, "");
-    if (num.length < 4) throw new Error("Vul een geldig personeelsnummer in (minimaal 4 cijfers).");
+    if (num.length < 4) throw new Error("Vul een geldig HR-nummer in (minimaal 4 cijfers).");
     var email = (data.email || "").trim().toLowerCase();
     if (!EMAIL_RE.test(email)) throw new Error("Vul een geldig e-mailadres in.");
     if (userByEmail(email)) throw new Error("Er bestaat al een account met dit e-mailadres.");
