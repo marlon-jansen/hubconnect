@@ -15,6 +15,7 @@
     logQ: "", logType: "all"
   };
   var authScreen = "landing";
+  var regInvite = null; // gevalideerde uitnodigingscode tijdens het registratieflow (stap 1 -> stap 2)
 
   /* ---------- helpers ---------- */
   function el(id) { return document.getElementById(id); }
@@ -382,16 +383,79 @@
             '<div id="authMsg"></div>' +
             '<button class="btn btn-primary btn-block" type="submit">' + svg("arrowRight") + "Inloggen</button>" +
           "</form>" +
-          '<div class="hint" style="margin-top:14px;text-align:center">Nog geen account? Je teamleider maakt er één aan en geeft je een eenmalige code.</div>' +
+          '<div class="hint" style="margin-top:14px;text-align:center">Nog geen account? Je teamleider geeft je een code — <a href="#" data-goto-register>registreer hier</a>.</div>' +
         "</div>" +
       "</div></div>";
 
     el("app").querySelector("[data-back]").addEventListener("click", function () { authScreen = "landing"; render(); });
+    el("app").querySelector("[data-goto-register]").addEventListener("click", function (e) { e.preventDefault(); authScreen = "register-code"; render(); });
     el("loginForm").addEventListener("submit", function (e) {
       e.preventDefault();
       var f = e.target;
       try { S.login(f.email.value, f.password.value); resetNav(); render(); }
       catch (err) { el("authMsg").innerHTML = '<div class="alert alert-error">' + esc(err.message) + "</div>"; }
+    });
+  }
+
+  /* ===================================================================
+     REGISTREREN MET UITNODIGINGSCODE
+     =================================================================== */
+  function renderRegisterCode() {
+    el("app").innerHTML =
+      '<div class="auth-wrap"><div class="auth-card">' +
+        '<div class="auth-head">' +
+          '<button class="auth-back" data-back>' + svg("arrowLeft", "icon-sm") + " Terug</button>" +
+          logo(38) + "<h1>Account registreren</h1><p>Vul de code in die je van je teamleider hebt gekregen.</p></div>" +
+        '<div class="auth-body">' +
+          '<form id="codeForm">' +
+            '<div class="field"><label>Uitnodigingscode</label>' +
+              '<input name="code" placeholder="XXXX-XXXX" required style="text-transform:uppercase;letter-spacing:2px;text-align:center;font-weight:700"></div>' +
+            '<div id="codeMsg"></div>' +
+            '<button class="btn btn-primary btn-block" type="submit">' + svg("arrowRight") + "Doorgaan</button>" +
+          "</form>" +
+        "</div>" +
+      "</div></div>";
+
+    el("app").querySelector("[data-back]").addEventListener("click", function () { authScreen = "login"; render(); });
+    el("codeForm").addEventListener("submit", function (e) {
+      e.preventDefault();
+      var f = e.target;
+      try { regInvite = S.validateInviteCode(f.code.value); authScreen = "register-form"; render(); }
+      catch (err) { el("codeMsg").innerHTML = '<div class="alert alert-error">' + esc(err.message) + "</div>"; }
+    });
+  }
+
+  function renderRegisterForm() {
+    if (!regInvite) { authScreen = "register-code"; render(); return; }
+    var hub = S.hubById(regInvite.hubId);
+    el("app").innerHTML =
+      '<div class="auth-wrap"><div class="auth-card">' +
+        '<div class="auth-head">' +
+          '<button class="auth-back" data-back>' + svg("arrowLeft", "icon-sm") + " Terug</button>" +
+          logo(38) + "<h1>Jouw gegevens</h1><p>HUB " + esc(hub ? hub.naam : "?") + " · je start als Bezorger</p></div>" +
+        '<div class="auth-body">' +
+          '<form id="regForm" autocomplete="on">' +
+            '<div class="row2"><div class="field"><label>Voornaam</label><input name="voornaam" required></div>' +
+              '<div class="field"><label>Achternaam</label><input name="achternaam" required></div></div>' +
+            '<div class="field"><label>Personeelsnummer</label><input name="num" inputmode="numeric" placeholder="1234567" required></div>' +
+            '<div class="field"><label>E-mailadres</label><input type="email" name="email" placeholder="naam@jumbo.com" required></div>' +
+            '<div class="field"><label>Wachtwoord</label>' + pwInput("p1", "Min. 4 tekens", " required") + "</div>" +
+            '<div class="field"><label>Herhaal wachtwoord</label>' + pwInput("p2", "", " required") + "</div>" +
+            '<div id="regMsg"></div>' +
+            '<button class="btn btn-primary btn-block" type="submit">' + svg("check") + "Account aanmaken</button>" +
+          "</form>" +
+        "</div>" +
+      "</div></div>";
+
+    el("app").querySelector("[data-back]").addEventListener("click", function () { regInvite = null; authScreen = "register-code"; render(); });
+    el("regForm").addEventListener("submit", function (e) {
+      e.preventDefault();
+      var f = e.target;
+      if (f.p1.value !== f.p2.value) { el("regMsg").innerHTML = '<div class="alert alert-error">De wachtwoorden komen niet overeen.</div>'; return; }
+      try {
+        S.registerWithCode(regInvite.code, { voornaam: f.voornaam.value, achternaam: f.achternaam.value, personeelsnummer: f.num.value, email: f.email.value, wachtwoord: f.p1.value });
+        regInvite = null; resetNav(); toast("Welkom! Je account is aangemaakt.", "ok"); render();
+      } catch (err) { el("regMsg").innerHTML = '<div class="alert alert-error">' + esc(err.message) + "</div>"; }
     });
   }
 
@@ -1483,6 +1547,10 @@
       } else if (canEdit) {
         acct = '<button class="link-btn" data-regen="' + x.id + '">' + svg("key", "icon-sm") + "Reset wachtwoord</button>";
       }
+      if (x.reviewed === false) {
+        acct += '<div class="otp-line" style="color:var(--red)">' + svg("alertTri", "icon-sm") + "Nieuw geregistreerd" +
+          (canEdit ? ' <button class="link-btn" data-review="' + x.id + '">' + svg("check", "icon-sm") + "gecontroleerd</button>" : "") + "</div>";
+      }
       var delBtn = (canEdit && x.id !== u.id && !x.hidden && S.level(x) < S.level(u))
         ? '<div><button class="link-btn danger" data-deluser="' + x.id + '">' + svg("trash", "icon-sm") + "Verwijderen</button></div>"
         : "";
@@ -1493,10 +1561,24 @@
         '<td data-th="Taken"><div class="chips">' + (taskChips || '<span class="cellsub">—</span>') + "</div></td></tr>";
     }).join("");
 
-    var addBtn = canEdit ? '<button class="btn btn-dark btn-sm" id="addUser">' + svg("userPlus", "icon-sm") + "Nieuwe medewerker</button>" : "";
+    var addBtn = canEdit ? '<button class="btn btn-dark btn-sm" id="addUser">' + svg("userPlus", "icon-sm") + "Uitnodigingscode maken</button>" : "";
     var search = '<div class="search"><span style="display:flex">' + svg("search", "icon-sm") + '</span><input id="teamSearch" placeholder="Zoek medewerker…" value="' + esc(state.teamQ) + '"></div>';
 
-    return '<div class="toolbar">' + search + '<div class="grow"></div>' + addBtn + "</div>" +
+    var openCodes = canEdit ? S.activeInviteCodes(u) : [];
+    var codesPanel = "";
+    if (openCodes.length) {
+      var codeRows = openCodes.map(function (i) {
+        var h = S.hubById(i.hubId);
+        return "<tr><td class=\"cellname\"><code>" + esc(i.code) + "</code></td>" +
+          '<td data-th="Hub" class="cellsub">HUB ' + esc(h ? h.naam : "?") + "</td>" +
+          '<td data-th="Geldig tot" class="cellsub">' + fmtDate(i.expiresAt.slice(0, 10)) + "</td>" +
+          '<td data-th="" style="text-align:right"><button class="btn btn-ghost btn-sm" data-revokecode="' + esc(i.code) + '">' + svg("trash", "icon-sm") + "Intrekken</button></td></tr>";
+      }).join("");
+      codesPanel = panel("key", "Openstaande uitnodigingscodes", tableScroll(
+        "<thead><tr><th>Code</th><th>Hub</th><th>Geldig tot</th><th></th></tr></thead><tbody>" + codeRows + "</tbody>"));
+    }
+
+    return '<div class="toolbar">' + search + '<div class="grow"></div>' + addBtn + "</div>" + codesPanel +
       panel("users", "Medewerkers" + (showHub ? " (alle hubs)" : ""), tableScroll(
         "<thead><tr><th>Medewerker</th><th>Functie</th><th>N2</th><th>JBT</th><th>Taken</th></tr></thead><tbody>" +
         (rows || '<tr><td colspan="5"><div class="cellsub" style="padding:8px 0">Geen medewerkers gevonden.</div></td></tr>') + "</tbody>"));
@@ -1554,6 +1636,8 @@
     document.querySelectorAll("[data-jbt]").forEach(function (c) { c.addEventListener("click", function () { var id = c.getAttribute("data-jbt"); var t = S.userById(id); act(function () { S.setUserJbt(id, !t.jbtTrainer); }, "JBT-trainer bijgewerkt."); }); });
     document.querySelectorAll("[data-utask]").forEach(function (c) { c.addEventListener("click", function () { var p = c.getAttribute("data-utask").split("|"); act(function () { S.toggleUserTask(p[0], p[1]); }, "Taken bijgewerkt."); }); });
     document.querySelectorAll("[data-regen]").forEach(function (b) { b.addEventListener("click", function () { var id = b.getAttribute("data-regen"); try { var otp = S.regenerateOtp(id); showOtpModal(S.userById(id), otp); (reRender || renderApp)(); } catch (e) { toast(e.message, "err"); } }); });
+    document.querySelectorAll("[data-review]").forEach(function (b) { b.addEventListener("click", function () { act(function () { S.markUserReviewed(b.getAttribute("data-review")); }, "Account gecontroleerd."); }); });
+    document.querySelectorAll("[data-revokecode]").forEach(function (b) { b.addEventListener("click", function () { act(function () { S.revokeInviteCode(b.getAttribute("data-revokecode")); }, "Code ingetrokken."); }); });
     document.querySelectorAll("[data-deluser]").forEach(function (b) { b.addEventListener("click", function () {
       var id = b.getAttribute("data-deluser"); var t = S.userById(id); if (!t) return;
       openModal({ title: "Medewerker verwijderen?", icon: "trash",
@@ -1574,35 +1658,19 @@
     });
   }
 
+  // Teamleider+ geeft alleen een code uit; de medewerker registreert zichzelf (voor-/achternaam, personeelsnr, e-mail, wachtwoord) op de inlogpagina.
   function openAddUser() {
-    var u = S.currentUser();
-    var canRoles = S.can.editRoles(u);
-    var roleOpts = S.ROLES.filter(function (r) { return canRoles || ["bezorger", "aankomend", "senior"].indexOf(r.id) !== -1; })
-      .map(function (r) { return '<option value="' + r.id + '"' + (r.id === "bezorger" ? " selected" : "") + ">" + esc(r.label) + "</option>"; }).join("");
-    var hubField = canRoles
-      ? '<div class="field"><label>Hub</label><select name="hubId">' + S.db.hubs.slice().sort(function (a, b) { return a.naam.localeCompare(b.naam); }).map(function (h) { return '<option value="' + h.id + '"' + (h.id === u.hubId ? " selected" : "") + ">HUB " + esc(h.naam) + "</option>"; }).join("") + "</select></div>"
-      : '<div class="field"><label>Hub</label><input value="HUB ' + esc((S.hubById(u.hubId) || {}).naam || "") + '" disabled></div>';
-    var body = '<form id="auForm">' +
-      '<div class="row2"><div class="field"><label>Voornaam</label><input name="voornaam" required></div>' +
-        '<div class="field"><label>Achternaam</label><input name="achternaam" required></div></div>' +
-      '<div class="field"><label>Personeelsnummer</label><input name="num" inputmode="numeric" placeholder="1234567" required></div>' +
-      '<div class="field"><label>E-mailadres</label><input type="email" name="email" placeholder="naam@jumbo.com" required></div>' +
-      '<div class="field"><label>Functie</label><select name="rol">' + roleOpts + "</select></div>" + hubField +
-      '<div class="field check-row"><label class="chk"><input type="checkbox" name="n2"> Mag in de N2-bus rijden</label>' +
-        '<label class="chk"><input type="checkbox" name="jbt"> JBT-trainer</label></div>' +
-      "</form>";
+    try { var inv = S.createInviteCode(); showInviteModal(inv); (reRender || renderApp)(); }
+    catch (e) { toast(e.message, "err"); }
+  }
+  function showInviteModal(inv) {
+    var hub = S.hubById(inv.hubId);
     openModal({
-      title: "Nieuwe medewerker", icon: "userPlus", body: body,
-      foot: '<button class="btn btn-ghost" data-close>Annuleren</button><button class="btn btn-primary" id="auSubmit">' + svg("check") + "Account aanmaken</button>",
-      onMount: function (ov, close) {
-        ov.querySelector("#auSubmit").addEventListener("click", function () {
-          var f = ov.querySelector("#auForm");
-          try {
-            var res = S.createUserByLeader({ voornaam: f.voornaam.value, achternaam: f.achternaam.value, personeelsnummer: f.num.value, email: f.email.value, rol: f.rol.value, hubId: f.hubId ? f.hubId.value : null, n2: f.n2.checked, jbtTrainer: f.jbt.checked });
-            close(); (reRender || renderApp)(); showOtpModal(res.user, res.otp);
-          } catch (e) { toast(e.message, "err"); }
-        });
-      }
+      title: "Uitnodigingscode klaar", icon: "key",
+      body: '<p style="margin:0 0 14px;color:var(--ink-soft);font-weight:600">Geef deze code aan de nieuwe medewerker. Die vult op de inlogpagina via "Registreren" zelf zijn/haar gegevens in en start als Bezorger bij HUB ' + esc(hub ? hub.naam : "?") + ".</p>" +
+        '<div class="otp-big">' + esc(inv.code) + "</div>" +
+        '<div class="hint" style="text-align:center;margin-top:10px">Geldig tot ' + fmtDate(inv.expiresAt.slice(0, 10)) + ", eenmalig te gebruiken.</div>",
+      foot: '<button class="btn btn-primary btn-block" data-close>' + svg("check") + "Begrepen</button>"
     });
   }
   function showOtpModal(user, otp) {
@@ -1768,7 +1836,10 @@
       else { applyUserTheme(u); renderModulePage(); }
     } else {
       document.documentElement.setAttribute("data-theme", "dark");   // landing & login: altijd donker
-      if (authScreen === "login") renderLogin(); else renderLanding();
+      if (authScreen === "login") renderLogin();
+      else if (authScreen === "register-code") renderRegisterCode();
+      else if (authScreen === "register-form") renderRegisterForm();
+      else renderLanding();
     }
   }
 
@@ -1822,14 +1893,23 @@
       return '<section class="portal-group"><h3 class="portal-group-title">' + esc(g) + "</h3>" +
         '<div class="tile-grid">' + gm.map(tileHTML).join("") + "</div></section>";
     }).join("");
+    var pending = S.can.seeBeheer(u) ? S.pendingReviewUsers(u) : [];
+    var pendingBanner = pending.length
+      ? '<div class="alert alert-info" style="display:flex;align-items:center;gap:10px;margin-bottom:18px">' +
+          svg("alertTri", "icon-sm") + '<div style="flex:1">' + pending.length + " nieuw" + (pending.length === 1 ? " account" : "e accounts") +
+          " via een uitnodigingscode geregistreerd — controleer of de gegevens kloppen.</div>" +
+          '<button class="btn btn-dark btn-sm" data-goto-beheer>' + svg("userCog", "icon-sm") + "Bekijken</button></div>"
+      : "";
     el("app").innerHTML = portalHeader(u) +
       '<main class="portal-main">' +
         '<div class="portal-welcome"><h2>Hallo ' + esc(u.voornaam) + ",</h2><p>Waar wil je mee aan de slag?</p></div>" +
+        pendingBanner +
         sections +
       "</main>";
     el("app").querySelector("[data-logout]").addEventListener("click", function () { S.logout(); resetNav(); authScreen = "landing"; render(); });
     el("app").querySelector("[data-profile]").addEventListener("click", openProfile);
     var hm = el("app").querySelector("[data-home]"); if (hm) hm.addEventListener("click", gotoLanding);
+    var gb = el("app").querySelector("[data-goto-beheer]"); if (gb) gb.addEventListener("click", function () { state.module = "personeelsbeheer"; render(); });
     document.querySelectorAll("[data-module]").forEach(function (b) {
       b.addEventListener("click", function () { state.module = b.getAttribute("data-module"); state.view = "shifts"; state.viewOnly = false; render(); });
     });
