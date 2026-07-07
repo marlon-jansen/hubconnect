@@ -515,13 +515,17 @@ main { max-width: 1100px; margin: 0 auto; padding: 22px 18px 80px; }
 .mk-mob .mk-tiles { grid-template-columns: 1fr; gap: 8px; }
 .mk-tile { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 7%; display: flex; flex-direction: column; gap: 6px; }
 .mk-mob .mk-tile { flex-direction: row; align-items: center; gap: 10px; }
-.mk-ic { width: 26px; height: 26px; border-radius: 7px; flex: 0 0 auto; }
+.mk-ic { width: 30px; height: 30px; border-radius: 8px; flex: 0 0 auto; display: grid; place-items: center; }
+.mk-ic .icon-sm { width: 16px; height: 16px; }
 .mk-tile b { height: 8px; width: 70%; border-radius: 3px; background: var(--ink-soft); display: block; }
 .mk-tile i { height: 6px; width: 90%; border-radius: 3px; background: var(--line); display: block; }
 .mk-mob .mk-tile i { display: none; }
-.mk-y .mk-ic { background: var(--jumbo-yellow); } .mk-d .mk-ic { background: #1d1d1b; }
-.mk-o .mk-ic { background: var(--orange); } .mk-g .mk-ic { background: var(--green); }
-.mk-p .mk-ic { background: #8b5cd0; } .mk-b .mk-ic { background: var(--blue); }
+.mk-y .mk-ic { background: var(--jumbo-yellow-soft); color: var(--jumbo-yellow-dark); }
+.mk-d .mk-ic { background: rgba(255,255,255,.1); color: var(--jumbo-yellow); }
+.mk-o .mk-ic { background: var(--orange-soft); color: var(--orange); }
+.mk-g .mk-ic { background: var(--green-soft); color: var(--green); }
+.mk-p .mk-ic { background: rgba(139,92,205,.22); color: #cbacf7; }
+.mk-b .mk-ic { background: var(--blue-soft); color: var(--blue); }
 /* container-queries voor scherptekst in de mockup */
 .lp-screen, .lp-phone-screen { container-type: inline-size; }
 
@@ -1378,6 +1382,10 @@ html { background: var(--bg); transition: background-color .25s var(--ease); }
 /* stat-card icoon-chips: lichte kleurvlakken → donkere tint */
 [data-theme="dark"] .stat-card .s-ico.up { background: rgba(52,211,153,.16); }
 [data-theme="dark"] .stat-card .s-ico.down { background: rgba(248,113,113,.16); }
+/* Laadproces: N2/JBT-vakken (lc-noload, 'hoeft niet geladen') hadden een
+   hardgecodeerde lichtgrijze → witte box in dark. Nu een donkere muted surface. */
+[data-theme="dark"] .lc-table tr.lc-noload td { background: var(--surface-2); }
+[data-theme="dark"] .table:not(.table-grid) tr.lc-noload { background: var(--surface-2); }
 
 /* ---- Thema-keuze in het profiel (segment-knop) ---- */
 .theme-seg { display: flex; width: 100%; margin-top: 4px; }

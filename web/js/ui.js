@@ -228,7 +228,8 @@
       '<div class="mk-grid">' + card("o", 68) + card("g", 82) + card("b", 45) + card("p", null) + "</div></div>";
   }
   function mkMenu(mobile) {
-    var tiles = ["y", "d", "o", "g", "p", "b"].map(function (c) { return '<div class="mk-tile mk-' + c + '"><span class="mk-ic"></span><b></b><i></i></div>'; }).join("");
+    var mods = [["exchange", "y"], ["chart", "d"], ["inbox", "o"], ["shield", "g"], ["award", "p"], ["van", "b"]];
+    var tiles = mods.map(function (m) { return '<div class="mk-tile mk-' + m[1] + '"><span class="mk-ic">' + svg(m[0], "icon-sm") + "</span><b></b><i></i></div>"; }).join("");
     return '<div class="mk mk-menu' + (mobile ? " mk-mob" : "") + '">' +
       '<div class="mk-bar"><span class="mk-jumbo">JUMBO</span><span class="mk-sub">HubConnect</span><span class="mk-ava"></span></div>' +
       '<div class="mk-hello"><b></b><i></i></div>' +
@@ -237,7 +238,6 @@
   function bindLandingShowcase() {
     var stage = document.querySelector(".lp-stage"); if (!stage) return;
     var laptop = stage.querySelector(".lp-laptop"), phone = stage.querySelector(".lp-phone");
-    var scrMenu = stage.querySelector(".lp-scr-menu"), scrDash = stage.querySelector(".lp-scr-dash"), base = stage.querySelector(".lp-base");
     var caps = stage.querySelectorAll(".lp-cap");
     var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
@@ -246,28 +246,22 @@
     function setCap(i, o) { if (caps[i]) caps[i].style.opacity = String(clamp(o, 0, 1)); }
     if (reduce) {
       laptop.style.transform = "translate(-50%,-50%) scale(1)";
-      laptop.style.opacity = "1"; phone.style.opacity = "0"; scrMenu.style.opacity = "0";
+      laptop.style.opacity = "1"; phone.style.opacity = "0";
       setCap(0, 1); return;
     }
     function update() {
       var rect = stage.getBoundingClientRect();
       var range = Math.max(1, stage.offsetHeight - window.innerHeight);
       var p = clamp(-rect.top / range, 0, 1);
-      var pa = clamp(p / 0.34, 0, 1);          // laptop draait naar voren
-      var pb = clamp((p - 0.34) / 0.26, 0, 1); // inzoomen op het scherm
-      var pc = clamp((p - 0.62) / 0.30, 0, 1); // wisselen naar telefoon
-      var scale = lerp(0.82, 1, ease(pa)) * lerp(1, 2.7, ease(pb));
-      laptop.style.transform = "translate(-50%,-50%) rotateX(" + lerp(24, 0, ease(pa)) + "deg) rotateY(" + lerp(-15, 0, ease(pa)) + "deg) scale(" + scale + ")";
-      laptop.style.opacity = String(1 - pc);
-      if (base) base.style.opacity = String(1 - clamp(pb * 1.4, 0, 1));
-      var menuO = clamp((p - 0.44) / 0.12, 0, 1);
-      scrMenu.style.opacity = String(menuO);
-      if (scrDash) scrDash.style.opacity = String(1 - menuO);
-      phone.style.opacity = String(pc);
-      phone.style.transform = "translate(-50%,-50%) scale(" + lerp(0.72, 1, ease(pc)) + ")";
-      setCap(0, 1 - clamp((p - 0.28) / 0.08, 0, 1));
-      setCap(1, clamp((p - 0.36) / 0.06, 0, 1) * (1 - clamp((p - 0.60) / 0.06, 0, 1)));
-      setCap(2, clamp((p - 0.68) / 0.06, 0, 1));
+      var pa = clamp(p / 0.38, 0, 1);          // laptop draait naar voren (geen inzoomen)
+      var pc = clamp((p - 0.44) / 0.46, 0, 1); // morpht direct naar de telefoon
+      var lscale = lerp(0.85, 1, ease(pa)) * lerp(1, 0.5, ease(pc)); // krimpt richting telefoon-formaat
+      laptop.style.transform = "translate(-50%,-50%) rotateX(" + lerp(24, 0, ease(pa)) + "deg) rotateY(" + lerp(-15, 0, ease(pa)) + "deg) scale(" + lscale + ")";
+      laptop.style.opacity = String(1 - ease(pc));
+      phone.style.opacity = String(ease(pc));
+      phone.style.transform = "translate(-50%,-50%) scale(" + lerp(0.55, 1, ease(pc)) + ")";
+      setCap(0, 1 - clamp((p - 0.40) / 0.08, 0, 1));
+      setCap(1, clamp((p - 0.52) / 0.08, 0, 1));
     }
     window.addEventListener("scroll", update, { passive: true });
     window.addEventListener("resize", update);
@@ -320,15 +314,13 @@
           '<div class="lp-laptop">' +
             '<div class="lp-lid"><div class="lp-screen">' +
               '<div class="lp-scr lp-scr-dash">' + mkDash() + "</div>" +
-              '<div class="lp-scr lp-scr-menu">' + mkMenu(false) + "</div>" +
             "</div></div>" +
             '<div class="lp-base"><span class="lp-notch2"></span></div>' +
           "</div>" +
           '<div class="lp-phone"><span class="lp-island"></span><div class="lp-phone-screen">' + mkMenu(true) + "</div></div>" +
           '<div class="lp-caption">' +
             '<span class="lp-cap" data-cap="0">Je Senior Dashboard — realtime.</span>' +
-            '<span class="lp-cap" data-cap="1">Alles vanuit &eacute;&eacute;n menu.</span>' +
-            '<span class="lp-cap" data-cap="2">Ook op je telefoon.</span>' +
+            '<span class="lp-cap" data-cap="1">Alles vanuit &eacute;&eacute;n menu — ook op je telefoon.</span>' +
           "</div>" +
         "</div></section>" +
 
