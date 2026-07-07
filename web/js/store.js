@@ -19,8 +19,7 @@
     { id: "locatie-manager", label: "Locatie-manager", level: 5 },
     { id: "teamleider",      label: "Teamleider",       level: 4 },
     { id: "senior",          label: "Senior bezorger",  level: 3 },
-    { id: "bezorger",        label: "Bezorger",         level: 2 },
-    { id: "aankomend",       label: "Aankomend bezorger", level: 1 }
+    { id: "bezorger",        label: "Bezorger",         level: 2 }
   ];
 
   var DEFAULT_HUBS = [
@@ -50,6 +49,7 @@
   function nextSeq() { db._seq = (db._seq || 0) + 1; return db._seq; }
   function hash(str) { var h = 5381, i = str.length; while (i) { h = (h * 33) ^ str.charCodeAt(--i); } return (h >>> 0).toString(16); }
   function genOtp() { var c = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789", s = ""; for (var i = 0; i < 6; i++) s += c.charAt(Math.floor(Math.random() * c.length)); return s; }
+  function genInviteCode() { var c = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789", s = ""; for (var i = 0; i < 8; i++) s += c.charAt(Math.floor(Math.random() * c.length)); return s.slice(0, 4) + "-" + s.slice(4); }
   function toMin(t) { if (!t) return null; var p = t.split(":"); return parseInt(p[0], 10) * 60 + parseInt(p[1], 10); }
 
   /* ---------- State ---------- */
@@ -81,7 +81,7 @@
       taskTypes: JSON.parse(JSON.stringify(DEFAULT_TASK_TYPES)),
       users: users, shifts: [], taskOffers: [], backups: [], callouts: [], logs: [],
       plannings: [], schade: {}, kwaliteit: {}, lc: {}, trolley: {}, trolleyStock: {}, diensten: {},
-      session: { userId: null }
+      inviteCodes: [], session: { userId: null }
     };
   }
 
@@ -100,11 +100,17 @@
   }
   function sharedState() { var out = {}; for (var k in db) { if (k !== "session") out[k] = db[k]; } return out; }
 
+  // Oude/verwijderde functie "aankomend" (aankomend bezorger) omzetten naar bezorger.
+  function migrateLegacyRoles() {
+    var changed = false;
+    db.users.forEach(function (u) { if (u.rol === "aankomend") { u.rol = "bezorger"; changed = true; } });
+    return changed;
+  }
   // Eerste keer laden vanaf de server (async). cb(err).
   function boot(cb) {
     fetch(API).then(function (r) { return r.json(); }).then(function (j) {
       if (j.empty) { db = seed(); applyLocalSession(); pushState(true); }
-      else { db = j.data; serverVersion = j.version || 0; applyLocalSession(); }
+      else { db = j.data; serverVersion = j.version || 0; applyLocalSession(); if (migrateLegacyRoles()) save(true); }
       cb(null);
     }).catch(function (e) { cb(e || new Error("Geen verbinding")); });
   }
@@ -239,31 +245,74 @@
     u.pass = hash(newPw); save();
   }
 
-  // Account aanmaken door leiding (teamleider+). Geeft een eenmalig wachtwoord terug.
-  function createUserByLeader(data) {
+  /* ---------- Uitnodigingscodes (zelfregistratie) ---------- */
+  function inviteCodes() { if (!db.inviteCodes) db.inviteCodes = []; return db.inviteCodes; }
+  // Teamleider+ geeft alleen een code uit; de nieuwe medewerker vult zelf zijn gegevens in bij het registreren.
+  function createInviteCode() {
     var me = currentUser();
-    if (!can.editTeam(me)) throw new Error("Alleen teamleider of hoger mag accounts aanmaken.");
+    if (!can.editTeam(me)) throw new Error("Alleen teamleider of hoger mag een uitnodigingscode maken.");
+    var inv = {
+      code: genInviteCode(), hubId: me.hubId, createdBy: me.id, createdAt: now(),
+      expiresAt: new Date(Date.now() + 7 * 864e5).toISOString(), used: false
+    };
+    inviteCodes().push(inv); save();
+    return inv;
+  }
+  function revokeInviteCode(code) {
+    var me = currentUser();
+    if (!can.editTeam(me)) throw new Error("Alleen teamleider of hoger.");
+    db.inviteCodes = inviteCodes().filter(function (i) { return i.code !== code; });
+    save();
+  }
+  // Codes die nog open staan (niet gebruikt, niet verlopen), gescoped op wat deze gebruiker mag beheren.
+  function activeInviteCodes(u) {
+    var list = inviteCodes().filter(function (i) { return !i.used && new Date(i.expiresAt) > new Date(); });
+    if (level(u) >= 5) return list;
+    return list.filter(function (i) { return i.hubId === u.hubId; });
+  }
+  // Vóór het invullen van het formulier controleren (zonder ingelogd te zijn).
+  function validateInviteCode(code) {
+    var c = (code || "").trim().toUpperCase();
+    var inv = inviteCodes().filter(function (i) { return i.code === c; })[0];
+    if (!inv) throw new Error("Onbekende code. Controleer of je hem goed hebt overgetypt.");
+    if (inv.used) throw new Error("Deze code is al gebruikt.");
+    if (new Date(inv.expiresAt) < new Date()) throw new Error("Deze code is verlopen. Vraag je teamleider om een nieuwe.");
+    return inv;
+  }
+  // Account zelf aanmaken met een geldige code. Start altijd als Bezorger; wordt meteen ingelogd.
+  function registerWithCode(code, data) {
+    var inv = validateInviteCode(code);
     var num = (data.personeelsnummer || "").replace(/\D/g, "");
     if (num.length < 4) throw new Error("Vul een geldig personeelsnummer in (minimaal 4 cijfers).");
     var email = (data.email || "").trim().toLowerCase();
     if (!EMAIL_RE.test(email)) throw new Error("Vul een geldig e-mailadres in.");
     if (userByEmail(email)) throw new Error("Er bestaat al een account met dit e-mailadres.");
     if (!data.voornaam || !data.achternaam) throw new Error("Vul voor- en achternaam in.");
-
-    var rol = data.rol || "bezorger";
-    if (!can.editRoles(me)) { if (["bezorger", "aankomend", "senior"].indexOf(rol) === -1) rol = "bezorger"; }
-    var hubId = can.editRoles(me) ? (data.hubId || me.hubId) : me.hubId; // teamleider: eigen hub
-    var otp = genOtp();
+    if (!data.wachtwoord || data.wachtwoord.length < 4) throw new Error("Kies een wachtwoord van minimaal 4 tekens.");
 
     var u = {
       id: uid("usr"), personeelsnummer: num, email: email,
       voornaam: data.voornaam.trim(), achternaam: data.achternaam.trim(),
-      pass: null, otp: otp, mustSetPassword: true,
-      rol: rol, n2: !!data.n2, jbtTrainer: !!data.jbtTrainer, taken: [],
-      hubId: hubId, stats: blankStats(), createdAt: now()
+      pass: hash(data.wachtwoord), otp: null, mustSetPassword: false,
+      rol: "bezorger", n2: false, jbtTrainer: false, taken: [],
+      hubId: inv.hubId, stats: blankStats(), createdAt: now(), reviewed: false
     };
-    db.users.push(u); save();
-    return { user: u, otp: otp };
+    db.users.push(u);
+    inv.used = true; inv.usedByUserId = u.id;
+    db.session.userId = u.id;
+    save(true);
+    return u;
+  }
+  // Personeelsbeheer vinkt een net geregistreerd account af als gecontroleerd.
+  function markUserReviewed(targetId) {
+    var me = currentUser();
+    if (!can.editTeam(me)) throw new Error("Alleen teamleider of hoger.");
+    var t = userById(targetId); if (!t) return;
+    t.reviewed = true; save();
+  }
+  function pendingReviewUsers(u) {
+    if (!u) return [];
+    return manageableUsers(u).filter(function (x) { return x.reviewed === false; });
   }
   function regenerateOtp(targetId) {
     var me = currentUser();
@@ -1315,7 +1364,9 @@
     can: can, canDoTask: canDoTask, visibleTask: visibleTask, availableTasks: availableTasks,
     taskType: taskType, assignableTasks: assignableTasks, setTaskType: setTaskType,
     login: login, logout: logout, setInitialPassword: setInitialPassword, changeOwnPassword: changeOwnPassword,
-    createUserByLeader: createUserByLeader, regenerateOtp: regenerateOtp,
+    createInviteCode: createInviteCode, revokeInviteCode: revokeInviteCode, activeInviteCodes: activeInviteCodes,
+    validateInviteCode: validateInviteCode, registerWithCode: registerWithCode,
+    markUserReviewed: markUserReviewed, pendingReviewUsers: pendingReviewUsers, regenerateOtp: regenerateOtp,
     offerShift: offerShift, editShift: editShift, withdrawShift: withdrawShift, claimShift: claimShift, decideShift: decideShift,
     offerTask: offerTask, withdrawTask: withdrawTask, claimTask: claimTask, decideTask: decideTask,
     offerBackup: offerBackup, withdrawBackup: withdrawBackup, claimBackup: claimBackup, decideBackup: decideBackup,
