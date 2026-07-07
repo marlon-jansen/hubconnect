@@ -467,7 +467,7 @@ main { max-width: 1100px; margin: 0 auto; padding: 22px 18px 80px; }
 
 /* ===== Interactief scroll-toneel: laptop → inzoomen → iPhone ===== */
 .l3-intro { padding-bottom: 8px; }
-.lp-stage { position: relative; height: 360vh; }
+.lp-stage { position: relative; height: 210vh; }
 .lp-sticky { position: sticky; top: 0; height: 100vh; height: 100svh; overflow: hidden; perspective: 1500px; }
 .lp-laptop, .lp-phone { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); will-change: transform, opacity; }
 
