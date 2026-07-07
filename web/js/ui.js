@@ -254,15 +254,20 @@
       var rect = stage.getBoundingClientRect();
       var range = Math.max(1, stage.offsetHeight - window.innerHeight);
       var p = clamp(-rect.top / range, 0, 1);
-      var pa = clamp(p / 0.38, 0, 1);          // laptop draait naar voren (geen inzoomen)
-      var pc = clamp((p - 0.44) / 0.46, 0, 1); // morpht direct naar de telefoon
+      var pa = clamp(p / 0.34, 0, 1);          // laptop draait naar voren (geen inzoomen)
+      var pc = clamp((p - 0.38) / 0.46, 0, 1); // morpht direct naar de telefoon
       var lscale = lerp(0.85, 1, ease(pa)) * lerp(1, 0.5, ease(pc)); // krimpt richting telefoon-formaat
+      // zachte blur tijdens de crossfade zelf (piekt halverwege) — verbergt dat het twee losse
+      // vormen zijn die wisselen, zodat het als één doorlopende transformatie oogt.
+      var blur = Math.sin(pc * Math.PI) * 5;
       laptop.style.transform = "translate(-50%,-50%) rotateX(" + lerp(24, 0, ease(pa)) + "deg) rotateY(" + lerp(-15, 0, ease(pa)) + "deg) scale(" + lscale + ")";
       laptop.style.opacity = String(1 - ease(pc));
+      laptop.style.filter = pc > 0 && pc < 1 ? "blur(" + blur.toFixed(1) + "px)" : "";
       phone.style.opacity = String(ease(pc));
       phone.style.transform = "translate(-50%,-50%) scale(" + lerp(0.55, 1, ease(pc)) + ")";
-      setCap(0, 1 - clamp((p - 0.40) / 0.08, 0, 1));
-      setCap(1, clamp((p - 0.52) / 0.08, 0, 1));
+      phone.style.filter = pc > 0 && pc < 1 ? "blur(" + blur.toFixed(1) + "px)" : "";
+      setCap(0, 1 - clamp((p - 0.34) / 0.08, 0, 1));
+      setCap(1, clamp((p - 0.46) / 0.08, 0, 1));
     }
     window.addEventListener("scroll", update, { passive: true });
     window.addEventListener("resize", update);
