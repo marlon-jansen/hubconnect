@@ -1744,6 +1744,7 @@
     var u = S.currentUser();
     if (!state.logRef) state.logRef = ymd(new Date());
     if (!state.logRange) state.logRange = "week";
+    if (state.logType === "taakwissel") state.logType = "all"; // taak-aanbieden vervallen
     var wb = weekBounds(state.logRef);
     var logs = S.logsForHub(u.hubId).filter(function (l) {
       if (state.logRange === "week") { var dd = (l.details && l.details.datum) || ""; if (dd < wb.monS || dd > wb.sunS) return false; }
@@ -1776,7 +1777,6 @@
     var typeSeg = '<div class="seg mini">' +
       '<button data-ltype="all" class="' + (state.logType === "all" ? "active" : "") + '">Alles</button>' +
       '<button data-ltype="shiftwissel" class="' + (state.logType === "shiftwissel" ? "active" : "") + '">Shifts</button>' +
-      '<button data-ltype="taakwissel" class="' + (state.logType === "taakwissel" ? "active" : "") + '">Taken</button>' +
       '<button data-ltype="oproep" class="' + (state.logType === "oproep" ? "active" : "") + '">Oproepen</button>' +
       '<button data-ltype="backup" class="' + (state.logType === "backup" ? "active" : "") + '">Back-up</button></div>';
 
