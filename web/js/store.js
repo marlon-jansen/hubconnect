@@ -265,9 +265,10 @@
     save();
   }
   // Codes die nog open staan (niet gebruikt, niet verlopen), gescoped op wat deze gebruiker mag beheren.
+  // Alleen de superadmin ziet codes van alle hubs; iedereen anders alleen die van de eigen hub.
   function activeInviteCodes(u) {
     var list = inviteCodes().filter(function (i) { return !i.used && new Date(i.expiresAt) > new Date(); });
-    if (level(u) >= 5) return list;
+    if (isAdmin(u)) return list;
     return list.filter(function (i) { return i.hubId === u.hubId; });
   }
   // Vóór het invullen van het formulier controleren (zonder ingelogd te zijn).
@@ -1339,10 +1340,12 @@
   function calloutsForHub(hubId) { return db.callouts.filter(function (c) { return c.hubId === hubId; }); }
   function logsForHub(hubId) { return db.logs.filter(function (l) { return l.hubId === hubId; }); }
   function usersForHub(hubId) { return db.users.filter(function (u) { return !u.hidden && u.hubId === hubId; }); }
-  // Medewerkers die deze gebruiker mag beheren/zien in beheer
+  // Medewerkers die deze gebruiker mag beheren/zien in beheer.
+  // Alleen de verborgen superadmin ziet alle hubs; iedereen anders (t/m locatie-manager)
+  // ziet uitsluitend het personeel van de eigen hub.
   function manageableUsers(u) {
-    if (level(u) >= 5) return visibleUsers();        // locatie-manager/admin: alle hubs
-    return usersForHub(u.hubId);                       // overig: eigen hub
+    if (isAdmin(u)) return visibleUsers();             // superadmin: alle hubs
+    return usersForHub(u.hubId);                        // locatie-manager en lager: eigen hub
   }
 
   function pendingForApprover(u) {

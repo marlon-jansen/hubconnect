@@ -166,6 +166,21 @@
   var reRender = null; // welke render-functie het huidige scherm opnieuw tekent (ruilhub of los menu-item)
   function act(fn, okMsg) { try { fn(); toast(okMsg, "ok"); (reRender || renderApp)(); } catch (e) { toast(e.message, "err"); } }
 
+  /* ---------- zachte tabblad-overgang ----------
+     Laat inhoud die bij een tabwissel verschijnt zacht infaden. We animeren
+     alleen wanneer de tab-sleutel verandert (niet bij een re-render na een actie,
+     want dan zou de inhoud bij elke klik flikkeren). */
+  var _tabKey = null;
+  function animateTab(container, key) {
+    if (!container) return;
+    var changed = key !== _tabKey;
+    _tabKey = key;
+    container.classList.remove("tab-anim");   // altijd opschonen (voorkomt een blijvende class)
+    if (!changed) return;                     // zelfde tab → geen animatie (geen flikker bij acties)
+    void container.offsetWidth;               // forceer reflow zodat de animatie opnieuw start
+    container.classList.add("tab-anim");
+  }
+
   /* ===================================================================
      LANDING
      =================================================================== */
@@ -584,6 +599,9 @@
       case "beheer": m.innerHTML = viewBeheer(); bindBeheer(); break;
       case "log": m.innerHTML = viewLog(); bindLog(); break;
     }
+    animateTab(m, "main:" + state.view +
+      (state.view === "shifts" ? ":" + state.board : "") +
+      (state.view === "beheer" ? ":" + state.beheerTab : ""));
   }
 
   /* ---------- gedeelde badges ---------- */
@@ -1540,11 +1558,12 @@
     el("app").innerHTML = moduleShell("Personeelsbeheer", viewBeheer(true), { noShift: true });
     bindModuleHeader();
     bindBeheer();
+    animateTab(el("app").querySelector("main"), "beheer:" + state.beheerTab);
   }
 
   function beheerTeam() {
     var u = S.currentUser();
-    var canEdit = S.can.editTeam(u), canRoles = S.can.editRoles(u), showHub = S.level(u) >= 5;
+    var canEdit = S.can.editTeam(u), canRoles = S.can.editRoles(u), showHub = S.isAdmin(u);
     var users = S.manageableUsers(u).slice().filter(function (x) {
       if (!state.teamQ) return true;
       var hub = S.hubById(x.hubId);
@@ -2399,6 +2418,7 @@
     var qr = el("app").querySelector("[data-qtelreset]"); if (qr) qr.addEventListener("click", function () { try { S.qtelReset(c.h, c.d, c.dd); renderKwaliteit(); } catch (e) { toast(e.message, "err"); } });
     var qv = el("app").querySelector("[data-qtelvoltooi]"); if (qv) qv.addEventListener("click", function () { try { S.qtelVoltooien(c.h, c.d, c.dd, true); toast("Telling voltooid.", "ok"); renderKwaliteit(); } catch (e) { toast(e.message, "err"); } });
     var qh = el("app").querySelector("[data-qtelheropen]"); if (qh) qh.addEventListener("click", function () { try { S.qtelVoltooien(c.h, c.d, c.dd, false); toast("Telling heropend.", "ok"); renderKwaliteit(); } catch (e) { toast(e.message, "err"); } });
+    animateTab(el("app").querySelector("main"), "kwaliteit:" + state.kwTab);
   }
   function openEmbVak(c, vak) {
     var canEdit = S.canOpShift(S.currentUser(), c.h, c.d, c.dd, "kwaliteit", "Kwaliteit");
@@ -2549,6 +2569,7 @@
       document.querySelectorAll("[data-pcchk]").forEach(function (cb) { cb.addEventListener("change", function () { try { S.pcToggle(c.h, c.d, c.dd, parseInt(cb.getAttribute("data-pcchk"), 10)); renderLC(); } catch (e) { toast(e.message, "err"); } }); });
       document.querySelectorAll("[data-pclayer]").forEach(function (b) { b.addEventListener("click", function () { var p = b.getAttribute("data-pclayer").split("|"); try { S.pcSetLayer(c.h, c.d, c.dd, parseInt(p[0], 10), p[1], parseInt(p[2], 10)); renderLC(); } catch (e) { toast(e.message, "err"); } }); });
     }
+    animateTab(el("app").querySelector("main"), "lc:" + state.lcTab);
   }
 
   /* ---------- Senior-dashboard ---------- */
@@ -2577,6 +2598,7 @@
       document.querySelectorAll("[data-viewmod]").forEach(function (b) { b.addEventListener("click", function () { state.module = b.getAttribute("data-viewmod"); state.viewOnly = true; render(); }); });
       var pcBtn = el("app").querySelector("[data-viewpc]"); if (pcBtn) pcBtn.addEventListener("click", function () { state.module = "lc"; state.lcTab = "pc"; state.viewOnly = true; render(); });
     }
+    animateTab(el("app").querySelector("main"), "dash:" + state.dashTab + ":" + (state.kzTab || ""));
   }
   function dashOverzicht(c) {
     var sc = S.schadeStats(c.h, c.d, c.dd), lcS = S.lcStats(c.h, c.d, c.dd), pc = S.pcStats(c.h, c.d, c.dd);
