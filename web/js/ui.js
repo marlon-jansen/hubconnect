@@ -2420,7 +2420,8 @@
     var qh = el("app").querySelector("[data-qtelheropen]"); if (qh) qh.addEventListener("click", function () { try { S.qtelVoltooien(c.h, c.d, c.dd, false); toast("Telling heropend.", "ok"); renderKwaliteit(); } catch (e) { toast(e.message, "err"); } });
     animateTab(el("app").querySelector("main"), "kwaliteit:" + state.kwTab);
   }
-  function openEmbVak(c, vak) {
+  function openEmbVak(c, vak, refresh) {
+    refresh = refresh || renderKwaliteit;
     var canEdit = S.canOpShift(S.currentUser(), c.h, c.d, c.dd, "kwaliteit", "Kwaliteit");
     var arr = S.emballageVakArr(c.h, vak) || [];
     var trolleys = "";
@@ -2433,18 +2434,19 @@
         "</div></div>";
     }
     function refreshTotal(ov) { ov.querySelector(".emb-total").textContent = S.emballageVakTotal(c.h, c.d, c.dd, vak) + " kratjes"; }
-    var canClear = S.level(S.currentUser()) >= 3;
+    // Leeghalen mag de binnendienst, én de LC-dienst (zij doen de pendels en zetten hier statiegeld weg).
+    var canClear = S.level(S.currentUser()) >= 3 || S.canOpShift(S.currentUser(), c.h, c.d, c.dd, "lc", "LC");
     openModal({
       title: "Vak " + vak + " — emballage", icon: "tag",
       body: '<div class="emb-rack"><div class="emb-rack-h">14 trolleys <span class="emb-total">' + S.emballageVakTotal(c.h, c.d, c.dd, vak) + " kratjes</span></div><div class=\"emb-grid\">" + trolleys + "</div></div>",
       foot: (canClear ? '<button class="btn btn-red" id="embClear">' + svg("trash", "icon-sm") + "Vak leeghalen</button>" : "") + '<button class="btn btn-primary" data-close>Klaar</button>',
       onMount: function (ov, close) {
         var ec = ov.querySelector("#embClear");
-        if (ec) ec.addEventListener("click", function () { try { S.clearEmbVak(c.h, c.d, c.dd, vak); if (close) close(); renderKwaliteit(); toast("Vak leeggehaald.", "ok"); } catch (e) { toast(e.message, "err"); } });
+        if (ec) ec.addEventListener("click", function () { try { S.clearEmbVak(c.h, c.d, c.dd, vak); if (close) close(); refresh(); toast("Vak leeggehaald.", "ok"); } catch (e) { toast(e.message, "err"); } });
         ov.querySelectorAll("[data-emb]").forEach(function (inp) {
           inp.addEventListener("change", function () {
             var p = inp.getAttribute("data-emb").split("|");
-            try { S.emballageSet(c.h, c.d, c.dd, p[0], parseInt(p[1], 10), inp.value); refreshTotal(ov); renderKwaliteit(); } catch (e) { toast(e.message, "err"); }
+            try { S.emballageSet(c.h, c.d, c.dd, p[0], parseInt(p[1], 10), inp.value); refreshTotal(ov); refresh(); } catch (e) { toast(e.message, "err"); }
           });
         });
         ov.querySelectorAll("[data-embbump]").forEach(function (btn) {
@@ -2452,7 +2454,7 @@
             var p = btn.getAttribute("data-embbump").split("|");
             var input = ov.querySelector('[data-emb="' + p[0] + "|" + p[1] + '"]');
             var nv = Math.max(0, (parseInt(input.value, 10) || 0) + parseInt(p[2], 10));
-            try { S.emballageSet(c.h, c.d, c.dd, p[0], parseInt(p[1], 10), nv); input.value = nv; refreshTotal(ov); renderKwaliteit(); } catch (e) { toast(e.message, "err"); }
+            try { S.emballageSet(c.h, c.d, c.dd, p[0], parseInt(p[1], 10), nv); input.value = nv; refreshTotal(ov); refresh(); } catch (e) { toast(e.message, "err"); }
           });
         });
       }
@@ -2478,7 +2480,8 @@
     var seg = '<div class="seg" style="margin-bottom:16px;flex-wrap:wrap">' +
       '<button data-lctab="laden" class="' + (state.lcTab === "laden" ? "active" : "") + '">Laden</button>' +
       '<button data-lctab="pc" class="' + (state.lcTab === "pc" ? "active" : "") + '">Pendelcontrol</button>' +
-      '<button data-lctab="tellen" class="' + (state.lcTab === "tellen" ? "active" : "") + '">Tellen</button></div>';
+      '<button data-lctab="tellen" class="' + (state.lcTab === "tellen" ? "active" : "") + '">Tellen</button>' +
+      '<button data-lctab="statiegeld" class="' + (state.lcTab === "statiegeld" ? "active" : "") + '">Statiegeld</button></div>';
 
     // ----- LADEN -----
     // Filter "Alleen nog te laden": bussen met rit/bus die nog niet geladen zijn (JBT/N2 hoeven niet).
@@ -2555,7 +2558,17 @@
     var tellenBody = opProgress(pcSt.done, pcSt.total, "vakken gecontroleerd") +
       (pcRows.length ? "" : '<div class="cellsub" style="margin-bottom:10px">De binnendienst zet de tellijst klaar via het dashboard (Klaarzetten &rsaquo; Pendel).</div>') + pcTable;
 
-    var body = state.lcTab === "pc" ? pcBody : state.lcTab === "tellen" ? tellenBody : ladenBody;
+    // ----- STATIEGELD: emballagevakken zien + leeghalen (ook voor de LC-dienst, niet alleen Kwaliteit) -----
+    var embVakken = S.VAK_NUMMERS.filter(function (i) { return S.vakSoort(c.h, c.d, c.dd, i) === "emb5"; });
+    var statiegeldBody = embVakken.length
+      ? '<div class="panel" style="padding:0"><div class="table-scroll"><table class="table"><thead><tr><th>Vak</th><th>Statiegeld</th></tr></thead><tbody>' +
+        embVakken.map(function (i) {
+          return '<tr><td class="lc-nr cellname">Vak ' + i + '</td><td data-th="Statiegeld"><button class="btn btn-primary btn-sm" data-embopen="' + i + '">' +
+            svg("tag", "icon-sm") + "Bekijken · " + S.emballageVakTotal(c.h, c.d, c.dd, i) + " kratjes</button></td></tr>";
+        }).join("") + "</tbody></table></div></div>"
+      : '<div class="cellsub" style="padding:12px">Er zijn nog geen vakken ingesteld op statiegeld (dat regelt Kwaliteit).</div>';
+
+    var body = state.lcTab === "pc" ? pcBody : state.lcTab === "tellen" ? tellenBody : state.lcTab === "statiegeld" ? statiegeldBody : ladenBody;
     el("app").innerHTML = moduleShell("Laadproces", windowLockNote(u, "lc", c) + seg + body);
     bindModuleHeader(renderLC);
     document.querySelectorAll("[data-lctab]").forEach(function (b) { b.addEventListener("click", function () { state.lcTab = b.getAttribute("data-lctab"); renderLC(); }); });
@@ -2568,6 +2581,8 @@
     } else if (state.lcTab === "tellen") {
       document.querySelectorAll("[data-pcchk]").forEach(function (cb) { cb.addEventListener("change", function () { try { S.pcToggle(c.h, c.d, c.dd, parseInt(cb.getAttribute("data-pcchk"), 10)); renderLC(); } catch (e) { toast(e.message, "err"); } }); });
       document.querySelectorAll("[data-pclayer]").forEach(function (b) { b.addEventListener("click", function () { var p = b.getAttribute("data-pclayer").split("|"); try { S.pcSetLayer(c.h, c.d, c.dd, parseInt(p[0], 10), p[1], parseInt(p[2], 10)); renderLC(); } catch (e) { toast(e.message, "err"); } }); });
+    } else if (state.lcTab === "statiegeld") {
+      document.querySelectorAll("[data-embopen]").forEach(function (b) { b.addEventListener("click", function () { openEmbVak(c, parseInt(b.getAttribute("data-embopen"), 10), renderLC); }); });
     }
     animateTab(el("app").querySelector("main"), "lc:" + state.lcTab);
   }

@@ -984,9 +984,9 @@
   function emballageVakTotal(hubId, datum, dagdeel, vak) {
     return (embStockHub(hubId)[vak] || []).reduce(function (a, b) { return a + (b || 0); }, 0);
   }
-  // Binnendienst kan een emballagevak leeghalen (staat los van de trolley-telling).
+  // Binnendienst of de LC (pendels) kan een emballagevak leeghalen (staat los van de trolley-telling).
   function clearEmbVak(hubId, datum, dagdeel, vak) {
-    if (!isSetup(currentUser())) throw new Error("Alleen binnendienst (senior+) mag een vak leeghalen.");
+    if (!(isSetup(currentUser()) || canOpShift(currentUser(), hubId, datum, dagdeel, "lc"))) throw new Error("Alleen binnendienst of de LC-dienst mag een vak leeghalen.");
     delete embStockHub(hubId)[vak]; save();
   }
 
