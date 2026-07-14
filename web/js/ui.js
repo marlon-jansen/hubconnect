@@ -425,8 +425,8 @@
         '<div class="auth-body">' +
           authModeSeg("login") +
           '<form id="loginForm" autocomplete="on">' +
-            '<div class="field"><label>E-mailadres</label>' +
-              '<input type="email" name="email" placeholder="naam@jumbo.com" required></div>' +
+            '<div class="field"><label>E-mailadres of HR-nummer</label>' +
+              '<input type="text" name="identifier" autocomplete="username" placeholder="naam@jumbo.com of HR-nummer" required></div>' +
             '<div class="field"><label>Wachtwoord</label>' +
               pwInput("password", "Wachtwoord", " required") + "</div>" +
             '<div id="authMsg"></div>' +
@@ -440,7 +440,7 @@
     el("loginForm").addEventListener("submit", function (e) {
       e.preventDefault();
       var f = e.target;
-      try { S.login(f.email.value, f.password.value); resetNav(); render(); }
+      try { S.login(f.identifier.value, f.password.value); resetNav(); render(); }
       catch (err) { el("authMsg").innerHTML = '<div class="alert alert-error">' + esc(err.message) + "</div>"; }
     });
   }
@@ -1290,10 +1290,10 @@
     return '<div class="board-range week-bar" style="margin-bottom:14px">' +
       '<div class="seg"><button data-' + pre + 'range="week" class="' + (isWeek ? "active" : "") + '">' + svg("calendar", "icon-sm") + "Per week</button>" +
         '<button data-' + pre + 'range="all" class="' + (!isWeek ? "active" : "") + '">Totaal</button></div>' +
-      (isWeek ? '<div class="seg"><button data-' + pre + 'week="-1" title="Vorige">' + svg("arrowLeft", "icon-sm") + "</button>" +
+      (isWeek ? '<div class="week-nav-group"><div class="seg"><button data-' + pre + 'week="-1" title="Vorige">' + svg("arrowLeft", "icon-sm") + "</button>" +
         '<button class="active" style="cursor:default;text-transform:capitalize">' + svg("calendar", "icon-sm") + esc(b.label) + "</button>" +
         '<button data-' + pre + 'week="1" title="Volgende">' + svg("arrowRight", "icon-sm") + "</button></div>" +
-        '<button class="btn btn-ghost btn-sm" data-' + pre + 'week="0">Deze week</button>' : "") +
+        '<button class="btn btn-ghost btn-sm" data-' + pre + 'week="0">Deze week</button></div>' : "") +
       "</div>";
   }
   function bindWeekBar(pre, refKey, rangeKey) {
@@ -1397,6 +1397,15 @@
       weekBar("appr", state.apprRef, state.apprRange) + body;
   }
 
+  // Compacte overgenomen/weggegeven-telling naast een naam (zelfde groen/rood als Statistieken).
+  function miniStats(user) {
+    if (!user) return "";
+    var st = user.stats || {};
+    return '<span class="mini-stats">' +
+      '<span class="hcol up" title="Overgenomen">' + svg("arrowDown", "icon-sm") + (st.shiftsOvergenomen || 0) + "</span>" +
+      '<span class="hcol down" title="Weggegeven">' + svg("arrowUp", "icon-sm") + (st.shiftsAangeboden || 0) + "</span>" +
+      "</span>";
+  }
   function approvalShift(s) {
     var ab = S.userById(s.aanbiederId), ov = S.userById(s.overnemerId);
     var alert = "";
@@ -1409,8 +1418,8 @@
     return '<div class="card pending">' +
       '<div class="card-rows">' +
         '<div class="crow">' + svg("calendar", "icon-sm") + "<strong>" + esc(fmtDate(s.datum)) + "</strong>" + (s.starttijd ? " · " + esc(s.starttijd) : "") + "</div>" +
-        '<div class="crow">' + svg("user", "icon-sm") + "Geeft weg: <strong>" + fullName(ab) + "</strong></div>" +
-        '<div class="crow">' + svg("arrowRight", "icon-sm") + "Neemt over: <strong>" + fullName(ov) + "</strong></div>" +
+        '<div class="crow">' + svg("user", "icon-sm") + "Geeft weg: <strong>" + fullName(ab) + "</strong>" + miniStats(ab) + "</div>" +
+        '<div class="crow">' + svg("arrowRight", "icon-sm") + "Neemt over: <strong>" + fullName(ov) + "</strong>" + miniStats(ov) + "</div>" +
         '<div class="crow tiny">' + svg("history", "icon-sm") + "Aangeboden " + esc(fmtDateTime(s.createdAt)) + "</div>" +
       "</div>" + badges + alert +
       '<div class="card-foot">' +
@@ -1421,15 +1430,15 @@
     var ab = S.userById(item.aanbiederId), ov = S.userById(item.overnemerId);
     var line, line2, ritLine = "";
     if (kind === "task") {
-      line = svg("user", "icon-sm") + "Taak van: <strong>" + fullName(ab) + "</strong>";
-      line2 = "Neemt over: <strong>" + fullName(ov) + "</strong>";
+      line = svg("user", "icon-sm") + "Taak van: <strong>" + fullName(ab) + "</strong>" + miniStats(ab);
+      line2 = "Neemt over: <strong>" + fullName(ov) + "</strong>" + miniStats(ov);
     } else if (kind === "callout") {
-      line = svg("search", "icon-sm") + "Oproep van: <strong>" + fullName(ab) + "</strong> (zoekt shift)";
-      line2 = "Geeft zijn shift: <strong>" + fullName(ov) + "</strong>";
+      line = svg("search", "icon-sm") + "Oproep van: <strong>" + fullName(ab) + "</strong>" + miniStats(ab) + " (zoekt shift)";
+      line2 = "Geeft zijn shift: <strong>" + fullName(ov) + "</strong>" + miniStats(ov);
     } else { // backup
       var wantsDrive = item.direction !== "backup";
-      line = svg("lifebuoy", "icon-sm") + (wantsDrive ? "Back-up: <strong>" + fullName(ab) + "</strong> wil rijden" : "<strong>" + fullName(ab) + "</strong> geeft rit, wil back-up");
-      line2 = wantsDrive ? "Geeft rit op: <strong>" + fullName(ov) + "</strong>" : "Neemt rit over: <strong>" + fullName(ov) + "</strong>";
+      line = svg("lifebuoy", "icon-sm") + (wantsDrive ? "Back-up: <strong>" + fullName(ab) + "</strong>" + miniStats(ab) + " wil rijden" : "<strong>" + fullName(ab) + "</strong>" + miniStats(ab) + " geeft rit, wil back-up");
+      line2 = (wantsDrive ? "Geeft rit op: <strong>" + fullName(ov) + "</strong>" : "Neemt rit over: <strong>" + fullName(ov) + "</strong>") + miniStats(ov);
       if (item.ritOmschrijving) ritLine = '<div class="crow">' + svg("van", "icon-sm") + "Rit: <strong>" + esc(item.ritOmschrijving) + (item.ritTijd ? " · " + esc(item.ritTijd) : "") + "</strong></div>";
     }
     var badges = '<div class="badges">' + dagdeelBadge(item.dagdeel) + (kind === "task" ? taskBadge(item.taak) : "") + "</div>";
@@ -1608,9 +1617,10 @@
       var delBtn = (canEdit && x.id !== u.id && !x.hidden && S.level(x) < S.level(u))
         ? '<div><button class="link-btn danger" data-deluser="' + x.id + '">' + svg("trash", "icon-sm") + "Verwijderen</button></div>"
         : "";
+      var editBtn = S.isAdmin(u) ? '<div><button class="link-btn" data-edituser="' + x.id + '">' + svg("pencil", "icon-sm") + "Gegevens bewerken</button></div>" : "";
 
       return "<tr><td><div class=\"cellname\">" + fullName(x) + (x.id === u.id ? " (jij)" : "") + "</div><div class=\"cellsub\">" + esc(x.email) + "</div>" +
-        (showHub ? '<div class="cellsub">HUB ' + esc(hub ? hub.naam : "?") + "</div>" : "") + acct + delBtn + "</td>" +
+        (showHub ? '<div class="cellsub">HUB ' + esc(hub ? hub.naam : "?") + "</div>" : "") + editBtn + acct + delBtn + "</td>" +
         '<td data-th="Functie">' + roleCell + '</td><td data-th="N2">' + n2Cell + '</td><td data-th="JBT">' + jbtCell + "</td>" +
         '<td data-th="Taken"><div class="chips">' + (taskChips || '<span class="cellsub">—</span>') + "</div></td></tr>";
     }).join("");
@@ -1692,6 +1702,7 @@
     document.querySelectorAll("[data-regen]").forEach(function (b) { b.addEventListener("click", function () { var id = b.getAttribute("data-regen"); try { var otp = S.regenerateOtp(id); showOtpModal(S.userById(id), otp); (reRender || renderApp)(); } catch (e) { toast(e.message, "err"); } }); });
     document.querySelectorAll("[data-review]").forEach(function (b) { b.addEventListener("click", function () { act(function () { S.markUserReviewed(b.getAttribute("data-review")); }, "Account gecontroleerd."); }); });
     document.querySelectorAll("[data-revokecode]").forEach(function (b) { b.addEventListener("click", function () { act(function () { S.revokeInviteCode(b.getAttribute("data-revokecode")); }, "Code ingetrokken."); }); });
+    document.querySelectorAll("[data-edituser]").forEach(function (b) { b.addEventListener("click", function () { var t = S.userById(b.getAttribute("data-edituser")); if (t) openEditUserInfo(t); }); });
     document.querySelectorAll("[data-deluser]").forEach(function (b) { b.addEventListener("click", function () {
       var id = b.getAttribute("data-deluser"); var t = S.userById(id); if (!t) return;
       openModal({ title: "Medewerker verwijderen?", icon: "trash",
@@ -1725,6 +1736,30 @@
         '<div class="otp-big">' + esc(inv.code) + "</div>" +
         '<div class="hint" style="text-align:center;margin-top:10px">Geldig tot ' + fmtDate(inv.expiresAt.slice(0, 10)) + ", eenmalig te gebruiken.</div>",
       foot: '<button class="btn btn-primary btn-block" data-close>' + svg("check") + "Begrepen</button>"
+    });
+  }
+  // Naam, HR-nummer en e-mailadres van een medewerker aanpassen (teamleider+, Personeelsbeheer).
+  function openEditUserInfo(x) {
+    openModal({
+      title: "Gegevens bewerken", icon: "pencil",
+      body: '<form id="editInfoForm">' +
+        '<div class="field"><label>Voornaam</label><input name="voornaam" value="' + esc(x.voornaam) + '" required></div>' +
+        '<div class="field"><label>Achternaam</label><input name="achternaam" value="' + esc(x.achternaam) + '" required></div>' +
+        '<div class="field"><label>HR-nummer</label><input name="personeelsnummer" value="' + esc(x.personeelsnummer) + '" required></div>' +
+        '<div class="field"><label>E-mailadres</label><input type="email" name="email" value="' + esc(x.email) + '" required></div>' +
+        '<div id="editInfoMsg"></div>' +
+      "</form>",
+      foot: '<button class="btn btn-ghost" data-close>Annuleren</button><button class="btn btn-primary" id="editInfoSave">' + svg("check", "icon-sm") + "Opslaan</button>",
+      onMount: function (ov, close) {
+        ov.querySelector("#editInfoSave").addEventListener("click", function () {
+          var f = ov.querySelector("#editInfoForm");
+          var msg = ov.querySelector("#editInfoMsg");
+          try {
+            S.updateUserInfo(x.id, { voornaam: f.voornaam.value, achternaam: f.achternaam.value, personeelsnummer: f.personeelsnummer.value, email: f.email.value });
+            toast("Gegevens opgeslagen.", "ok"); close(); (reRender || renderApp)();
+          } catch (e) { msg.innerHTML = '<div class="alert alert-error">' + esc(e.message) + "</div>"; }
+        });
+      }
     });
   }
   function showOtpModal(user, otp) {
@@ -1844,8 +1879,18 @@
     }
     var body =
       '<div class="prof-head"><div class="avatar lg">' + initials(u) + "</div><div><div class=\"prof-name\">" + fullName(u) + "</div><div class=\"cellsub\">" + esc(S.roleMeta(u.rol).label) + "</div></div></div>" +
+      '<div class="prof-divider">Mijn gegevens</div>' +
+      '<form id="infoForm">' +
+        '<div class="field"><label>Voornaam</label><input name="voornaam" value="' + esc(u.voornaam) + '" required></div>' +
+        '<div class="field"><label>Achternaam</label><input name="achternaam" value="' + esc(u.achternaam) + '" required></div>' +
+        '<div class="field"><label>E-mailadres</label><input type="email" name="email" value="' + esc(u.email) + '" required></div>' +
+        '<div id="infoMsg"></div>' +
+      "</form>" +
+      '<div style="display:flex;justify-content:flex-end;margin:-6px 0 16px">' +
+        '<button class="btn btn-dark btn-sm" id="infoSave">' + svg("check", "icon-sm") + "Gegevens opslaan</button></div>" +
       '<div class="prof-info">' +
-        locked("E-mail", u.email) + locked("Hub", "HUB " + (hub ? hub.naam : "?")) +
+        locked("HR-nummer", u.personeelsnummer) +
+        locked("Hub", "HUB " + (hub ? hub.naam : "?")) +
         locked("Functie", S.roleMeta(u.rol).label) +
         locked("Bus", u.n2 ? "Diesel + N2" : "Alleen diesel") +
         (u.jbtTrainer ? locked("JBT-trainer", "Ja") : "") +
@@ -1866,6 +1911,14 @@
       title: "Mijn profiel", icon: "userCog", body: body,
       foot: '<button class="btn btn-ghost" data-close>Sluiten</button><button class="btn btn-primary" id="cpSave">' + svg("key", "icon-sm") + "Wachtwoord opslaan</button>",
       onMount: function (ov, close) {
+        ov.querySelector("#infoSave").addEventListener("click", function () {
+          var f = ov.querySelector("#infoForm");
+          var msg = ov.querySelector("#infoMsg");
+          try {
+            S.updateUserInfo(u.id, { voornaam: f.voornaam.value, achternaam: f.achternaam.value, email: f.email.value });
+            toast("Gegevens opgeslagen.", "ok"); close(); render();
+          } catch (e) { msg.innerHTML = '<div class="alert alert-error">' + esc(e.message) + "</div>"; }
+        });
         ov.querySelector("#cpSave").addEventListener("click", function () {
           var f = ov.querySelector("#cpForm");
           var msg = ov.querySelector("#cpMsg");
