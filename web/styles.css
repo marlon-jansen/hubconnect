@@ -145,6 +145,8 @@ svg { display: block; }
 .brand .app-sub { font-size: 11px; font-weight: 700; color: var(--ink-soft); }
 .header-spacer { flex: 1; }
 .user-chip { display: flex; align-items: center; gap: 10px; background: rgba(255,255,255,.55); border-radius: 999px; padding: 5px 6px 5px 13px; }
+/* Uitlogknop rond maken zodat hij binnen de volledig-ronde pill valt (vierkante hoeken staken buiten de rand). */
+.user-chip .btn-icon { width: 36px; height: 36px; padding: 0; border-radius: 50%; display: grid; place-items: center; }
 .user-chip .u-name { font-weight: 800; font-size: 13px; line-height: 1.1; }
 .user-chip .u-meta { font-size: 11px; color: var(--ink-soft); font-weight: 700; }
 .avatar { width: 34px; height: 34px; border-radius: 50%; background: var(--ink-fixed); color: var(--jumbo-yellow); display: grid; place-items: center; font-weight: 900; font-size: 13px; }
@@ -656,6 +658,8 @@ main { max-width: 1100px; margin: 0 auto; padding: 22px 18px 80px; }
 /* Compacte overgenomen/weggegeven-telling naast een naam (bv. bij Goedkeuren) */
 .mini-stats { display: inline-flex; gap: 8px; margin-left: 8px; font-size: 12px; font-weight: 700; vertical-align: middle; }
 .mini-stats .hcol { gap: 3px; }
+/* Pijltjes dezelfde kleur als de cijfers ernaast (anders overschrijft .crow .icon ze grijs). */
+.mini-stats .icon { color: inherit; }
 
 /* ----- avatar gear ----- */
 .avatar-btn { position: relative; border: 0; background: transparent; padding: 0; cursor: pointer; border-radius: 50%; }
