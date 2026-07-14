@@ -141,6 +141,9 @@
   /* ---------- Lookups ---------- */
   function userById(id) { return db.users.filter(function (u) { return u.id === id; })[0] || null; }
   function userByEmail(e) { e = (e || "").trim().toLowerCase(); return db.users.filter(function (u) { return u.email === e; })[0] || null; }
+  function userByPersoneelsnummer(num) { num = (num || "").replace(/\D/g, ""); return num ? (db.users.filter(function (u) { return u.personeelsnummer === num; })[0] || null) : null; }
+  // Inloggen mag met e-mailadres óf HR-nummer (personeelsnummer).
+  function findLoginUser(identifier) { return userByEmail(identifier) || userByPersoneelsnummer(identifier); }
   function hubById(id) { return db.hubs.filter(function (h) { return h.id === id; })[0] || null; }
   function isAdmin(u) { return !!(u && u.rol === "admin"); }
   function roleMeta(id) {
@@ -217,11 +220,11 @@
   };
 
   /* ---------- Auth ---------- */
-  function login(email, password) {
-    var u = userByEmail(email);
-    if (!u) throw new Error("Onjuist e-mailadres of wachtwoord.");
+  function login(identifier, password) {
+    var u = findLoginUser(identifier);
+    if (!u) throw new Error("Onjuist e-mailadres/personeelsnummer of wachtwoord.");
     if (u.pass) {
-      if (u.pass !== hash(password || "")) throw new Error("Onjuist e-mailadres of wachtwoord.");
+      if (u.pass !== hash(password || "")) throw new Error("Onjuist e-mailadres/personeelsnummer of wachtwoord.");
     } else if (u.otp) {
       if ((password || "").toUpperCase() !== u.otp) throw new Error("Onjuist eenmalig wachtwoord. Vraag je teamleider om een nieuwe.");
     } else {
@@ -657,6 +660,32 @@
   function setUserHub(targetId, hubId) {
     if (!can.editRoles(currentUser())) throw new Error("Alleen een locatie-manager mag de hub wijzigen.");
     var t = userById(targetId); if (!t) return; t.hubId = hubId; save();
+  }
+  // Naam en e-mailadres aanpassen mag iedereen voor zichzelf. HR-nummer wijzigen én andermans
+  // gegevens aanpassen mag alleen de beheerder (superadmin).
+  function updateUserInfo(targetId, data) {
+    var me = currentUser();
+    var t = userById(targetId);
+    if (!t) throw new Error("Medewerker niet gevonden.");
+    var isSelf = t.id === (me && me.id);
+    var admin = isAdmin(me);
+    if (!isSelf && !admin) throw new Error("Alleen de beheerder mag andermans gegevens aanpassen.");
+    var voornaam = (data.voornaam || "").trim(), achternaam = (data.achternaam || "").trim();
+    if (!voornaam || !achternaam) throw new Error("Vul voor- en achternaam in.");
+    var email = (data.email || "").trim().toLowerCase();
+    if (!EMAIL_RE.test(email)) throw new Error("Vul een geldig e-mailadres in.");
+    var dupEmail = db.users.filter(function (x) { return x.id !== targetId && x.email === email; })[0];
+    if (dupEmail) throw new Error("Er bestaat al een account met dit e-mailadres.");
+    // HR-nummer alleen door de beheerder aanpasbaar.
+    if (admin && data.personeelsnummer !== undefined) {
+      var num = (data.personeelsnummer || "").replace(/\D/g, "");
+      if (num.length < 4) throw new Error("Vul een geldig HR-nummer in (minimaal 4 cijfers).");
+      var dupNum = db.users.filter(function (x) { return x.id !== targetId && x.personeelsnummer === num; })[0];
+      if (dupNum) throw new Error("Dit HR-nummer is al in gebruik door een andere medewerker.");
+      t.personeelsnummer = num;
+    }
+    t.voornaam = voornaam; t.achternaam = achternaam; t.email = email;
+    save();
   }
   function toggleUserTask(targetId, taak) {
     if (!can.editTeam(currentUser())) throw new Error("Alleen teamleider of hoger mag taken toewijzen.");
@@ -1363,7 +1392,7 @@
     TASK_BINNENDIENST: TASK_BINNENDIENST, TASK_JBT: TASK_JBT,
     boot: boot, refresh: refresh, save: save, resetDemo: resetDemo,
     get db() { return db; }, get clientId() { return clientId; }, get serverVersion() { return serverVersion; },
-    userById: userById, userByEmail: userByEmail, hubById: hubById, roleMeta: roleMeta, level: level, isAdmin: isAdmin, currentUser: currentUser,
+    userById: userById, userByEmail: userByEmail, userByPersoneelsnummer: userByPersoneelsnummer, hubById: hubById, roleMeta: roleMeta, level: level, isAdmin: isAdmin, currentUser: currentUser,
     can: can, canDoTask: canDoTask, visibleTask: visibleTask, availableTasks: availableTasks,
     taskType: taskType, assignableTasks: assignableTasks, setTaskType: setTaskType,
     login: login, logout: logout, setInitialPassword: setInitialPassword, changeOwnPassword: changeOwnPassword,
@@ -1375,7 +1404,7 @@
     offerBackup: offerBackup, withdrawBackup: withdrawBackup, claimBackup: claimBackup, decideBackup: decideBackup,
     offerCallout: offerCallout, withdrawCallout: withdrawCallout, claimCallout: claimCallout, decideCallout: decideCallout,
     repostRequest: repostRequest, dropRequest: dropRequest, undoDecision: undoDecision, giveShiftTo: giveShiftTo,
-    setUserRole: setUserRole, setUserN2: setUserN2, setUserJbt: setUserJbt, setUserHub: setUserHub, toggleUserTask: toggleUserTask, removeUser: removeUser,
+    setUserRole: setUserRole, setUserN2: setUserN2, setUserJbt: setUserJbt, setUserHub: setUserHub, toggleUserTask: toggleUserTask, removeUser: removeUser, updateUserInfo: updateUserInfo,
     addHub: addHub, removeHub: removeHub, addCatalogTask: addCatalogTask, removeCatalogTask: removeCatalogTask,
     planningFor: planningFor, planById: planById, setPlanCell: setPlanCell, addPlanRow: addPlanRow, removePlanRow: removePlanRow,
     reload: reload, DOCKS: DOCKS, EMB_TROLLEYS: EMB_TROLLEYS, EMB_VAKKEN: EMB_VAKKEN, VAK_NUMMERS: VAK_NUMMERS, VAK_SOORTEN: VAK_SOORTEN, vakSoortLabel: vakSoortLabel,
