@@ -90,6 +90,9 @@
   var clientId = Math.random().toString(36).slice(2) + Date.now().toString(36);
   var serverVersion = 0;
   var saveTimer = null, pendingSave = false;
+  // UI kan zich hier op abonneren om een mislukte achtergrond-opslag te tonen (anders zag de gebruiker niets).
+  var onSaveError = null, lastSaveErrorAt = 0;
+  function setSaveErrorHandler(fn) { onSaveError = fn; }
 
   function sharedState() { var out = {}; for (var k in db) { if (k !== "session") out[k] = db[k]; } return out; }
 
@@ -149,7 +152,13 @@
     fetch(API + "?cid=" + encodeURIComponent(clientId), {
       method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(sharedState())
     }).then(function (r) { return r.json(); }).then(function (j) { if (j && j.version) serverVersion = j.version; })
-      .catch(function (e) { console.error("Opslaan mislukt", e); });
+      .catch(function (e) {
+        console.error("Opslaan mislukt", e);
+        // Niet bij elke mislukte (gedebouncede) save een toast — hooguit eens per 10s, anders spamt een
+        // hapering in de verbinding de gebruiker met dezelfde melding.
+        var now = Date.now();
+        if (onSaveError && now - lastSaveErrorAt > 10000) { lastSaveErrorAt = now; onSaveError(); }
+      });
   }
   // save(): gedeelde staat (gedebounced) naar de server. De sessie zit in een httpOnly-cookie.
   function save(immediate) {
@@ -1551,7 +1560,7 @@
   window.Store = {
     KEY: KEY, ROLES: ROLES, EMAIL_RE: EMAIL_RE, WINDOW: WINDOW, REASONS: REASONS,
     TASK_BINNENDIENST: TASK_BINNENDIENST, TASK_JBT: TASK_JBT,
-    boot: boot, refresh: refresh, save: save, resetDemo: resetDemo,
+    boot: boot, refresh: refresh, save: save, resetDemo: resetDemo, setSaveErrorHandler: setSaveErrorHandler,
     get db() { return db; }, get clientId() { return clientId; }, get serverVersion() { return serverVersion; },
     userById: userById, userByEmail: userByEmail, userByPersoneelsnummer: userByPersoneelsnummer, hubById: hubById, roleMeta: roleMeta, level: level, isAdmin: isAdmin, currentUser: currentUser,
     can: can, canDoTask: canDoTask, visibleTask: visibleTask, availableTasks: availableTasks,
