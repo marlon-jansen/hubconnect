@@ -3313,12 +3313,29 @@
     if (pollTimer) clearInterval(pollTimer);
     pollTimer = setInterval(function () {
       if (!S.currentUser()) return; // niet ingelogd: niet pollen
-      fetch("/api/version").then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
+      fetch("/api/version").then(function (r) {
+        // 401 = de sessie is op de server niet meer geldig (bv. na een herstart). Niet blijven
+        // doorpollen alsof er niets aan de hand is: uitloggen en het duidelijk zeggen.
+        if (r.status === 401) { sessionExpired(); return null; }
+        return r.ok ? r.json() : null;
+      }).then(function (j) {
         if (j && j.version && j.version !== S.serverVersion) {
           S.refresh(function () { if (!document.querySelector(".modal-overlay")) render(); });
         }
       }).catch(function () { /* even geen verbinding; volgende tik opnieuw */ });
     }, 3000);
+  }
+  // Sessie verlopen: lokaal uitloggen en terug naar het inlogscherm. De vlag voorkomt dat
+  // meerdere gelijktijdige 401's dit allemaal apart afhandelen.
+  var sessionExpiredBusy = false;
+  function sessionExpired() {
+    if (sessionExpiredBusy || !S.currentUser()) return;
+    sessionExpiredBusy = true;
+    S.logout().then(function () {
+      sessionExpiredBusy = false;
+      resetNav(); authScreen = "login"; render();
+      toast("Je sessie is verlopen — log opnieuw in.", "err");
+    });
   }
 
   function bootScreen(msg, err) {
