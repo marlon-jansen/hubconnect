@@ -33,7 +33,9 @@
 }
 
 * { box-sizing: border-box; }
-html, body { margin: 0; padding: 0; overflow-x: hidden; }
+/* clip, niet hidden: hidden maakt van de pagina een scroll-container en dan werkt
+   position: sticky niet meer (het scroll-toneel op de landing viel daardoor weg). */
+html, body { margin: 0; padding: 0; overflow-x: clip; }
 html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; touch-action: manipulation; }
 body {
   font-family: var(--font);
@@ -70,7 +72,8 @@ svg { display: block; }
 .btn:hover { filter: brightness(.97); }
 .btn:active { transform: translateY(1px); }
 .btn:disabled { opacity: .5; cursor: not-allowed; }
-.btn-primary { background: var(--jumbo-yellow); color: var(--ink); }
+/* Op vast geel hoort de tekst altijd donker: --ink-fixed, niet --ink (die wordt licht in dark mode). */
+.btn-primary { background: var(--jumbo-yellow); color: var(--ink-fixed); }
 .btn-primary:hover { background: var(--jumbo-yellow-dark); filter: none; }
 .btn-dark { background: var(--ink-fixed); color: #fff; }
 .btn-ghost { background: transparent; border-color: var(--line); }
@@ -347,10 +350,10 @@ main { max-width: 1100px; margin: 0 auto; padding: 22px 18px 80px; }
   padding: 5px 11px; border-radius: 999px; background: var(--surface-2); color: var(--ink-soft);
   border: 1px solid var(--line); cursor: pointer; user-select: none;
 }
-.chip.on { background: var(--jumbo-yellow); color: var(--ink); border-color: var(--jumbo-yellow-dark); }
+.chip.on { background: var(--jumbo-yellow); color: var(--ink-fixed); border-color: var(--jumbo-yellow-dark); }
 .mist-chip { cursor: pointer; }
 .mist-chip.on { background: #fdecea; color: #c0392b; border-color: #e74c3c; }
-.sc-sp-btn { background: var(--jumbo-yellow); color: var(--ink); border: 1px solid var(--jumbo-yellow-dark); font-weight: 800; white-space: nowrap; }
+.sc-sp-btn { background: var(--jumbo-yellow); color: var(--ink-fixed); border: 1px solid var(--jumbo-yellow-dark); font-weight: 800; white-space: nowrap; }
 .sc-sp-btn:hover { background: var(--jumbo-yellow-dark); }
 .sc-sp-btn.done { background: var(--green-soft); color: var(--green); border-color: var(--green); }
 .sc-sp-btn.done:hover { background: var(--green-soft); }
@@ -723,7 +726,7 @@ main { max-width: 1100px; margin: 0 auto; padding: 22px 18px 80px; }
 .avatar-btn .avatar { transition: .15s; }
 .avatar-gear { position: absolute; inset: 0; border-radius: 50%; background: rgba(29,29,27,.78); color: var(--jumbo-yellow); display: grid; place-items: center; opacity: 0; transition: .15s; }
 .avatar-btn:hover .avatar-gear { opacity: 1; }
-.avatar.alt { background: var(--jumbo-yellow); color: var(--ink); }
+.avatar.alt { background: var(--jumbo-yellow); color: var(--ink-fixed); }
 .avatar.lg { width: 54px; height: 54px; font-size: 19px; }
 
 /* ----- otp ----- */
@@ -782,7 +785,7 @@ main { max-width: 1100px; margin: 0 auto; padding: 22px 18px 80px; }
 .dp-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
 .dp-title { font-weight: 900; font-size: 14px; text-transform: capitalize; }
 .dp-nav { border: 0; background: var(--surface-2); border-radius: 8px; padding: 6px; cursor: pointer; color: var(--ink); }
-.dp-nav:hover { background: var(--jumbo-yellow); }
+.dp-nav:hover { background: var(--jumbo-yellow); color: var(--ink-fixed); }
 .dp-week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; margin-bottom: 4px; }
 .dp-week span { text-align: center; font-size: 11px; font-weight: 800; color: var(--muted); padding: 4px 0; }
 .dp-grid { display: grid; grid-template-columns: repeat(7, 1fr); grid-auto-rows: 34px; gap: 2px; align-items: stretch; }
@@ -793,7 +796,7 @@ main { max-width: 1100px; margin: 0 auto; padding: 22px 18px 80px; }
 .dp-cell:hover:not(.empty) { background: var(--jumbo-yellow-soft); }
 .dp-cell.empty { cursor: default; }
 .dp-cell.today { box-shadow: inset 0 0 0 1.5px var(--jumbo-yellow-dark); }
-.dp-cell.sel { background: var(--jumbo-yellow); color: var(--ink); font-weight: 900; }
+.dp-cell.sel { background: var(--jumbo-yellow); color: var(--ink-fixed); font-weight: 900; }
 
 /* back-up richting keuze */
 .choice.bu-dir { padding: 12px; }
@@ -855,7 +858,7 @@ main { max-width: 1100px; margin: 0 auto; padding: 22px 18px 80px; }
 .emb-vakbar { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 14px; }
 .emb-vakbtn { border: 1px solid var(--line); background: var(--card); border-radius: 999px; padding: 7px 13px; font-weight: 800; font-size: 13px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
 .emb-vakbtn:hover { border-color: var(--jumbo-yellow-dark); }
-.emb-vakbtn.active { background: var(--jumbo-yellow); border-color: var(--jumbo-yellow-dark); }
+.emb-vakbtn.active { background: var(--jumbo-yellow); color: var(--ink-fixed); border-color: var(--jumbo-yellow-dark); }
 .emb-vakbtn .emb-cnt { background: var(--ink-fixed); color: var(--jumbo-yellow); border-radius: 999px; font-size: 11px; padding: 0 6px; }
 .emb-rack { background: linear-gradient(180deg,#fffdf3,#fff); border: 3px solid var(--jumbo-yellow); border-radius: 16px; padding: 16px; box-shadow: var(--shadow); }
 .emb-rack-h { display: flex; align-items: center; justify-content: space-between; font-weight: 900; font-size: 15px; margin-bottom: 14px; flex-wrap: wrap; gap: 6px; }
@@ -1097,9 +1100,9 @@ main { max-width: 1100px; margin: 0 auto; padding: 22px 18px 80px; }
 .live-dot::after { content: ""; position: absolute; inset: 0; border-radius: 50%; background: var(--green-bright); animation: livePulse 1.6s ease-out infinite; }
 @keyframes livePulse { 0% { transform: scale(1); opacity: .6; } 100% { transform: scale(2.8); opacity: 0; } }
 .vo-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; background: #eef1f8; border: 1px solid #d5daec; border-radius: 12px; padding: 8px 12px; margin: 0 0 14px; }
-.dash-view { margin-top: auto; width: 100%; justify-content: center; background: var(--jumbo-yellow); color: var(--ink); border: 0; font-weight: 800; padding-top: 10px; padding-bottom: 10px; }
+.dash-view { margin-top: auto; width: 100%; justify-content: center; background: var(--jumbo-yellow); color: var(--ink-fixed); border: 0; font-weight: 800; padding-top: 10px; padding-bottom: 10px; }
 .dash-view:hover { background: var(--jumbo-yellow-dark, #e0a800); }
-.dash-view svg { color: var(--ink); }
+.dash-view svg { color: var(--ink-fixed); }
 /* ruimte tussen de recent-lijst en de knop onderaan */
 .dash-recent, .dash-recent-empty, .emb-vaktots, .dash-stocks { margin-bottom: 14px; }
 .op-progress { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; box-shadow: var(--shadow); margin-bottom: 14px; }
@@ -1133,7 +1136,7 @@ main { max-width: 1100px; margin: 0 auto; padding: 22px 18px 80px; }
 .counter-row { display: flex; align-items: center; justify-content: center; gap: 14px; }
 .counter-val { font-size: 34px; font-weight: 900; min-width: 50px; font-variant-numeric: tabular-nums; }
 .counter-val.sm { font-size: 20px; min-width: 30px; }
-.cbtn { width: 40px; height: 40px; border-radius: 11px; border: 0; background: var(--jumbo-yellow); font-size: 22px; font-weight: 900; cursor: pointer; color: var(--ink); line-height: 1; }
+.cbtn { width: 40px; height: 40px; border-radius: 11px; border: 0; background: var(--jumbo-yellow); font-size: 22px; font-weight: 900; cursor: pointer; color: var(--ink-fixed); line-height: 1; }
 .cbtn:hover { background: var(--jumbo-yellow-dark); }
 .cbtn.sm { width: 30px; height: 30px; font-size: 17px; border-radius: 8px; }
 .vak-grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
@@ -1498,16 +1501,16 @@ html { background: var(--bg); transition: background-color .25s var(--ease); }
 [data-theme="dark"] .auth-head p,
 [data-theme="dark"] .user-chip .u-name,
 [data-theme="dark"] .user-chip .u-meta,
-[data-theme="dark"] .l3-cta .l3-h2,
-[data-theme="dark"] .btn-primary,
-[data-theme="dark"] .chip.on,
-[data-theme="dark"] .sc-sp-btn { color: var(--ink-fixed); }
+[data-theme="dark"] .l3-cta .l3-h2 { color: var(--ink-fixed); }
+/* --red is licht in dark mode, dus witte tekst op de tellerbadge werd onleesbaar */
+[data-theme="dark"] .nav-btn .badge-count { color: var(--ink-fixed); }
 /* Jumbo-woordmerk houdt een lichte pil */
 [data-theme="dark"] .brand .logo-badge { background: #fff; }
 /* icoon-knoppen op de gele merk-header/auth-kop blijven donker
-   (currentColor zou anders --ink=licht volgen → onzichtbaar op geel) */
+   (currentColor zou anders --ink=licht volgen → onzichtbaar op geel).
+   .avatar-gear hoort hier NIET bij: die ligt op een eigen donker schijfje
+   en houdt daarom zijn gele icoon. */
 [data-theme="dark"] .app-header .btn,
-[data-theme="dark"] .app-header .avatar-gear,
 [data-theme="dark"] .auth-head .auth-back { color: var(--ink-fixed); }
 
 /* Invoervelden: eigen, iets lichtere achtergrond dan de kaart */
