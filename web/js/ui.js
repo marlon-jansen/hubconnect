@@ -165,6 +165,11 @@
 
   var reRender = null; // welke render-functie het huidige scherm opnieuw tekent (ruilhub of los menu-item)
   function act(fn, okMsg) { try { fn(); toast(okMsg, "ok"); (reRender || renderApp)(); } catch (e) { toast(e.message, "err"); } }
+  // Async-variant: fn geeft een Promise. Toont toast + hertekent bij succes, foutmelding bij falen.
+  function actP(fn, okMsg) {
+    Promise.resolve().then(fn).then(function () { if (okMsg) toast(okMsg, "ok"); (reRender || renderApp)(); })
+      .catch(function (e) { toast(e && e.message ? e.message : "Er ging iets mis.", "err"); });
+  }
 
   /* ---------- zachte tabblad-overgang ----------
      Laat inhoud die bij een tabwissel verschijnt zacht infaden. We animeren
@@ -388,9 +393,15 @@
   /* ===================================================================
      LOGIN
      =================================================================== */
-  // Bovenaan de login/registreer-kaart: tabje om te wisselen, met een zachte crossfade.
+  // Bovenaan de login/registreer-kaart: segmented control met een pill die
+  // meeschuift naar het actieve tabblad.
+  var AUTH_STEPS = ["login", "register-code", "register-form"];   // volgorde bepaalt de schuifrichting
+  var AUTH_PILL_RIGHT = "translateX(calc(100% + 6px))";           // moet gelijk zijn aan de CSS-regel
+  function authTab(screen) { return screen === "login" ? "login" : "register"; }
+
   function authModeSeg(active) {
-    return '<div class="auth-tabs">' +
+    return '<div class="auth-tabs" data-authactive="' + active + '">' +
+      '<span class="auth-pill" aria-hidden="true"></span>' +
       '<button type="button" class="' + (active === "login" ? "active" : "") + '" data-authtab="login">Inloggen</button>' +
       '<button type="button" class="' + (active === "register" ? "active" : "") + '" data-authtab="register">Registreren</button>' +
       "</div>";
@@ -399,21 +410,77 @@
     document.querySelectorAll("[data-authtab]").forEach(function (b) {
       b.addEventListener("click", function () {
         var m = b.getAttribute("data-authtab");
-        if (m === "login" && authScreen !== "login") switchAuthScreen("login");
+        if (m === "login" && authScreen !== "login") { regInvite = null; switchAuthScreen("login"); }
         if (m === "register" && authScreen !== "register-code" && authScreen !== "register-form") { regInvite = null; switchAuthScreen("register-code"); }
       });
     });
   }
-  // Zachte overgang bij het wisselen van scherm (fade + lichte verschuiving, geen harde knip).
+
+  /* Overgang tussen de auth-schermen. De kaart zelf blijft staan (logo, gele kop,
+     tabs); alléén de titeltekst en het formulier wisselen. De oude laag wordt als
+     "ghost" op zijn plek bewaard en schuift met een zachte blur weg, de nieuwe komt
+     uit de andere richting binnen, en de kaart morpht ondertussen naar zijn nieuwe
+     hoogte. Richting volgt AUTH_STEPS: vooruit = naar links weg, van rechts binnen. */
   function switchAuthScreen(next) {
     var card = el("app").querySelector(".auth-card");
-    if (!card || (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches)) { authScreen = next; render(); return; }
-    card.classList.add("auth-leave");
+    var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (!card || next === authScreen || reduce) { authScreen = next; render(); return; }
+
+    var dir = AUTH_STEPS.indexOf(next) > AUTH_STEPS.indexOf(authScreen) ? 1 : -1;
+    var prevTab = authTab(authScreen);
+    var h0 = card.getBoundingClientRect().height;
+    // Momentopname van de wisselende lagen, mét hun plek binnen kop/body.
+    var snap = [];
+    [".auth-title", ".auth-pane"].forEach(function (sel) {
+      var n = card.querySelector(sel);
+      if (!n) return;
+      var pr = n.parentNode.getBoundingClientRect(), r = n.getBoundingClientRect();
+      snap.push({ sel: sel, clone: n.cloneNode(true), top: r.top - pr.top, left: r.left - pr.left, w: r.width, h: r.height });
+    });
+
+    authScreen = next;
+    render();
+
+    var card2 = el("app").querySelector(".auth-card");
+    if (!card2) return;
+    var h1 = card2.getBoundingClientRect().height;
+
+    // Ghosts in dezelfde ouder hangen, zodat alle (dark-mode-)stijlregels blijven kloppen.
+    var ghosts = [];
+    snap.forEach(function (s) {
+      var host = card2.querySelector(s.sel === ".auth-title" ? ".auth-head" : ".auth-body");
+      if (!host) return;
+      var g = s.clone;
+      g.classList.add("auth-ghost");
+      g.setAttribute("aria-hidden", "true");
+      g.style.top = s.top + "px"; g.style.left = s.left + "px";
+      g.style.width = s.w + "px"; g.style.height = s.h + "px";
+      host.appendChild(g); ghosts.push(g);
+    });
+
+    card2.style.setProperty("--adir", dir);
+    card2.style.height = h0 + "px";
+    card2.classList.add("auth-swap");
+    void card2.offsetHeight;                       // reflow: startwaarden vastleggen
+    card2.style.height = h1 + "px";
+    card2.classList.add("auth-swap-in");
+    ghosts.forEach(function (g) { g.classList.add("auth-ghost-out"); });
+
+    // De pill start op de oude helft en schuift mee (het element is vers gerenderd).
+    var pill = card2.querySelector(".auth-pill");
+    if (pill && prevTab !== authTab(next)) {
+      pill.style.transition = "none";
+      pill.style.transform = prevTab === "register" ? AUTH_PILL_RIGHT : "translateX(0)";
+      void pill.offsetWidth;
+      pill.style.transition = ""; pill.style.transform = "";
+    }
+
     setTimeout(function () {
-      authScreen = next; render();
-      var c2 = el("app").querySelector(".auth-card");
-      if (c2) { c2.classList.add("auth-enter"); setTimeout(function () { c2.classList.add("auth-enter-active"); }, 20); }
-    }, 140);
+      ghosts.forEach(function (g) { if (g.parentNode) g.parentNode.removeChild(g); });
+      card2.style.height = "";
+      card2.classList.remove("auth-swap", "auth-swap-in");
+      card2.style.removeProperty("--adir");
+    }, 480);
   }
 
   function renderLogin() {
@@ -421,9 +488,10 @@
       '<div class="auth-wrap"><div class="auth-card">' +
         '<div class="auth-head">' +
           '<button class="auth-back" data-back>' + svg("arrowLeft", "icon-sm") + " Terug</button>" +
-          logo(38) + "<h1>Inloggen</h1><p>Welkom terug bij " + PORTAL + "</p></div>" +
+          logo(38) + '<div class="auth-title"><h1>Inloggen</h1><p>Welkom terug bij ' + PORTAL + "</p></div></div>" +
         '<div class="auth-body">' +
           authModeSeg("login") +
+          '<div class="auth-pane">' +
           '<form id="loginForm" autocomplete="on">' +
             '<div class="field"><label>E-mailadres of HR-nummer</label>' +
               '<input type="text" name="identifier" autocomplete="username" placeholder="naam@jumbo.com of HR-nummer" required></div>' +
@@ -432,6 +500,7 @@
             '<div id="authMsg"></div>' +
             '<button class="btn btn-primary btn-block" type="submit">' + svg("arrowRight") + "Inloggen</button>" +
           "</form>" +
+          "</div>" +
         "</div>" +
       "</div></div>";
 
@@ -439,9 +508,11 @@
     bindAuthModeSeg();
     el("loginForm").addEventListener("submit", function (e) {
       e.preventDefault();
-      var f = e.target;
-      try { S.login(f.identifier.value, f.password.value); resetNav(); render(); }
-      catch (err) { el("authMsg").innerHTML = '<div class="alert alert-error">' + esc(err.message) + "</div>"; }
+      var f = e.target, btn = f.querySelector('button[type="submit"]');
+      if (btn) btn.disabled = true;
+      S.login(f.identifier.value, f.password.value)
+        .then(function () { resetNav(); render(); })
+        .catch(function (err) { if (btn) btn.disabled = false; var m = el("authMsg"); if (m) m.innerHTML = '<div class="alert alert-error">' + esc(err.message) + "</div>"; });
     });
   }
 
@@ -453,37 +524,42 @@
       '<div class="auth-wrap"><div class="auth-card">' +
         '<div class="auth-head">' +
           '<button class="auth-back" data-back>' + svg("arrowLeft", "icon-sm") + " Terug</button>" +
-          logo(38) + "<h1>Account registreren</h1><p>Vul de code in die je van je teamleider hebt gekregen.</p></div>" +
+          logo(38) + '<div class="auth-title"><h1>Account registreren</h1><p>Vul de code in die je van je teamleider hebt gekregen.</p></div></div>' +
         '<div class="auth-body">' +
           authModeSeg("register") +
+          '<div class="auth-pane">' +
           '<form id="codeForm">' +
             '<div class="field"><label>Uitnodigingscode</label>' +
               '<input name="code" placeholder="XXXX-XXXX" required style="text-transform:uppercase;letter-spacing:2px;text-align:center;font-weight:700"></div>' +
             '<div id="codeMsg"></div>' +
             '<button class="btn btn-primary btn-block" type="submit">' + svg("arrowRight") + "Doorgaan</button>" +
           "</form>" +
+          "</div>" +
         "</div>" +
       "</div></div>";
 
-    el("app").querySelector("[data-back]").addEventListener("click", function () { authScreen = "login"; render(); });
+    el("app").querySelector("[data-back]").addEventListener("click", function () { switchAuthScreen("login"); });
     bindAuthModeSeg();
     el("codeForm").addEventListener("submit", function (e) {
       e.preventDefault();
       var f = e.target;
-      try { regInvite = S.validateInviteCode(f.code.value); authScreen = "register-form"; render(); }
-      catch (err) { el("codeMsg").innerHTML = '<div class="alert alert-error">' + esc(err.message) + "</div>"; }
+      var code = (f.code.value || "").trim().toUpperCase();
+      if (!code) { el("codeMsg").innerHTML = '<div class="alert alert-error">Vul een code in.</div>'; return; }
+      // De code wordt server-side gevalideerd bij het aanmaken van het account.
+      regInvite = { code: code }; switchAuthScreen("register-form");
     });
   }
 
   function renderRegisterForm() {
     if (!regInvite) { authScreen = "register-code"; render(); return; }
-    var hub = S.hubById(regInvite.hubId);
     el("app").innerHTML =
       '<div class="auth-wrap"><div class="auth-card">' +
         '<div class="auth-head">' +
           '<button class="auth-back" data-back>' + svg("arrowLeft", "icon-sm") + " Terug</button>" +
-          logo(38) + "<h1>Jouw gegevens</h1><p>HUB " + esc(hub ? hub.naam : "?") + " · je start als Bezorger</p></div>" +
+          logo(38) + '<div class="auth-title"><h1>Jouw gegevens</h1><p>Je start als Bezorger</p></div></div>' +
         '<div class="auth-body">' +
+          authModeSeg("register") +
+          '<div class="auth-pane">' +
           '<form id="regForm" autocomplete="on">' +
             '<div class="row2"><div class="field"><label>Voornaam</label><input name="voornaam" required></div>' +
               '<div class="field"><label>Achternaam</label><input name="achternaam" required></div></div>' +
@@ -494,18 +570,20 @@
             '<div id="regMsg"></div>' +
             '<button class="btn btn-primary btn-block" type="submit">' + svg("check") + "Account aanmaken</button>" +
           "</form>" +
+          "</div>" +
         "</div>" +
       "</div></div>";
 
-    el("app").querySelector("[data-back]").addEventListener("click", function () { regInvite = null; authScreen = "register-code"; render(); });
+    el("app").querySelector("[data-back]").addEventListener("click", function () { regInvite = null; switchAuthScreen("register-code"); });
+    bindAuthModeSeg();
     el("regForm").addEventListener("submit", function (e) {
       e.preventDefault();
-      var f = e.target;
+      var f = e.target, btn = f.querySelector('button[type="submit"]');
       if (f.p1.value !== f.p2.value) { el("regMsg").innerHTML = '<div class="alert alert-error">De wachtwoorden komen niet overeen.</div>'; return; }
-      try {
-        S.registerWithCode(regInvite.code, { voornaam: f.voornaam.value, achternaam: f.achternaam.value, personeelsnummer: f.num.value, email: f.email.value, wachtwoord: f.p1.value });
-        regInvite = null; resetNav(); toast("Welkom! Je account is aangemaakt.", "ok"); render();
-      } catch (err) { el("regMsg").innerHTML = '<div class="alert alert-error">' + esc(err.message) + "</div>"; }
+      if (btn) btn.disabled = true;
+      S.registerWithCode(regInvite.code, { voornaam: f.voornaam.value, achternaam: f.achternaam.value, personeelsnummer: f.num.value, email: f.email.value, wachtwoord: f.p1.value })
+        .then(function () { regInvite = null; resetNav(); toast("Welkom! Je account is aangemaakt.", "ok"); render(); })
+        .catch(function (err) { if (btn) btn.disabled = false; var m = el("regMsg"); if (m) m.innerHTML = '<div class="alert alert-error">' + esc(err.message) + "</div>"; });
     });
   }
 
@@ -527,10 +605,12 @@
         "</div></div></div>";
     el("pwForm").addEventListener("submit", function (e) {
       e.preventDefault();
-      var f = e.target;
+      var f = e.target, btn = f.querySelector('button[type="submit"]');
       if (f.p1.value !== f.p2.value) { el("pwMsg").innerHTML = '<div class="alert alert-error">De wachtwoorden komen niet overeen.</div>'; return; }
-      try { S.setInitialPassword(f.p1.value); resetNav(); toast("Wachtwoord ingesteld.", "ok"); render(); }
-      catch (err) { el("pwMsg").innerHTML = '<div class="alert alert-error">' + esc(err.message) + "</div>"; }
+      if (btn) btn.disabled = true;
+      S.setInitialPassword(f.p1.value)
+        .then(function () { resetNav(); toast("Wachtwoord ingesteld.", "ok"); render(); })
+        .catch(function (err) { if (btn) btn.disabled = false; var m = el("pwMsg"); if (m) m.innerHTML = '<div class="alert alert-error">' + esc(err.message) + "</div>"; });
     });
   }
 
@@ -581,7 +661,7 @@
     document.querySelectorAll("[data-nav]").forEach(function (b) {
       b.addEventListener("click", function () { state.view = b.getAttribute("data-nav"); renderMain(); });
     });
-    el("app").querySelector("[data-logout]").addEventListener("click", function () { S.logout(); resetNav(); authScreen = "landing"; render(); });
+    el("app").querySelector("[data-logout]").addEventListener("click", function () { S.logout().then(function () { resetNav(); authScreen = "landing"; render(); }); });
     el("app").querySelector("[data-profile]").addEventListener("click", openProfile);
     var pb = el("app").querySelector("[data-portal]"); if (pb) pb.addEventListener("click", gotoPortal);
     var hm = el("app").querySelector("[data-home]"); if (hm) hm.addEventListener("click", gotoLanding);
@@ -1690,8 +1770,16 @@
       '<button class="btn btn-red" id="resetData">' + svg("trash", "icon-sm") + "Alle gegevens wissen &amp; opnieuw beginnen</button></div></div>";
   }
 
+  var lastCodesJson = null; // voorkomt een hertekende-lus bij het ophalen van open codes
   function bindBeheer() {
-    document.querySelectorAll("[data-btab]").forEach(function (b) { b.addEventListener("click", function () { state.beheerTab = b.getAttribute("data-btab"); (reRender || renderMain)(); }); });
+    // Open uitnodigingscodes komen van de server (niet uit de gedeelde staat); haal ze op en herteken één keer.
+    if (state.beheerTab === "team" && S.can.editTeam(S.currentUser())) {
+      S.fetchInviteCodes().then(function (list) {
+        var j = JSON.stringify(list || []);
+        if (j !== lastCodesJson) { lastCodesJson = j; (reRender || renderMain)(); }
+      });
+    }
+    document.querySelectorAll("[data-btab]").forEach(function (b) { b.addEventListener("click", function () { state.beheerTab = b.getAttribute("data-btab"); lastCodesJson = null; (reRender || renderMain)(); }); });
     var ts = el("teamSearch");
     if (ts) ts.addEventListener("input", function () { state.teamQ = ts.value; (reRender || renderMain)(); var n = el("teamSearch"); if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); } });
     document.querySelectorAll("[data-role]").forEach(function (s) { s.addEventListener("change", function () { act(function () { S.setUserRole(s.getAttribute("data-role"), s.value); }, "Functie bijgewerkt."); }); });
@@ -1699,9 +1787,9 @@
     document.querySelectorAll("[data-tasktype]").forEach(function (b) { b.addEventListener("click", function () { var p = b.getAttribute("data-tasktype").split("|"); act(function () { S.setTaskType(p[0], p[1]); }, "Taaktype bijgewerkt."); }); });
     document.querySelectorAll("[data-jbt]").forEach(function (c) { c.addEventListener("click", function () { var id = c.getAttribute("data-jbt"); var t = S.userById(id); act(function () { S.setUserJbt(id, !t.jbtTrainer); }, "JBT-trainer bijgewerkt."); }); });
     document.querySelectorAll("[data-utask]").forEach(function (c) { c.addEventListener("click", function () { var p = c.getAttribute("data-utask").split("|"); act(function () { S.toggleUserTask(p[0], p[1]); }, "Taken bijgewerkt."); }); });
-    document.querySelectorAll("[data-regen]").forEach(function (b) { b.addEventListener("click", function () { var id = b.getAttribute("data-regen"); try { var otp = S.regenerateOtp(id); showOtpModal(S.userById(id), otp); (reRender || renderApp)(); } catch (e) { toast(e.message, "err"); } }); });
+    document.querySelectorAll("[data-regen]").forEach(function (b) { b.addEventListener("click", function () { var id = b.getAttribute("data-regen"); S.regenerateOtp(id).then(function (otp) { showOtpModal(S.userById(id), otp); (reRender || renderApp)(); }).catch(function (e) { toast(e.message, "err"); }); }); });
     document.querySelectorAll("[data-review]").forEach(function (b) { b.addEventListener("click", function () { act(function () { S.markUserReviewed(b.getAttribute("data-review")); }, "Account gecontroleerd."); }); });
-    document.querySelectorAll("[data-revokecode]").forEach(function (b) { b.addEventListener("click", function () { act(function () { S.revokeInviteCode(b.getAttribute("data-revokecode")); }, "Code ingetrokken."); }); });
+    document.querySelectorAll("[data-revokecode]").forEach(function (b) { b.addEventListener("click", function () { var code = b.getAttribute("data-revokecode"); S.revokeInviteCode(code).then(function () { return S.fetchInviteCodes(); }).then(function () { toast("Code ingetrokken.", "ok"); (reRender || renderApp)(); }).catch(function (e) { toast(e.message, "err"); }); }); });
     document.querySelectorAll("[data-edituser]").forEach(function (b) { b.addEventListener("click", function () { var t = S.userById(b.getAttribute("data-edituser")); if (t) openEditUserInfo(t); }); });
     document.querySelectorAll("[data-deluser]").forEach(function (b) { b.addEventListener("click", function () {
       var id = b.getAttribute("data-deluser"); var t = S.userById(id); if (!t) return;
@@ -1719,14 +1807,13 @@
       openModal({ title: "Weet je het zeker?", icon: "trash",
         body: '<p style="margin:0;color:var(--ink-soft);font-weight:600">Alle accounts, ruilingen en de historie in de database worden gewist en alleen de basisgegevens (hubs + takenlijst) worden opnieuw aangemaakt. Dit kan niet ongedaan worden gemaakt.</p>',
         foot: '<button class="btn btn-ghost" data-close>Annuleren</button><button class="btn btn-red" id="cr">' + svg("trash", "icon-sm") + "Wissen</button>",
-        onMount: function (ov, close) { ov.querySelector("#cr").addEventListener("click", function () { S.resetDemo(); close(); authScreen = "landing"; render(); toast("Gegevens gewist.", "ok"); }); } });
+        onMount: function (ov, close) { ov.querySelector("#cr").addEventListener("click", function () { S.resetDemo().then(function () { close(); authScreen = "landing"; render(); toast("Gegevens gewist.", "ok"); }).catch(function (e) { toast(e.message, "err"); }); }); } });
     });
   }
 
   // Teamleider+ geeft alleen een code uit; de medewerker registreert zichzelf (voor-/achternaam, personeelsnr, e-mail, wachtwoord) op de inlogpagina.
   function openAddUser() {
-    try { var inv = S.createInviteCode(); showInviteModal(inv); (reRender || renderApp)(); }
-    catch (e) { toast(e.message, "err"); }
+    S.createInviteCode().then(function (inv) { showInviteModal(inv); return S.fetchInviteCodes(); }).then(function () { (reRender || renderApp)(); }).catch(function (e) { toast(e.message, "err"); });
   }
   function showInviteModal(inv) {
     var hub = S.hubById(inv.hubId);
@@ -1923,8 +2010,9 @@
           var f = ov.querySelector("#cpForm");
           var msg = ov.querySelector("#cpMsg");
           if (f.n1.value !== f.n2.value) { msg.innerHTML = '<div class="alert alert-error">De nieuwe wachtwoorden komen niet overeen.</div>'; return; }
-          try { S.changeOwnPassword(f.old.value, f.n1.value); toast("Wachtwoord gewijzigd.", "ok"); close(); }
-          catch (e) { msg.innerHTML = '<div class="alert alert-error">' + esc(e.message) + "</div>"; }
+          S.changeOwnPassword(f.old.value, f.n1.value)
+            .then(function () { toast("Wachtwoord gewijzigd.", "ok"); close(); })
+            .catch(function (e) { msg.innerHTML = '<div class="alert alert-error">' + esc(e.message) + "</div>"; });
         });
       }
     });
@@ -2013,7 +2101,7 @@
         pendingBanner +
         sections +
       "</main>";
-    el("app").querySelector("[data-logout]").addEventListener("click", function () { S.logout(); resetNav(); authScreen = "landing"; render(); });
+    el("app").querySelector("[data-logout]").addEventListener("click", function () { S.logout().then(function () { resetNav(); authScreen = "landing"; render(); }); });
     el("app").querySelector("[data-profile]").addEventListener("click", openProfile);
     var hm = el("app").querySelector("[data-home]"); if (hm) hm.addEventListener("click", gotoLanding);
     var gb = el("app").querySelector("[data-goto-beheer]"); if (gb) gb.addEventListener("click", function () { state.module = "personeelsbeheer"; render(); });
@@ -2051,7 +2139,7 @@
       '<div class="panel" style="padding:30px;text-align:center">' +
         '<div class="empty" style="padding:30px 10px">' + svg(info.icon) + "<h3>" + esc(info.name) + " — in aanbouw</h3><p style=\"max-width:520px;margin:0 auto\">" + esc(info.desc) + "</p>" +
         '<div style="margin-top:18px"><span class="badge st-afwachting">Volgende fase</span></div></div></div></main>';
-    el("app").querySelector("[data-logout]").addEventListener("click", function () { S.logout(); resetNav(); authScreen = "landing"; render(); });
+    el("app").querySelector("[data-logout]").addEventListener("click", function () { S.logout().then(function () { resetNav(); authScreen = "landing"; render(); }); });
     el("app").querySelector("[data-profile]").addEventListener("click", openProfile);
     el("app").querySelector("[data-portal]").addEventListener("click", gotoPortal);
     var hm2 = el("app").querySelector("[data-home]"); if (hm2) hm2.addEventListener("click", gotoLanding);
@@ -2224,7 +2312,7 @@
       (opts.noShift ? "" : shiftBar()) + voBar + content + "</main>";
   }
   function bindModuleHeader(rerender) {
-    el("app").querySelector("[data-logout]").addEventListener("click", function () { S.logout(); resetNav(); authScreen = "landing"; render(); });
+    el("app").querySelector("[data-logout]").addEventListener("click", function () { S.logout().then(function () { resetNav(); authScreen = "landing"; render(); }); });
     el("app").querySelector("[data-profile]").addEventListener("click", openProfile);
     el("app").querySelector("[data-portal]").addEventListener("click", gotoPortal);
     var hm = el("app").querySelector("[data-home]"); if (hm) hm.addEventListener("click", gotoLanding);
@@ -2881,7 +2969,8 @@
   function startRealtime() {
     if (pollTimer) clearInterval(pollTimer);
     pollTimer = setInterval(function () {
-      fetch("/api/version").then(function (r) { return r.json(); }).then(function (j) {
+      if (!S.currentUser()) return; // niet ingelogd: niet pollen
+      fetch("/api/version").then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
         if (j && j.version && j.version !== S.serverVersion) {
           S.refresh(function () { if (!document.querySelector(".modal-overlay")) render(); });
         }
@@ -2912,7 +3001,7 @@
     autoLogoutTimer = setInterval(function () {
       var d = new Date();
       if (d.getHours() === 3 && d.getMinutes() === 0 && S.currentUser()) {
-        S.logout(); resetNav(); authScreen = "landing"; render();
+        S.logout().then(function () { resetNav(); authScreen = "landing"; render(); });
       }
     }, 60000);
   }
