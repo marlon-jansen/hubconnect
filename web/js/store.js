@@ -87,17 +87,10 @@
 
   /* ---------- Server-koppeling + realtime ---------- */
   var API = "/api/state";
-  var SESSION_KEY = "ruilhub_session";
   var clientId = Math.random().toString(36).slice(2) + Date.now().toString(36);
   var serverVersion = 0;
   var saveTimer = null, pendingSave = false;
 
-  function localSession() { try { return localStorage.getItem(SESSION_KEY); } catch (e) { return null; } }
-  function applyLocalSession() {
-    if (!db.session) db.session = { userId: null };
-    var sid = localSession();
-    db.session.userId = (sid && userById(sid)) ? sid : null;
-  }
   function sharedState() { var out = {}; for (var k in db) { if (k !== "session") out[k] = db[k]; } return out; }
 
   // Oude/verwijderde functie "aankomend" (aankomend bezorger) omzetten naar bezorger.
@@ -106,19 +99,49 @@
     db.users.forEach(function (u) { if (u.rol === "aankomend") { u.rol = "bezorger"; changed = true; } });
     return changed;
   }
-  // Eerste keer laden vanaf de server (async). cb(err).
+  // Wie is ingelogd (bron van waarheid; los van db, want db wordt bij elke refresh vervangen).
+  // De echte sessie zit in een httpOnly-cookie op de server; dit is alleen het id voor de UI.
+  var sessionUserId = null;
+  function setSessionUser(id) { sessionUserId = id || null; if (db) db.session = { userId: sessionUserId }; }
+
+  // Lege client-staat (niet ingelogd): genoeg zodat render() het login-scherm kan tonen.
+  function emptyClientDb() {
+    return { version: 0, hubs: [], taskCatalog: [], taskTypes: {}, users: [], shifts: [], taskOffers: [],
+      backups: [], callouts: [], logs: [], plannings: [], schade: {}, kwaliteit: {}, lc: {}, trolley: {},
+      trolleyStock: {}, diensten: {}, inviteCodes: [], session: { userId: null } };
+  }
+  // Gedeelde staat laden ná authenticatie (sessie-cookie is al gezet). Geeft Promise<currentUser>.
+  function loadStateAuthed(meId) {
+    setSessionUser(meId);
+    return fetch(API).then(function (r) { return r.json(); }).then(function (j) {
+      if (j.empty) { db = seed(); setSessionUser(null); pushState(true); }
+      else { db = j.data; serverVersion = j.version || 0; setSessionUser((meId && userById(meId)) ? meId : null); if (sessionUserId && migrateLegacyRoles()) save(true); }
+      return currentUser();
+    });
+  }
+  // Eerste keer laden. Vraagt eerst wie we zijn (cookie-sessie); laadt alleen data als we zijn ingelogd.
   function boot(cb) {
-    fetch(API).then(function (r) { return r.json(); }).then(function (j) {
-      if (j.empty) { db = seed(); applyLocalSession(); pushState(true); }
-      else { db = j.data; serverVersion = j.version || 0; applyLocalSession(); if (migrateLegacyRoles()) save(true); }
-      cb(null);
+    fetch("/api/me").then(function (r) { return r.ok ? r.json() : null; }).then(function (me) {
+      var meId = me && me.user ? me.user.id : null;
+      if (!meId) {
+        // Niet ingelogd: alleen kijken of de DB nog leeg is (eerste installatie → seeden), anders login tonen.
+        return fetch(API).then(function (r) { return r.json(); }).then(function (j) {
+          if (j && j.empty) { db = seed(); setSessionUser(null); pushState(true); }
+          else { db = emptyClientDb(); setSessionUser(null); }
+          cb(null);
+        }).catch(function () { db = emptyClientDb(); setSessionUser(null); cb(null); });
+      }
+      return loadStateAuthed(meId).then(function () { cb(null); });
     }).catch(function (e) { cb(e || new Error("Geen verbinding")); });
   }
-  // Herlaad gedeelde staat vanaf de server (bij realtime-update). cb().
+  // Herlaad gedeelde staat bij een realtime-update. Bij een verlopen sessie (401) → terug naar login.
   function refresh(cb) {
     if (pendingSave) { if (cb) cb(); return; } // niet overschrijven terwijl we zelf opslaan
-    fetch(API).then(function (r) { return r.json(); }).then(function (j) {
-      if (!j.empty) { db = j.data; serverVersion = j.version || 0; applyLocalSession(); }
+    fetch(API).then(function (r) {
+      if (r.status === 401) { db = emptyClientDb(); setSessionUser(null); if (cb) cb(); return null; }
+      return r.json();
+    }).then(function (j) {
+      if (j && !j.empty && j.data) { db = j.data; serverVersion = j.version || 0; setSessionUser(sessionUserId); }
       if (cb) cb();
     }).catch(function () { if (cb) cb(); });
   }
@@ -128,15 +151,20 @@
     }).then(function (r) { return r.json(); }).then(function (j) { if (j && j.version) serverVersion = j.version; })
       .catch(function (e) { console.error("Opslaan mislukt", e); });
   }
-  // save(): sessie lokaal bewaren + gedeelde staat (gedebounced) naar de server.
+  // save(): gedeelde staat (gedebounced) naar de server. De sessie zit in een httpOnly-cookie.
   function save(immediate) {
-    try { if (db.session && db.session.userId) localStorage.setItem(SESSION_KEY, db.session.userId); else localStorage.removeItem(SESSION_KEY); } catch (e) {}
     if (immediate) { pushState(true); return; }
     pendingSave = true;
     if (saveTimer) return;
     saveTimer = setTimeout(function () { saveTimer = null; if (pendingSave) { pendingSave = false; pushState(); } }, 200);
   }
-  function resetDemo() { db = seed(); applyLocalSession(); save(true); }
+  // Alles wissen (alleen beheerder): server leegt de DB, daarna seedt de client opnieuw. Promise.
+  function resetDemo() {
+    return fetch("/api/reset", { method: "POST" }).then(function (r) {
+      if (!r.ok) throw new Error("Alleen de beheerder mag alle gegevens wissen.");
+      db = seed(); setSessionUser(null); pushState(true);
+    });
+  }
 
   /* ---------- Lookups ---------- */
   function userById(id) { return db.users.filter(function (u) { return u.id === id; })[0] || null; }
@@ -219,93 +247,76 @@
     }
   };
 
-  /* ---------- Auth ---------- */
+  /* ---------- Auth (server-side; credentials verlaten de server nooit) ---------- */
+  // Kleine helper: POST JSON, geef Promise<{ok, body}>.
+  function postJson(url, data) {
+    return fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data || {}) })
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, status: r.status, body: j }; }); });
+  }
+  var LOGIN_ERR = {
+    invalid: "Onjuist e-mailadres/personeelsnummer of wachtwoord.",
+    too_many: "Te veel mislukte pogingen. Probeer het over 15 minuten opnieuw.",
+    bad_request: "Er ging iets mis. Probeer het opnieuw."
+  };
+  // Inloggen met e-mailadres of HR-nummer. Geeft Promise<currentUser>.
   function login(identifier, password) {
-    var u = findLoginUser(identifier);
-    if (!u) throw new Error("Onjuist e-mailadres/personeelsnummer of wachtwoord.");
-    if (u.pass) {
-      if (u.pass !== hash(password || "")) throw new Error("Onjuist e-mailadres/personeelsnummer of wachtwoord.");
-    } else if (u.otp) {
-      if ((password || "").toUpperCase() !== u.otp) throw new Error("Onjuist eenmalig wachtwoord. Vraag je teamleider om een nieuwe.");
-    } else {
-      throw new Error("Dit account heeft nog geen wachtwoord. Vraag je teamleider om een eenmalig wachtwoord.");
-    }
-    db.session.userId = u.id; save();
-    return u;
+    return postJson("/api/login", { identifier: identifier, password: password }).then(function (res) {
+      if (!res.ok) throw new Error(LOGIN_ERR[res.body && res.body.error] || LOGIN_ERR.invalid);
+      return loadStateAuthed(res.body.user.id);
+    });
   }
-  function logout() { db.session.userId = null; save(); }
-
+  function logout() {
+    return fetch("/api/logout", { method: "POST" }).catch(function () {}).then(function () { db = emptyClientDb(); setSessionUser(null); });
+  }
+  // Eerste wachtwoord instellen (na eenmalige code). Promise.
   function setInitialPassword(newPw) {
-    var u = currentUser();
-    if (!u || !u.mustSetPassword) throw new Error("Geen wachtwoord in te stellen.");
-    if (!newPw || newPw.length < 4) throw new Error("Kies een wachtwoord van minimaal 4 tekens.");
-    u.pass = hash(newPw); u.otp = null; u.mustSetPassword = false; save();
+    if (!newPw || newPw.length < 4) return Promise.reject(new Error("Kies een wachtwoord van minimaal 4 tekens."));
+    return postJson("/api/set-password", { newPassword: newPw }).then(function (res) {
+      if (!res.ok) throw new Error("Kon het wachtwoord niet instellen.");
+      return loadStateAuthed(sessionUserId);
+    });
   }
+  // Eigen wachtwoord wijzigen. Promise.
   function changeOwnPassword(oldPw, newPw) {
-    var u = currentUser();
-    if (u.pass !== hash(oldPw || "")) throw new Error("Je huidige wachtwoord klopt niet.");
-    if (!newPw || newPw.length < 4) throw new Error("Kies een nieuw wachtwoord van minimaal 4 tekens.");
-    u.pass = hash(newPw); save();
+    if (!newPw || newPw.length < 4) return Promise.reject(new Error("Kies een nieuw wachtwoord van minimaal 4 tekens."));
+    return postJson("/api/change-password", { oldPassword: oldPw, newPassword: newPw }).then(function (res) {
+      if (!res.ok) throw new Error(res.body && res.body.error === "wrong_old" ? "Je huidige wachtwoord klopt niet." : "Kon het wachtwoord niet wijzigen.");
+    });
   }
 
-  /* ---------- Uitnodigingscodes (zelfregistratie) ---------- */
-  function inviteCodes() { if (!db.inviteCodes) db.inviteCodes = []; return db.inviteCodes; }
-  // Teamleider+ geeft alleen een code uit; de nieuwe medewerker vult zelf zijn gegevens in bij het registreren.
+  /* ---------- Uitnodigingscodes (server-side) ---------- */
+  var inviteCodesCache = []; // laatst opgehaalde open codes (voor de UI); server is leidend
+  // Teamleider+ maakt een code aan (server autoriseert). Promise<{code,hubId,expiresAt}>.
   function createInviteCode() {
-    var me = currentUser();
-    if (!can.editTeam(me)) throw new Error("Alleen teamleider of hoger mag een uitnodigingscode maken.");
-    var inv = {
-      code: genInviteCode(), hubId: me.hubId, createdBy: me.id, createdAt: now(),
-      expiresAt: new Date(Date.now() + 7 * 864e5).toISOString(), used: false
-    };
-    inviteCodes().push(inv); save();
-    return inv;
+    return postJson("/api/invite", {}).then(function (res) {
+      if (!res.ok) throw new Error(res.status === 403 ? "Alleen teamleider of hoger mag een uitnodigingscode maken." : "Kon geen code aanmaken.");
+      return res.body;
+    });
   }
   function revokeInviteCode(code) {
-    var me = currentUser();
-    if (!can.editTeam(me)) throw new Error("Alleen teamleider of hoger.");
-    db.inviteCodes = inviteCodes().filter(function (i) { return i.code !== code; });
-    save();
+    return postJson("/api/invite-codes?action=revoke&code=" + encodeURIComponent(code), {}).then(function (res) {
+      if (!res.ok) throw new Error("Kon de code niet intrekken.");
+    });
   }
-  // Codes die nog open staan (niet gebruikt, niet verlopen), gescoped op wat deze gebruiker mag beheren.
-  // Alleen de superadmin ziet codes van alle hubs; iedereen anders alleen die van de eigen hub.
-  function activeInviteCodes(u) {
-    var list = inviteCodes().filter(function (i) { return !i.used && new Date(i.expiresAt) > new Date(); });
-    if (isAdmin(u)) return list;
-    return list.filter(function (i) { return i.hubId === u.hubId; });
+  // Open codes ophalen van de server (teamleider+; server scoped op hub). Promise<array>.
+  function fetchInviteCodes() {
+    return fetch("/api/invite-codes").then(function (r) { return r.ok ? r.json() : []; })
+      .then(function (list) { inviteCodesCache = Array.isArray(list) ? list : []; return inviteCodesCache; })
+      .catch(function () { return []; });
   }
-  // Vóór het invullen van het formulier controleren (zonder ingelogd te zijn).
-  function validateInviteCode(code) {
-    var c = (code || "").trim().toUpperCase();
-    var inv = inviteCodes().filter(function (i) { return i.code === c; })[0];
-    if (!inv) throw new Error("Onbekende code. Controleer of je hem goed hebt overgetypt.");
-    if (inv.used) throw new Error("Deze code is al gebruikt.");
-    if (new Date(inv.expiresAt) < new Date()) throw new Error("Deze code is verlopen. Vraag je teamleider om een nieuwe.");
-    return inv;
-  }
-  // Account zelf aanmaken met een geldige code. Start altijd als Bezorger; wordt meteen ingelogd.
+  function activeInviteCodes() { return inviteCodesCache; } // synchrone lezing uit de cache (UI vult via fetchInviteCodes)
+  // Account zelf aanmaken met een geldige code (server valideert + hasht). Promise<currentUser>.
   function registerWithCode(code, data) {
-    var inv = validateInviteCode(code);
-    var num = (data.personeelsnummer || "").replace(/\D/g, "");
-    if (num.length < 4) throw new Error("Vul een geldig HR-nummer in (minimaal 4 cijfers).");
-    var email = (data.email || "").trim().toLowerCase();
-    if (!EMAIL_RE.test(email)) throw new Error("Vul een geldig e-mailadres in.");
-    if (userByEmail(email)) throw new Error("Er bestaat al een account met dit e-mailadres.");
-    if (!data.voornaam || !data.achternaam) throw new Error("Vul voor- en achternaam in.");
-    if (!data.wachtwoord || data.wachtwoord.length < 4) throw new Error("Kies een wachtwoord van minimaal 4 tekens.");
-
-    var u = {
-      id: uid("usr"), personeelsnummer: num, email: email,
-      voornaam: data.voornaam.trim(), achternaam: data.achternaam.trim(),
-      pass: hash(data.wachtwoord), otp: null, mustSetPassword: false,
-      rol: "bezorger", n2: false, jbtTrainer: false, taken: [],
-      hubId: inv.hubId, stats: blankStats(), createdAt: now(), reviewed: false
-    };
-    db.users.push(u);
-    inv.used = true; inv.usedByUserId = u.id;
-    db.session.userId = u.id;
-    save(true);
-    return u;
+    return postJson("/api/register", {
+      code: code, voornaam: data.voornaam, achternaam: data.achternaam,
+      personeelsnummer: data.personeelsnummer, email: data.email, wachtwoord: data.wachtwoord
+    }).then(function (res) {
+      if (!res.ok) {
+        var m = { code: "Ongeldige of verlopen code.", email: "Vul een geldig e-mailadres in.", email_bestaat: "Er bestaat al een account met dit e-mailadres.", hr: "Vul een geldig HR-nummer in (minimaal 4 cijfers).", naam: "Vul voor- en achternaam in.", weak: "Kies een wachtwoord van minimaal 4 tekens." };
+        throw new Error(m[res.body && res.body.error] || "Registreren mislukt.");
+      }
+      return loadStateAuthed(res.body.user.id);
+    });
   }
   // Personeelsbeheer vinkt een net geregistreerd account af als gecontroleerd.
   function markUserReviewed(targetId) {
@@ -318,12 +329,12 @@
     if (!u) return [];
     return manageableUsers(u).filter(function (x) { return x.reviewed === false; });
   }
+  // Wachtwoord-reset door beheer: server genereert de eenmalige code en geeft 'm éénmalig terug. Promise<otp>.
   function regenerateOtp(targetId) {
-    var me = currentUser();
-    if (!can.editTeam(me)) throw new Error("Alleen teamleider of hoger.");
-    var t = userById(targetId); if (!t) throw new Error("Gebruiker niet gevonden.");
-    var otp = genOtp(); t.otp = otp; t.pass = null; t.mustSetPassword = true; save();
-    return otp;
+    return postJson("/api/reset-password", { userId: targetId }).then(function (res) {
+      if (!res.ok) throw new Error(res.status === 403 ? "Alleen teamleider of hoger." : "Kon het wachtwoord niet resetten.");
+      return res.body.otp;
+    });
   }
 
   /* ---------- Log ---------- */
@@ -1160,11 +1171,25 @@
     });
     if (cur) blocks.push(cur);
     if (!blocks.length) throw new Error("Geen pendels herkend — controleer het formaat (begin elke pendel met de aankomsttijd, bv. 05:15).");
+    // Al vastgelegde temperatuurmetingen mogen niet verdwijnen bij een her-import:
+    // koppel ze terug op ritnummer, anders op aankomsttijd.
+    var oudeTemps = {};
+    ["AM", "PM"].forEach(function (dd) {
+      getTrolley(hubId, datum, dd).pendels.forEach(function (p) {
+        var t = tempsOf(p);
+        if (t.koel || t.dv) oudeTemps[(p.rit || "") + "@" + (p.tijd || "")] = t;
+      });
+    });
+    function reuseTemps(pen) {
+      var t = oudeTemps[(pen.rit || "") + "@" + (pen.tijd || "")];
+      if (t) { pen.temps = t; delete oudeTemps[(pen.rit || "") + "@" + (pen.tijd || "")]; }
+    }
     var am = [], pm = [];
     blocks.forEach(function (b) {
       var pen = { id: uid("pen"), tijd: b.tijd, in4: 0, out4: 0, in5: 0, out5: 0,
         rit: b.rit, herkomst: b.herkomst, venster: b.venster, afwijking: b.afwijking,
         trolleysVerwacht: b.nums.length ? b.nums[0] : 0 };
+      reuseTemps(pen);
       (toMin(b.tijd) >= 13 * 60 ? pm : am).push(pen);
     });
     getTrolley(hubId, datum, "AM").pendels = am;
@@ -1195,6 +1220,140 @@
     var s = markCounted(hubId, datum); s[lay] = Math.max(0, (s[lay] || 0) + sign * applied);
     save();
   }
+  /* ----- Temperatuur goederenontvangst (EFC-levering) — digitale RF 11 HUB -----
+     Per pendel leg je metingen vast (boxnummer, product, temperatuur, THT). De norm
+     per productgroep bepaalt zélf het oordeel, dus niemand kruist meer handmatig
+     OK/NIET OK aan. De metingen hangen aan de pendel (`p.temps`) en liften mee op de
+     bestaande `pendels`-JSONB, dus dit vraagt geen serverwijziging. */
+  var TEMP_GROEPEN = [
+    { id: "kip",  naam: "Kip & gevogelte",         kort: "Kip",   soort: "koel", streefMin: 1, streefMax: 3,   norm: 4 },
+    { id: "koel", naam: "Overige gekoelde producten", kort: "Koel", soort: "koel", streefMin: 1, streefMax: 6,   norm: 7 },
+    { id: "dv",   naam: "Diepgevroren producten",  kort: "DV",    soort: "dv",                  streefMax: -21, norm: -18, proces: -15 }
+  ];
+  function tempGroep(id) { return TEMP_GROEPEN.filter(function (g) { return g.id === id; })[0] || TEMP_GROEPEN[1]; }
+  function parseTemp(x) {
+    if (typeof x === "number") return isNaN(x) ? null : x;
+    var s = String(x == null ? "" : x).trim().replace(",", ".");
+    if (!/^-?\d+(\.\d+)?$/.test(s)) return null;
+    return parseFloat(s);
+  }
+  // Oordeel volgens de wettelijke normen onderaan het formulier.
+  function tempOordeel(groepId, temp) {
+    var g = tempGroep(groepId), t = parseTemp(temp);
+    if (t == null) return { level: "leeg", label: "—", groep: g };
+    if (g.soort === "dv") {
+      if (t > g.proces) return { level: "retour", label: "Retour EFC", groep: g };        // warmer dan -15 °C
+      if (t > g.norm) return { level: "proces", label: "Procesverbetering", groep: g };   // -18 tot -15 °C
+      if (t <= g.streefMax) return { level: "streef", label: "Op streef", groep: g };
+      return { level: "norm", label: "Binnen norm", groep: g };
+    }
+    if (t > g.norm) return { level: "retour", label: "Retour EFC", groep: g };            // warmer dan de norm
+    if (t > g.streefMax) return { level: "norm", label: "Binnen norm", groep: g };
+    if (t < g.streefMin) return { level: "koud", label: "Onder streef", groep: g };
+    return { level: "streef", label: "Op streef", groep: g };
+  }
+  // Een meting wijkt af zodra hij retour moet, procesverbetering vraagt, of de THT niet klopt.
+  function tempAfwijking(m) {
+    if (!m) return false;
+    var lv = tempOordeel(m.groep, m.temp).level;
+    return lv === "retour" || lv === "proces" || m.tht === false;
+  }
+  function findPendel(hubId, datum, dagdeel, penId) {
+    return getTrolley(hubId, datum, dagdeel).pendels.filter(function (p) { return p.id === penId; })[0] || null;
+  }
+  // Elke pendel krijgt precies twee metingen: één koelbox en één vriesbox.
+  var TEMP_SLOTS = [
+    { id: "koel", naam: "Koelbox", kort: "Koel", groepen: ["koel", "kip"] },
+    { id: "dv",   naam: "Vriesbox", kort: "DV",  groepen: ["dv"] }
+  ];
+  function tempSlot(id) { return TEMP_SLOTS.filter(function (s) { return s.id === id; })[0] || TEMP_SLOTS[0]; }
+  // Normaliseert p.temps naar { koel: …, dv: … }. Vangt ook de eerdere vrije-lijstvorm op.
+  function pendelTemps(hubId, datum, dagdeel, penId) {
+    var p = findPendel(hubId, datum, dagdeel, penId);
+    return p ? tempsOf(p) : { koel: null, dv: null };
+  }
+  function tempsOf(p) {
+    if (Array.isArray(p.temps)) {
+      var conv = { koel: null, dv: null };
+      p.temps.forEach(function (m) {
+        var slot = tempGroep(m.groep).soort === "dv" ? "dv" : "koel";
+        if (!conv[slot]) conv[slot] = m;
+      });
+      p.temps = conv;
+    }
+    if (!p.temps || typeof p.temps !== "object") p.temps = { koel: null, dv: null };
+    return p.temps;
+  }
+  function tempCanEdit(u, hubId, datum, dagdeel) { return canOpShift(u, hubId, datum, dagdeel, "lc", "LC") || isSetup(u); }
+  // Teamleider en hoger mogen het dagarchief inzien (alleen-lezen).
+  function tempCanArchive(u) { return level(u) >= 4; }
+  function setPendelRit(hubId, datum, dagdeel, penId, rit) {
+    if (!tempCanEdit(currentUser(), hubId, datum, dagdeel)) throw new Error("Je bent deze shift niet aangewezen als LC.");
+    var p = findPendel(hubId, datum, dagdeel, penId);
+    if (!p) throw new Error("Deze pendel bestaat niet meer.");
+    p.rit = String(rit || "").trim(); save();
+  }
+  // Eén meting vastleggen of bijwerken. De productgroep moet bij het vak passen:
+  // een vriesbox is altijd diepvries, een koelbox is kip/gevogelte of overig koel.
+  function setPendelTemp(hubId, datum, dagdeel, penId, slotId, data) {
+    var u = currentUser();
+    if (!tempCanEdit(u, hubId, datum, dagdeel)) throw new Error("Je bent deze shift niet aangewezen als LC.");
+    var p = findPendel(hubId, datum, dagdeel, penId);
+    if (!p) throw new Error("Deze pendel bestaat niet meer.");
+    var slot = tempSlot(slotId);
+    var groep = tempGroep(data.groep).id;
+    if (slot.groepen.indexOf(groep) === -1) groep = slot.groepen[0];
+    var t = parseTemp(data.temp);
+    if (t == null) throw new Error("Vul een temperatuur in (bijvoorbeeld 4,2 of -18).");
+    if (t < -40 || t > 40) throw new Error("Die temperatuur lijkt niet te kloppen (-40 tot 40 °C).");
+    var product = String(data.product || "").trim();
+    if (!product) throw new Error("Vul in welk product je hebt gemeten.");
+    var actie = String(data.actie || "").trim();
+    var m = { groep: groep, temp: t, product: product, box: String(data.box || "").trim(), tht: data.tht !== false, actie: actie };
+    if (tempAfwijking(m) && !actie) throw new Error("Bij een afwijking is een actie verplicht — waarschuw je leidinggevende en beschrijf wat er met de producten is gedaan.");
+    m.doorId = u.id; m.doorNaam = u.voornaam + " " + u.achternaam; m.at = now();   // controleur wordt automatisch vastgelegd
+    tempsOf(p)[slot.id] = m;
+    save();
+    return m;
+  }
+  function clearPendelTemp(hubId, datum, dagdeel, penId, slotId) {
+    if (!tempCanEdit(currentUser(), hubId, datum, dagdeel)) throw new Error("Je bent deze shift niet aangewezen als LC.");
+    var p = findPendel(hubId, datum, dagdeel, penId);
+    if (!p) return;
+    tempsOf(p)[tempSlot(slotId).id] = null; save();
+  }
+  // Voortgang over de shift: een pendel is pas klaar als koel- én vriesbox gemeten zijn.
+  function tempStats(hubId, datum, dagdeel) {
+    var pendels = getTrolley(hubId, datum, dagdeel).pendels;
+    var klaar = 0, deels = 0, metingen = 0, afwijkingen = 0;
+    pendels.forEach(function (p) {
+      var t = tempsOf(p), n = 0;
+      TEMP_SLOTS.forEach(function (s) { if (t[s.id]) { n++; if (tempAfwijking(t[s.id])) afwijkingen++; } });
+      metingen += n;
+      if (n === TEMP_SLOTS.length) klaar++; else if (n) deels++;
+    });
+    return { total: pendels.length, klaar: klaar, deels: deels, metingen: metingen, afwijkingen: afwijkingen,
+      pct: pendels.length ? Math.round(klaar / pendels.length * 100) : 0 };
+  }
+  /* Dagarchief voor teamleider+: alle controles van één dag (AM én PM) in de volgorde
+     van het papieren formulier — per pendel een koel- en een vriesregel. */
+  function tempArchief(hubId, datum) {
+    var u = currentUser();
+    if (!tempCanArchive(u)) throw new Error("Alleen een teamleider of hoger kan het archief inzien.");
+    var out = [], nr = 0;
+    ["AM", "PM"].forEach(function (dd) {
+      getTrolley(hubId, datum, dd).pendels.forEach(function (p) {
+        var t = tempsOf(p);
+        nr++;
+        out.push({
+          nr: nr, dagdeel: dd, tijd: p.tijd || "", rit: p.rit || "", herkomst: p.herkomst || "",
+          metingen: TEMP_SLOTS.map(function (s) { return { slot: s, meting: t[s.id] || null }; })
+        });
+      });
+    });
+    return out;
+  }
+
   function trolleySetStock(hubId, datum, dagdeel, field, value) {
     if (!isSetup(currentUser())) throw new Error("Alleen binnendienst (senior+) mag corrigeren.");
     if (isFutureDay(datum)) throw new Error("Je kunt trolleys niet vooruit tellen — alleen op de dag zelf.");
@@ -1396,8 +1555,8 @@
     can: can, canDoTask: canDoTask, visibleTask: visibleTask, availableTasks: availableTasks,
     taskType: taskType, assignableTasks: assignableTasks, setTaskType: setTaskType,
     login: login, logout: logout, setInitialPassword: setInitialPassword, changeOwnPassword: changeOwnPassword,
-    createInviteCode: createInviteCode, revokeInviteCode: revokeInviteCode, activeInviteCodes: activeInviteCodes,
-    validateInviteCode: validateInviteCode, registerWithCode: registerWithCode,
+    createInviteCode: createInviteCode, revokeInviteCode: revokeInviteCode, activeInviteCodes: activeInviteCodes, fetchInviteCodes: fetchInviteCodes,
+    registerWithCode: registerWithCode,
     markUserReviewed: markUserReviewed, pendingReviewUsers: pendingReviewUsers, regenerateOtp: regenerateOtp,
     offerShift: offerShift, editShift: editShift, withdrawShift: withdrawShift, claimShift: claimShift, decideShift: decideShift,
     offerTask: offerTask, withdrawTask: withdrawTask, claimTask: claimTask, decideTask: decideTask,
@@ -1419,6 +1578,9 @@
     qtelGet: qtelGet, qtelBump: qtelBump, qtelReset: qtelReset, qtelVoltooien: qtelVoltooien, qtelAfwijking: qtelAfwijking,
     getLC: getLC, lcSetAantal: lcSetAantal, lcSetupVak: lcSetupVak, lcSetBus: lcSetBus, lcToggleGeladen: lcToggleGeladen, lcImportColumns: lcImportColumns, lcReset: lcReset, lcStats: lcStats, recentGeladenBussen: recentGeladenBussen,
     getPCRows: getPCRows, pcImport: pcImport, pcToggle: pcToggle, pcSetLayer: pcSetLayer, pcReset: pcReset, pcStats: pcStats, pcCanEdit: pcCanEdit,
+    TEMP_GROEPEN: TEMP_GROEPEN, TEMP_SLOTS: TEMP_SLOTS, tempGroep: tempGroep, tempSlot: tempSlot, tempOordeel: tempOordeel, tempAfwijking: tempAfwijking,
+    tempCanEdit: tempCanEdit, tempCanArchive: tempCanArchive, pendelTemps: pendelTemps, setPendelTemp: setPendelTemp, clearPendelTemp: clearPendelTemp,
+    setPendelRit: setPendelRit, tempStats: tempStats, tempArchief: tempArchief,
     shiftsForHub: shiftsForHub, taskOffersForHub: taskOffersForHub, backupsForHub: backupsForHub, calloutsForHub: calloutsForHub,
     logsForHub: logsForHub, usersForHub: usersForHub, manageableUsers: manageableUsers,
     pendingForApprover: pendingForApprover, pendingCount: pendingCount

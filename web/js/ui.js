@@ -77,6 +77,7 @@
     sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
     moon: '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>',
     droplet: '<path d="M12 2.5s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/>',
+    thermo: '<path d="M14 14.9V5a2 2 0 1 0-4 0v9.9a4 4 0 1 0 4 0z"/><path d="M12 9.5v5"/>',
     van: '<path d="M3 7h11v9H3z"/><path d="M14 10h4l3 3v3h-7z"/><circle cx="7" cy="18" r="1.6"/><circle cx="17" cy="18" r="1.6"/>',
     devices: '<rect x="2" y="4.5" width="13" height="9.5" rx="1.5"/><path d="M5 18h6M8 14v4"/><rect x="15.5" y="9" width="6.5" height="12" rx="1.5"/><path d="M17.8 18.5h1.9"/>',
     bolt: '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
@@ -2602,6 +2603,195 @@
     });
   }
 
+  /* ---------- Temperatuur goederenontvangst (EFC) — hoort bij Pendelcontrol ----------
+     Digitale versie van formulier RF 11 HUB. De norm per productgroep bepaalt het
+     oordeel; bij een afwijking is een actie verplicht (WI 01). */
+  function fmtTemp(t) {
+    var v = Math.round(parseFloat(t) * 10) / 10;
+    return (v > 0 ? "+" : "") + String(v).replace(".", ",") + " °C";
+  }
+  function tempBadge(o) { return '<span class="badge tv-' + o.level + '">' + esc(o.label) + "</span>"; }
+  // Korte omschrijving van de geldende grens, als hulp bij het invullen.
+  function tempNormHint(g) {
+    return g.soort === "dv"
+      ? "Streef " + fmtTemp(g.streefMax) + " · norm " + fmtTemp(g.norm) + " · " + fmtTemp(g.norm) + " tot " + fmtTemp(g.proces) + " vraagt procesverbetering · warmer dan " + fmtTemp(g.proces) + " retour EFC"
+      : "Streef " + fmtTemp(g.streefMin) + " tot " + fmtTemp(g.streefMax) + " · norm " + fmtTemp(g.norm) + " · warmer dan " + fmtTemp(g.norm) + " retour EFC";
+  }
+  // Eén vak (koelbox of vriesbox) van een pendel: leeg met een invulknop, of de meting met oordeel.
+  function tempSlotRow(p, slot, canEdit) {
+    var m = (p.temps || {})[slot.id];
+    if (!m) {
+      return '<div class="pt-row pt-open">' +
+        '<div class="pt-slot">' + esc(slot.naam) + "</div>" +
+        '<div class="pt-mid"><div class="pt-todo">nog niet gemeten</div></div>' +
+        (canEdit ? '<button class="btn btn-sm btn-ghost pt-fill" data-pttemp="' + p.id + "|" + slot.id + '">' + svg("thermo", "icon-sm") + "Meten</button>" : "") +
+        "</div>";
+    }
+    var o = S.tempOordeel(m.groep, m.temp);
+    var meta = [];
+    if (m.box) meta.push("box " + esc(m.box));
+    if (m.doorNaam) meta.push(esc(m.doorNaam) + (m.at ? " " + fmtClock(m.at) : ""));
+    return '<div class="pt-row lv-' + o.level + '">' +
+      '<div class="pt-slot">' + esc(slot.naam) + '<span class="pt-t">' + esc(fmtTemp(m.temp)) + "</span></div>" +
+      '<div class="pt-mid"><div class="pt-prod">' + esc(m.product) + "</div>" +
+        (meta.length ? '<div class="pt-meta">' + meta.join(" · ") + "</div>" : "") +
+        '<div class="pt-tags">' + tempBadge(o) + (m.tht === false ? '<span class="badge tv-retour">THT niet OK</span>' : "") + "</div>" +
+        (m.actie ? '<div class="pt-actie">' + svg("alertTri", "icon-sm") + esc(m.actie) + "</div>" : "") + "</div>" +
+      (canEdit ? '<button class="pt-edit" data-pttemp="' + p.id + "|" + slot.id + '" title="Meting aanpassen">' + svg("pencil", "icon-sm") + "</button>" : "") +
+      "</div>";
+  }
+  function tempBlock(p, nr, canEdit) {
+    var t = p.temps || {};
+    var gedaan = S.TEMP_SLOTS.filter(function (s) { return t[s.id]; });
+    var afw = gedaan.filter(function (s) { return S.tempAfwijking(t[s.id]); }).length;
+    var stat = afw ? '<span class="pt-count bad">' + afw + " afwijking" + (afw === 1 ? "" : "en") + "</span>"
+      : gedaan.length === S.TEMP_SLOTS.length ? '<span class="pt-count good">compleet</span>'
+      : '<span class="pt-count">' + gedaan.length + " van " + S.TEMP_SLOTS.length + "</span>";
+    return '<div class="pt-block"><div class="pt-head">' + svg("thermo", "icon-sm") + "<b>Temperatuur</b>" + stat + "</div>" +
+      '<div class="pt-list">' + S.TEMP_SLOTS.map(function (s) { return tempSlotRow(p, s, canEdit); }).join("") + "</div></div>";
+  }
+  // De normtabellen van het papieren formulier, als naslag onder de pendels.
+  function tempNormsBox() {
+    var koel = S.TEMP_GROEPEN.filter(function (g) { return g.soort === "koel"; });
+    var dv = S.tempGroep("dv");
+    return '<details class="pt-norms"><summary>' + svg("info", "icon-sm") + "Wettelijke normtemperaturen</summary><div class=\"pt-norms-body\">" +
+      '<div class="table-scroll"><table class="table table-grid"><thead><tr><th>Productgroep</th><th>Streef</th><th>Norm</th><th>Retour EFC</th></tr></thead><tbody>' +
+      koel.map(function (g) {
+        return "<tr><td>" + esc(g.naam) + "</td><td>" + esc(fmtTemp(g.streefMin)) + " tot " + esc(fmtTemp(g.streefMax)) + "</td><td>" + esc(fmtTemp(g.norm)) + "</td><td>warmer dan " + esc(fmtTemp(g.norm)) + "</td></tr>";
+      }).join("") +
+      "<tr><td>" + esc(dv.naam) + "</td><td>" + esc(fmtTemp(dv.streefMax)) + "</td><td>" + esc(fmtTemp(dv.norm)) + "</td><td>warmer dan " + esc(fmtTemp(dv.proces)) + "</td></tr>" +
+      "</tbody></table></div>" +
+      '<p class="cellsub" style="margin:10px 0 0">Diepvries tussen ' + esc(fmtTemp(dv.norm)) + " en " + esc(fmtTemp(dv.proces)) + " vraagt procesverbetering — de locatiemanager informeert het EFC. " +
+      "Bij afwijking: waarschuw je leidinggevende en beschrijf wat er met de producten is gedaan (WI 01).</p></div></details>";
+  }
+
+  /* Dagarchief (teamleider+): alle controles van één dag in de indeling van het
+     papieren formulier — per pendel een koel- en een vriesregel. Bewust een
+     table-grid, zodat hij als document leesbaar blijft en horizontaal scrollt
+     in plaats van op mobiel uit elkaar te vallen in kaartjes. */
+  function tempArchiefBody(c) {
+    var rijen;
+    try { rijen = S.tempArchief(c.h, c.d); }
+    catch (e) { return '<div class="alert alert-error">' + esc(e.message) + "</div>"; }
+    var hub = S.hubById(c.h);
+    var kop = '<div class="ar-head">' +
+      '<div><span class="ar-lab">Goederenontvangst vanuit EFC</span><b>' + esc(hub ? hub.naam : "") + "</b></div>" +
+      '<div><span class="ar-lab">Weeknr</span><b>' + isoWeek(new Date(c.d + "T00:00:00")) + "</b></div>" +
+      '<div><span class="ar-lab">Datum</span><b>' + esc(fmtDate(c.d)) + "</b></div>" +
+      '<div><span class="ar-lab">Bereik</span><b>hele dag · AM + PM</b></div>' +
+      "</div>";
+    if (!rijen.length) return kop + '<div class="cellsub" style="padding:14px">Er staan geen pendels klaar op deze dag.</div>';
+
+    var body = rijen.map(function (r) {
+      var pendelCel = '<td rowspan="2" class="ar-nr"><b>Pendel ' + r.nr + "</b>" +
+        '<div class="cellsub">' + esc(r.dagdeel) + (r.tijd ? " · " + esc(r.tijd) : "") + "</div></td>";
+      var ritCel = '<td rowspan="2" class="ar-rit">' + (r.rit ? esc(r.rit) : '<span class="cellsub">—</span>') + "</td>";
+      return r.metingen.map(function (x, i) {
+        var m = x.meting, leeg = '<span class="cellsub">—</span>';
+        // Kolomvolgorde van het formulier: pendel · vak · rit · box · product · temperatuur · oordeel · controleur · actie
+        var cellen = [];
+        if (i === 0) cellen.push(pendelCel);
+        cellen.push('<td class="ar-slot">' + esc(x.slot.kort) + "</td>");
+        if (i === 0) cellen.push(ritCel);
+        if (!m) {
+          cellen.push('<td colspan="6" class="cellsub ar-leeg">niet gemeten</td>');
+        } else {
+          var o = S.tempOordeel(m.groep, m.temp);
+          var goed = o.level !== "retour" && o.level !== "proces" && m.tht !== false;
+          cellen.push("<td>" + (m.box ? esc(m.box) : leeg) + "</td>");
+          cellen.push("<td>" + esc(m.product) + "</td>");
+          cellen.push('<td class="ar-temp lv-' + o.level + '">' + esc(fmtTemp(m.temp)) + "</td>");
+          cellen.push('<td class="ar-ok">' + (goed ? '<span class="badge tv-streef">OK</span>' : '<span class="badge tv-retour">NIET OK</span>') +
+            '<div class="cellsub">' + esc(m.tht === false ? "THT niet OK" : o.label) + "</div></td>");
+          cellen.push("<td>" + esc(m.doorNaam || "—") + (m.at ? '<div class="cellsub">' + fmtClock(m.at) + "</div>" : "") + "</td>");
+          cellen.push('<td class="ar-actie">' + (m.actie ? esc(m.actie) : leeg) + "</td>");
+        }
+        return "<tr>" + cellen.join("") + "</tr>";
+      }).join("");
+    }).join("");
+
+    return kop +
+      '<div class="panel" style="padding:0"><div class="table-scroll"><table class="table table-grid ar-table">' +
+      "<thead><tr><th>Pendel</th><th>Vak</th><th>Rtnr.</th><th>Boxnr.</th><th>Gemeten product</th><th>Temperatuur</th><th>Oordeel</th><th>Controleur</th><th>Actie bij afwijking</th></tr></thead>" +
+      "<tbody>" + body + "</tbody></table></div></div>" +
+      '<p class="cellsub" style="margin:10px 2px 0">Alleen-lezen archief. Het oordeel volgt uit de wettelijke normtemperaturen; bij een afwijking is een actie verplicht vastgelegd (WI 01).</p>';
+  }
+
+  // Meting vastleggen of aanpassen voor één vak. Toont live het oordeel en vraagt om een actie zodra het afwijkt.
+  function openPenTemp(c, pen, nr, slot, refresh) {
+    var meting = (pen.temps || {})[slot.id];
+    var isNew = !meting;
+    var m = meting || { groep: slot.groepen[0], temp: "", product: "", box: "", tht: true, actie: "" };
+    var tht = m.tht !== false;
+    var groepOpts = slot.groepen.map(function (id) {
+      var g = S.tempGroep(id);
+      return '<option value="' + g.id + '"' + (m.groep === g.id ? " selected" : "") + ">" + esc(g.naam) + "</option>";
+    }).join("");
+    // Bij de vriesbox is er maar één productgroep — dan is een keuzelijst alleen ruis.
+    var groepVeld = slot.groepen.length > 1
+      ? '<div class="field"><label>Productgroep</label><select name="groep">' + groepOpts + '</select><div class="hint" id="ptNorm"></div></div>'
+      : '<input type="hidden" name="groep" value="' + slot.groepen[0] + '"><div class="field"><label>Productgroep</label>' +
+        '<div class="pt-fixed">' + esc(S.tempGroep(slot.groepen[0]).naam) + '</div><div class="hint" id="ptNorm"></div></div>';
+    openModal({
+      title: esc(slot.naam) + " — pendel " + nr,
+      icon: "thermo",
+      body: '<form id="ptForm" autocomplete="off">' + groepVeld +
+        '<div class="row2">' +
+          '<div class="field"><label>Temperatuur (°C)</label><input name="temp" inputmode="decimal" placeholder="bv. 4,2 of -18" value="' + esc(m.temp === "" ? "" : String(m.temp).replace(".", ",")) + '" required></div>' +
+          '<div class="field"><label>Boxnummer</label><input name="box" placeholder="optioneel" value="' + esc(m.box || "") + '"></div>' +
+        "</div>" +
+        '<div class="field"><label>Gemeten product</label><input name="product" placeholder="bv. salade, pizza, yoghurt" value="' + esc(m.product || "") + '" required></div>' +
+        '<div class="field"><label>THT (houdbaarheidsdatum)</label><div class="seg pt-seg">' +
+          '<button type="button" data-ptht="ok" class="' + (tht ? "active" : "") + '">OK</button>' +
+          '<button type="button" data-ptht="niet" class="' + (tht ? "" : "active") + '">NIET OK</button></div></div>' +
+        '<div id="ptVerdict"></div>' +
+        '<div class="field" id="ptActieWrap"><label>Actie bij afwijking</label>' +
+          '<textarea name="actie" rows="2" placeholder="Wie is gewaarschuwd en wat is er met de producten gedaan?">' + esc(m.actie || "") + "</textarea></div>" +
+        '<div id="ptMsg"></div></form>',
+      foot: (isNew ? "" : '<button class="btn btn-red" id="ptDel">' + svg("trash", "icon-sm") + "Wissen</button>") +
+        '<button class="btn btn-ghost" data-close>Annuleren</button>' +
+        '<button class="btn btn-primary" id="ptSave">' + svg("check", "icon-sm") + "Opslaan</button>",
+      onMount: function (ov, close) {
+        var f = ov.querySelector("#ptForm");
+        function vals() { return { groep: f.groep.value, temp: f.temp.value, product: f.product.value, box: f.box.value, tht: tht, actie: f.actie.value }; }
+        // Live oordeel: kleurt mee en maakt het actieveld verplicht zodra er iets afwijkt.
+        function sync() {
+          var g = S.tempGroep(f.groep.value);
+          ov.querySelector("#ptNorm").textContent = tempNormHint(g);
+          var o = S.tempOordeel(f.groep.value, f.temp.value);
+          var afw = S.tempAfwijking(vals());
+          var goed = o.level === "streef" || o.level === "norm" || o.level === "koud";
+          var v = ov.querySelector("#ptVerdict");
+          v.innerHTML = o.level === "leeg" ? "" :
+            '<div class="pt-verdict lv-' + o.level + '">' + svg(goed ? "checkCircle" : "alertTri", "icon-sm") +
+            "<b>" + esc(fmtTemp(f.temp.value.replace(",", "."))) + "</b> — " + esc(o.label) + "</div>";
+          ov.querySelector("#ptActieWrap").classList.toggle("req", afw);
+        }
+        f.addEventListener("input", sync);
+        f.addEventListener("change", sync);
+        ov.querySelectorAll("[data-ptht]").forEach(function (b) {
+          b.addEventListener("click", function () {
+            tht = b.getAttribute("data-ptht") === "ok";
+            ov.querySelectorAll("[data-ptht]").forEach(function (x) { x.classList.toggle("active", (x.getAttribute("data-ptht") === "ok") === tht); });
+            sync();
+          });
+        });
+        sync();
+        ov.querySelector("#ptSave").addEventListener("click", function () {
+          try {
+            S.setPendelTemp(c.h, c.d, c.dd, pen.id, slot.id, vals());
+            close(); refresh(); toast(isNew ? "Meting vastgelegd." : "Meting bijgewerkt.", "ok");
+          } catch (e) { ov.querySelector("#ptMsg").innerHTML = '<div class="alert alert-error">' + esc(e.message) + "</div>"; }
+        });
+        var del = ov.querySelector("#ptDel");
+        if (del) del.addEventListener("click", function () {
+          try { S.clearPendelTemp(c.h, c.d, c.dd, pen.id, slot.id); close(); refresh(); toast("Meting gewist.", "ok"); }
+          catch (e) { toast(e.message, "err"); }
+        });
+      }
+    });
+  }
+
   /* ---------- LC (laden + pendels) ---------- */
   function renderLC() {
     autoShift("lc");
@@ -2617,12 +2807,18 @@
     var isPM = c.dd === "PM";
     var st = S.lcStats(c.h, c.d, c.dd);
     var canPC = !state.viewOnly && opWindowOK(u, "lc", c) && S.pcCanEdit(u, c.h, c.d, c.dd);
+    // Temperatuurregistratie: de LC-dienst óf de binnendienst, binnen hetzelfde tijdvenster.
+    var canTemp = !state.viewOnly && opWindowOK(u, "lc", c) && S.tempCanEdit(u, c.h, c.d, c.dd);
     if (!state.lcTab || state.lcTab === "pendels") state.lcTab = state.lcTab === "pendels" ? "pc" : (state.lcTab || "laden");
+    var canArchief = S.tempCanArchive(u);                       // teamleider en hoger
+    if (state.lcTab === "archief" && !canArchief) state.lcTab = "pc";
     var seg = '<div class="seg" style="margin-bottom:16px;flex-wrap:wrap">' +
       '<button data-lctab="laden" class="' + (state.lcTab === "laden" ? "active" : "") + '">Laden</button>' +
       '<button data-lctab="pc" class="' + (state.lcTab === "pc" ? "active" : "") + '">Pendelcontrol</button>' +
       '<button data-lctab="tellen" class="' + (state.lcTab === "tellen" ? "active" : "") + '">Tellen</button>' +
-      '<button data-lctab="statiegeld" class="' + (state.lcTab === "statiegeld" ? "active" : "") + '">Statiegeld</button></div>';
+      '<button data-lctab="statiegeld" class="' + (state.lcTab === "statiegeld" ? "active" : "") + '">Statiegeld</button>' +
+      (canArchief ? '<button data-lctab="archief" class="' + (state.lcTab === "archief" ? "active" : "") + '">Temperatuurarchief</button>' : "") +
+      "</div>";
 
     // ----- LADEN -----
     // Filter "Alleen nog te laden": bussen met rit/bus die nog niet geladen zijn (JBT/N2 hoeven niet).
@@ -2664,13 +2860,18 @@
         ctl(p.id, "out" + n, p["out" + n]) + "</div>";
     }
     var pendelList = tr.pendels.length ? tr.pendels.map(function (p, i) {
-      var meta = [];
-      if (p.rit) meta.push("rit " + esc(p.rit));
-      if (p.trolleysVerwacht) meta.push(esc(p.trolleysVerwacht) + " trolleys");
-      return '<div class="pen-card"><div class="pen-head">' + svg("van", "icon-sm") + "<b>Pendel " + (i + 1) + "</b>" +
+      var t = p.temps || {};
+      var afw = S.TEMP_SLOTS.filter(function (s) { return t[s.id] && S.tempAfwijking(t[s.id]); }).length;
+      // Het ritnummer hoort bij de controle; de LC kan 'm invullen als de import 'm niet meebracht.
+      var ritCell = canTemp
+        ? '<input class="pen-rit" data-penrit="' + p.id + '" placeholder="ritnummer" value="' + esc(p.rit || "") + '">'
+        : '<span class="' + (p.rit ? "cellname" : "cellsub") + '">' + (p.rit ? "rit " + esc(p.rit) : "geen ritnummer") + "</span>";
+      return '<div class="pen-card' + (afw ? " pen-afw" : "") + '"><div class="pen-head">' + svg("van", "icon-sm") + "<b>Pendel " + (i + 1) + "</b>" +
         (p.tijd ? '<span class="pen-tijd">aankomst ' + esc(p.tijd) + "</span>" : "") + "</div>" +
-        (meta.length ? '<div class="cellsub" style="margin:-2px 0 8px">' + meta.join(" · ") + "</div>" : "") +
-        '<div class="pen-grid">' + retLay(p, 4) + retLay(p, 5) + "</div></div>";
+        '<div class="pen-rit-row">' + ritCell +
+          (p.trolleysVerwacht ? '<span class="cellsub">' + esc(p.trolleysVerwacht) + " trolleys</span>" : "") + "</div>" +
+        '<div class="pen-grid">' + retLay(p, 4) + retLay(p, 5) + "</div>" +
+        tempBlock(p, i + 1, canTemp) + "</div>";
     }).join("") : '<div class="cellsub" style="padding:12px">De binnendienst zet de pendels klaar via het dashboard.</div>';
     var stockBar = '<div class="hub-stock"><div class="hub-stock-h">' + svg("inbox", "icon-sm") + "Op de hub</div>" +
       '<div class="hub-stock-grid">' +
@@ -2695,7 +2896,16 @@
     var pcFoot = pcRows.length ? '<tr class="pc-tot"><td class="cellname">Totaal</td><td data-th="Trolleys"><b>' + pcTot.trolleys + '</b></td><td data-th="Kratten"><b>' + pcTot.kratten + '</b></td><td data-th="Vers"><b>' + pcTot.versb + '</b></td><td data-th="Diepvries"><b>' + pcTot.dvboxen + '</b></td><td data-th="XL"><b>' + pcTot.xl + '</b></td><td data-th="4-laags"><b>' + pcTot.l4 + '</b></td><td data-th="5-laags"><b>' + pcTot.l5 + "</b></td><td></td></tr>" : "";
     var pcTable = '<div class="panel" style="padding:0"><div class="table-scroll"><table class="table pc-table"><thead><tr><th>Vak</th><th>Trolleys</th><th>Kratten</th><th>Vers</th><th>Diepvries</th><th>XL</th><th>4-laags</th><th>5-laags</th><th>Klaar</th></tr></thead><tbody>' + pcBodyRows + pcFoot + "</tbody></table></div></div>";
     // Pendelcontrol-tab: pendels met retour. Tellen-tab: de tellijst-telling (import staat in het dashboard).
-    var pcBody = stockBar + '<div class="pc-col-h">' + svg("van", "icon-sm") + "Pendels — retour</div><div class=\"pen-list\">" + pendelList + "</div>";
+    // Temperatuurcontrole hoort bij de pendel: voortgang + openstaande afwijkingen bovenaan.
+    var tSt = S.tempStats(c.h, c.d, c.dd);
+    var tempTop = tr.pendels.length
+      ? opProgress(tSt.klaar, tSt.total, "pendels volledig gecontroleerd (koel + vries)") +
+        (tSt.afwijkingen ? '<div class="alert alert-error">' + svg("alertTri", "icon-sm") + " " +
+          (tSt.afwijkingen === 1 ? "1 meting wijkt af" : tSt.afwijkingen + " metingen wijken af") +
+          " — waarschuw je leidinggevende en leg vast wat er met de producten is gedaan (WI 01).</div>" : "")
+      : "";
+    var pcBody = stockBar + tempTop + '<div class="pc-col-h">' + svg("van", "icon-sm") + "Pendels — retour &amp; temperatuur</div><div class=\"pen-list\">" + pendelList + "</div>" +
+      (tr.pendels.length ? tempNormsBox() : "");
     var tellenBody = opProgress(pcSt.done, pcSt.total, "vakken gecontroleerd") +
       (pcRows.length ? "" : '<div class="cellsub" style="margin-bottom:10px">De binnendienst zet de tellijst klaar via het dashboard (Klaarzetten &rsaquo; Pendel).</div>') + pcTable;
 
@@ -2709,7 +2919,9 @@
         }).join("") + "</tbody></table></div></div>"
       : '<div class="cellsub" style="padding:12px">Er zijn nog geen vakken ingesteld op statiegeld (dat regelt Kwaliteit).</div>';
 
-    var body = state.lcTab === "pc" ? pcBody : state.lcTab === "tellen" ? tellenBody : state.lcTab === "statiegeld" ? statiegeldBody : ladenBody;
+    var body = state.lcTab === "pc" ? pcBody : state.lcTab === "tellen" ? tellenBody
+      : state.lcTab === "statiegeld" ? statiegeldBody
+      : state.lcTab === "archief" ? tempArchiefBody(c) : ladenBody;
     el("app").innerHTML = moduleShell("Laadproces", windowLockNote(u, "lc", c) + seg + body);
     bindModuleHeader(renderLC);
     document.querySelectorAll("[data-lctab]").forEach(function (b) { b.addEventListener("click", function () { state.lcTab = b.getAttribute("data-lctab"); renderLC(); }); });
@@ -2719,6 +2931,20 @@
       document.querySelectorAll("[data-lcgel]").forEach(function (cb) { cb.addEventListener("change", function () { try { S.lcToggleGeladen(c.h, c.d, c.dd, parseInt(cb.getAttribute("data-lcgel"), 10)); renderLC(); } catch (e) { toast(e.message, "err"); } }); });
     } else if (state.lcTab === "pc") {
       document.querySelectorAll("[data-penbump]").forEach(function (b) { b.addEventListener("click", function () { var p = b.getAttribute("data-penbump").split("|"); try { S.pendelBump(c.h, c.d, c.dd, p[0], p[1], parseInt(p[2], 10)); renderLC(); } catch (e) { toast(e.message, "err"); } }); });
+      var penById = function (id) { return tr.pendels.filter(function (x) { return x.id === id; })[0]; };
+      var penNr = function (id) { var n = 0; tr.pendels.forEach(function (x, i) { if (x.id === id) n = i + 1; }); return n; };
+      document.querySelectorAll("[data-pttemp]").forEach(function (b) {
+        b.addEventListener("click", function () {
+          var q = b.getAttribute("data-pttemp").split("|"), p = penById(q[0]);
+          if (p) openPenTemp(c, p, penNr(q[0]), S.tempSlot(q[1]), renderLC);
+        });
+      });
+      document.querySelectorAll("[data-penrit]").forEach(function (inp) {
+        inp.addEventListener("change", function () {
+          try { S.setPendelRit(c.h, c.d, c.dd, inp.getAttribute("data-penrit"), inp.value); }
+          catch (e) { toast(e.message, "err"); }
+        });
+      });
     } else if (state.lcTab === "tellen") {
       document.querySelectorAll("[data-pcchk]").forEach(function (cb) { cb.addEventListener("change", function () { try { S.pcToggle(c.h, c.d, c.dd, parseInt(cb.getAttribute("data-pcchk"), 10)); renderLC(); } catch (e) { toast(e.message, "err"); } }); });
       document.querySelectorAll("[data-pclayer]").forEach(function (b) { b.addEventListener("click", function () { var p = b.getAttribute("data-pclayer").split("|"); try { S.pcSetLayer(c.h, c.d, c.dd, parseInt(p[0], 10), p[1], parseInt(p[2], 10)); renderLC(); } catch (e) { toast(e.message, "err"); } }); });

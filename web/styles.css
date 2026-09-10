@@ -897,6 +897,83 @@ main { max-width: 1100px; margin: 0 auto; padding: 22px 18px 80px; }
 .pen-lay { border: 1px solid var(--line); border-radius: 12px; padding: 12px 10px; min-width: 0; background: var(--surface-3); display: flex; flex-direction: column; align-items: center; gap: 9px; text-align: center; }
 .pen-lay .layer-tag { font-weight: 800; display: inline-flex; justify-content: center; }
 .pen-ret-lab { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 700; font-style: italic; color: var(--muted); }
+/* ---- Temperatuur goederenontvangst (in de pendelkaart) ----
+   Kleuren komen uit de tokens, dus licht én donker kloppen vanzelf. */
+.pen-card.pen-afw { border-color: var(--red); }
+.pt-block { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 10px; }
+.pt-head { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; row-gap: 5px; font-size: 13.5px; }
+.pt-head .icon { color: var(--jumbo-yellow-dark); }
+.pt-count { font-size: 12px; font-weight: 700; color: var(--muted); }
+.pt-count.good { color: var(--green); }
+.pt-count.bad { color: var(--red); }
+.pt-add { margin-left: auto; padding: 5px 10px; font-size: 12.5px; }
+.pt-empty { font-size: 12.5px; color: var(--muted); padding: 8px 0 2px; }
+.pt-list { display: flex; flex-direction: column; gap: 7px; margin-top: 9px; }
+.pt-row {
+  display: flex; align-items: flex-start; gap: 10px;
+  background: var(--surface-3); border-radius: 11px; padding: 9px 10px;
+}
+.pen-rit-row { display: flex; align-items: center; gap: 10px; margin: -2px 0 10px; }
+.pen-rit { flex: 1; min-width: 0; padding: 6px 9px; border: 1px solid var(--line); border-radius: 8px; font-size: 13px; font-weight: 700; font-family: inherit; background: var(--input-bg, var(--card)); color: var(--ink); }
+.pt-slot { flex: none; min-width: 62px; font-size: 11.5px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: .3px; }
+.pt-t { display: block; margin-top: 2px; font-weight: 900; font-size: 14px; white-space: nowrap; color: var(--ink); text-transform: none; letter-spacing: 0; }
+.pt-todo { font-size: 12.5px; font-weight: 700; color: var(--muted); }
+.pt-row.pt-open { align-items: center; background: transparent; border: 1px dashed var(--line); }
+.pt-fill { flex: none; }
+.pt-fixed { padding: 11px 13px; border: 1px solid var(--line); border-radius: 10px; font-size: 15px; font-weight: 700; background: var(--surface-2); color: var(--ink-soft); }
+
+/* Dagarchief: leest als het papieren formulier, dus een echte tabel die scrollt. */
+.ar-head { display: flex; flex-wrap: wrap; gap: 10px 26px; padding: 12px 14px; margin-bottom: 12px; background: var(--jumbo-yellow-soft); border-radius: 12px; }
+.ar-head .ar-lab { display: block; font-size: 11px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; }
+.ar-head b { font-size: 14px; }
+.ar-table td, .ar-table th { vertical-align: top; }
+.ar-table .ar-nr { white-space: nowrap; border-right: 1px solid var(--line); }
+.ar-table .ar-rit { white-space: nowrap; font-weight: 700; }
+.ar-slot { font-size: 11.5px; font-weight: 800; color: var(--muted); text-transform: uppercase; }
+.ar-temp { font-weight: 900; white-space: nowrap; }
+.ar-temp.lv-retour { color: var(--red); }
+.ar-temp.lv-proces { color: var(--orange); }
+.ar-actie { max-width: 240px; font-size: 12.5px; }
+.ar-leeg { font-style: italic; }
+.pt-mid { flex: 1; min-width: 0; }
+.pt-prod { font-weight: 800; font-size: 13px; word-break: break-word; }
+.pt-meta { font-size: 11.5px; font-weight: 600; color: var(--muted); margin-top: 1px; }
+.pt-actie { display: flex; align-items: flex-start; gap: 5px; font-size: 11.5px; font-weight: 700; color: var(--red); margin-top: 5px; }
+.pt-actie .icon { flex: none; margin-top: 1px; }
+/* badges onder de productnaam: naast de tekst zouden ze 'm in een smalle kaart platdrukken */
+.pt-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
+.pt-edit { flex: none; background: none; border: 0; padding: 2px; color: var(--muted); cursor: pointer; display: inline-flex; }
+.pt-edit:hover { color: var(--ink); }
+
+/* oordeel per meting — dezelfde kleurcodes als het papieren formulier */
+.badge.tv-streef, .badge.tv-norm { background: var(--green-soft); color: var(--green); }
+.badge.tv-koud { background: var(--blue-soft); color: var(--blue); }
+.badge.tv-proces { background: var(--orange-soft); color: var(--orange); }
+.badge.tv-retour { background: var(--red-soft); color: var(--red); }
+/* Alleen afwijkingen kleuren op: een goedgekeurde meting hoeft niet te schreeuwen. */
+.pt-row.lv-proces { background: var(--orange-soft); }
+.pt-row.lv-proces .pt-t { color: var(--orange); }
+.pt-row.lv-retour { background: var(--red-soft); }
+.pt-row.lv-retour .pt-t { color: var(--red); }
+
+/* invoerdialoog */
+.pt-seg button.active { font-weight: 900; }
+.pt-verdict { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 800; padding: 9px 12px; border-radius: 10px; margin-bottom: 14px; }
+.pt-verdict.lv-streef, .pt-verdict.lv-norm { background: var(--green-soft); color: var(--green); }
+.pt-verdict.lv-koud { background: var(--blue-soft); color: var(--blue); }
+.pt-verdict.lv-proces { background: var(--orange-soft); color: var(--orange); }
+.pt-verdict.lv-retour { background: var(--red-soft); color: var(--red); }
+/* het actieveld is alleen verplicht bij een afwijking — dat laten we ook zien */
+#ptActieWrap { opacity: .6; transition: opacity .18s var(--ease); }
+#ptActieWrap.req { opacity: 1; }
+#ptActieWrap.req label::after { content: " · verplicht"; color: var(--red); font-weight: 800; }
+
+/* normtabellen als naslag */
+.pt-norms { margin-top: 16px; border: 1px dashed var(--line); border-radius: 12px; overflow: hidden; }
+.pt-norms summary { cursor: pointer; padding: 11px 14px; font-weight: 800; font-size: 13px; color: var(--ink-soft); list-style: none; display: flex; align-items: center; gap: 8px; }
+.pt-norms summary::-webkit-details-marker { display: none; }
+.pt-norms-body { padding: 0 14px 14px; }
+
 .pen-rows { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
 .pen-r { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; color: var(--ink-soft); }
 .pen-arrow { display: inline-flex; }
