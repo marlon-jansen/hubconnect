@@ -89,24 +89,66 @@ svg { display: block; }
     var(--bg);
 }
 .auth-card {
+  position: relative;
   width: 100%; max-width: 430px; background: var(--card);
   border-radius: 20px; box-shadow: var(--shadow-lg); overflow: hidden;
 }
-.auth-card.auth-leave { opacity: 0; transform: translateY(4px) scale(.99); transition: opacity .13s var(--ease), transform .13s var(--ease); }
-.auth-card.auth-enter { opacity: 0; transform: translateY(-4px) scale(.99); }
-.auth-card.auth-enter-active { opacity: 1; transform: none; transition: opacity .22s cubic-bezier(.2,.7,.2,1), transform .22s cubic-bezier(.2,.7,.2,1); }
-/* reduced-motion: al gedekt door de globale wildcard-regel verderop in dit bestand */
 .auth-head { background: var(--jumbo-yellow); padding: 26px 28px 22px; }
 .auth-head h1 { margin: 12px 0 2px; font-size: 22px; font-weight: 900; }
 .auth-head p { margin: 0; font-size: 14px; color: var(--ink-soft); font-weight: 600; }
-.auth-body { padding: 24px 28px 26px; }
-.auth-tabs { display: flex; gap: 6px; background: var(--surface-2); padding: 4px; border-radius: 12px; margin-bottom: 20px; }
+/* padding i.p.v. marge, zodat de losgemaakte "ghost"-kopie exact even hoog staat */
+.auth-title { padding-top: 12px; }
+.auth-title h1 { margin-top: 0; }
+.auth-body { position: relative; padding: 24px 28px 26px; }
+.auth-tabs { position: relative; display: flex; gap: 6px; background: var(--surface-2); padding: 4px; border-radius: 12px; margin-bottom: 20px; }
 .auth-tabs button {
+  position: relative; z-index: 1;
   flex: 1; border: 0; background: transparent; padding: 9px; border-radius: 9px;
   font-weight: 800; font-size: 14px; color: var(--muted); cursor: pointer;
-  transition: background .15s var(--ease), color .15s var(--ease), box-shadow .15s var(--ease);
+  transition: color .18s var(--ease);
 }
-.auth-tabs button.active { background: var(--card); color: var(--ink); box-shadow: var(--shadow); }
+.auth-tabs button.active { color: var(--ink); }
+/* meeschuivende pill achter het actieve tabblad */
+.auth-pill {
+  position: absolute; top: 4px; bottom: 4px; left: 4px; width: calc(50% - 7px);
+  border-radius: 9px; background: var(--card); box-shadow: var(--shadow);
+  transition: transform .42s var(--ease);
+}
+.auth-tabs[data-authactive="register"] .auth-pill { transform: translateX(calc(100% + 6px)); }
+
+/* ---- Overgang tussen inloggen/registreren --------------------------------
+   De kaart blijft staan en morpht van hoogte; alleen de titeltekst en het
+   formulier wisselen. `--adir` (+1/-1) wordt door ui.js gezet en bepaalt of de
+   nieuwe laag van rechts of van links binnenkomt.
+   reduced-motion: gedekt door de globale wildcard onderaan dit bestand. */
+/* .auth-swap zet alléén de startwaarden (géén transition, anders begint de
+   browser meteen te animeren richting die startwaarden); ui.js forceert daarna
+   een reflow en zet .auth-swap-in erbij — dáár staat de transition, dus animeert
+   hij van start naar eind. De ghosts hebben hun eigen regels en horen hier niet
+   bij, vandaar de :not(.auth-ghost). */
+.auth-card.auth-swap { will-change: height; }
+.auth-card.auth-swap .auth-title:not(.auth-ghost),
+.auth-card.auth-swap .auth-pane:not(.auth-ghost) {
+  opacity: 0; filter: blur(5px);
+  transform: translateX(calc(var(--adir, 1) * 34px));
+}
+.auth-card.auth-swap .auth-title:not(.auth-ghost) { transform: translateX(calc(var(--adir, 1) * 18px)); }
+.auth-card.auth-swap-in { transition: height .44s var(--ease); }
+.auth-card.auth-swap-in .auth-title:not(.auth-ghost),
+.auth-card.auth-swap-in .auth-pane:not(.auth-ghost) {
+  opacity: 1; filter: blur(0); transform: none;
+  transition: opacity .3s var(--ease) .06s, transform .44s var(--ease) .06s, filter .3s var(--ease) .06s;
+}
+
+/* de wegschuivende kopie van de vorige laag */
+.auth-ghost {
+  position: absolute; z-index: 2; pointer-events: none;
+  transition: opacity .2s linear, transform .34s var(--ease), filter .28s var(--ease);
+}
+.auth-head > .auth-ghost { background: var(--jumbo-yellow); }
+.auth-body > .auth-ghost { background: var(--card); }
+.auth-ghost.auth-ghost-out { opacity: 0; filter: blur(5px); transform: translateX(calc(var(--adir, 1) * -34px)); }
+.auth-head > .auth-ghost.auth-ghost-out { transform: translateX(calc(var(--adir, 1) * -18px)); }
 
 .field { margin-bottom: 14px; }
 .field label { display: block; font-size: 13px; font-weight: 800; margin-bottom: 6px; color: var(--ink-soft); }
