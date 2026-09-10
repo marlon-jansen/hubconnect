@@ -353,6 +353,12 @@ main { max-width: 1100px; margin: 0 auto; padding: 22px 18px 80px; }
 .chip.on { background: var(--jumbo-yellow); color: var(--ink-fixed); border-color: var(--jumbo-yellow-dark); }
 .mist-chip { cursor: pointer; }
 .mist-chip.on { background: #fdecea; color: #c0392b; border-color: #e74c3c; }
+/* Buswassing: de -soft tokens houden zichzelf goed in licht én donker,
+   dus geen vaste hexes hier (die vallen in dark mode uit de toon). */
+.was-chip.on { background: var(--blue-soft); color: var(--blue); border-color: var(--blue); }
+.badge.was { background: var(--blue-soft); color: var(--blue); }
+.was-status.on.was-ok { background: var(--green-soft); color: var(--green); border-color: var(--green); }
+.was-status.on.was-no { background: var(--red-soft); color: var(--red); border-color: var(--red); }
 .sc-sp-btn { background: var(--jumbo-yellow); color: var(--ink-fixed); border: 1px solid var(--jumbo-yellow-dark); font-weight: 800; white-space: nowrap; }
 .sc-sp-btn:hover { background: var(--jumbo-yellow-dark); }
 .sc-sp-btn.done { background: var(--green-soft); color: var(--green); border-color: var(--green); }
