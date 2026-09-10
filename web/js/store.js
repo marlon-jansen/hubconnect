@@ -29,7 +29,7 @@
   ];
 
   // Per medewerker toewijsbare taken (catalogus). Elke taak is een bezorger- of senior-taak.
-  var DEFAULT_TASKS = ["LC", "Schadecontrole", "Kwaliteit", "Inname", "Laden", "Binnendienst"];
+  var DEFAULT_TASKS = ["LC", "Schadecontrole", "Kwaliteit", "Buswassing", "Inname", "Laden", "Binnendienst"];
   var DEFAULT_TASK_TYPES = { "Binnendienst": "senior" }; // overige = "bezorger"
 
   var TASK_BINNENDIENST = "Binnendienst";
@@ -100,6 +100,10 @@
   function migrateLegacyRoles() {
     var changed = false;
     db.users.forEach(function (u) { if (u.rol === "aankomend") { u.rol = "bezorger"; changed = true; } });
+    // Taken die later zijn toegevoegd ontbreken in een DB die eerder is geseed.
+    DEFAULT_TASKS.forEach(function (t) {
+      if (db.taskCatalog && db.taskCatalog.indexOf(t) === -1) { db.taskCatalog.push(t); changed = true; }
+    });
     return changed;
   }
   // Wie is ingelogd (bron van waarheid; los van db, want db wordt bij elke refresh vervangen).
@@ -832,7 +836,7 @@
   function getDiensten(hubId, datum, dagdeel) {
     if (!db.diensten) db.diensten = {};
     var k = opKey(hubId, datum, dagdeel);
-    if (!db.diensten[k]) db.diensten[k] = { schadecontrole: [], lc: [], kwaliteit: [] };
+    if (!db.diensten[k]) db.diensten[k] = { schadecontrole: [], lc: [], kwaliteit: [], buswassing: [] };
     return db.diensten[k];
   }
   function setDienst(hubId, datum, dagdeel, moduleKey, userIds) {
@@ -983,6 +987,55 @@
     var b = getSchade(hubId, datum, dagdeel).buses;
     var done = b.filter(function (x) { return x.gecontroleerd; }).length;
     return { total: b.length, done: done, pct: b.length ? Math.round(done / b.length * 100) : 0 };
+  }
+
+  /* ----- Buswassing -----
+     De senior merkt bij het klaarzetten bussen aan die naar de wasstraat moeten. Dat is een vlag
+     op de bus zelf (`b.wassen`), dus het lift mee op de bestaande schade-JSONB — geen serverwijziging.
+     Buswassing werkt per DAG: de lijst bundelt de aangemerkte bussen uit beide dagdelen.
+     Status per bus: "" = nog niet langs geweest, "gewassen", "niet" = niet komen opdagen. */
+  function busWasBaar(hubId, datum, dagdeel, busId) {
+    return getSchade(hubId, datum, dagdeel).buses.filter(function (x) { return x.id === busId; })[0] || null;
+  }
+  // Aanmerken/afhalen door de binnendienst (senior+), vanuit Klaarzetten.
+  function setBusWassen(hubId, datum, dagdeel, busId, val) {
+    if (!isSetup(currentUser())) throw new Error("Alleen de binnendienst (senior+) mag bussen voor de wasstraat aanmerken.");
+    var b = busWasBaar(hubId, datum, dagdeel, busId); if (!b) return;
+    b.wassen = (val === undefined) ? !b.wassen : !!val;
+    if (!b.wassen) { b.wasStatus = ""; b.wasAt = null; b.wasDoor = null; } // afhalen wist ook de afvinkstatus
+    save();
+  }
+  // Wie mag afvinken: de buswas-dienst van die dag (in één van beide dagdelen) of teamleider+.
+  function wasCanEdit(u, hubId, datum) {
+    if (!u) return false;
+    if (isAdmin(u) || level(u) >= 4) return true;
+    return dagdelenVoor(datum).some(function (dd) { return (getDiensten(hubId, datum, dd).buswassing || []).indexOf(u.id) !== -1; });
+  }
+  // De waslijst van één dag: beide dagdelen samen, met vermelding uit welke shift de bus komt.
+  function wasLijst(hubId, datum) {
+    var uit = [];
+    dagdelenVoor(datum).forEach(function (dd) {
+      getSchade(hubId, datum, dd).buses.forEach(function (b) { if (b.wassen) uit.push({ dagdeel: dd, bus: b }); });
+    });
+    return uit;
+  }
+  function setWasStatus(hubId, datum, dagdeel, busId, status) {
+    var u = currentUser();
+    if (!wasCanEdit(u, hubId, datum)) throw new Error("Je bent vandaag niet aangewezen voor de buswassing.");
+    if (["", "gewassen", "niet"].indexOf(status) === -1) return;
+    var b = busWasBaar(hubId, datum, dagdeel, busId); if (!b) return;
+    if (!b.wassen) throw new Error("Deze bus staat niet op de waslijst.");
+    b.wasStatus = status;
+    b.wasAt = status ? now() : null;
+    b.wasDoor = status ? u.id : null;
+    save();
+  }
+  function wasStats(hubId, datum) {
+    var l = wasLijst(hubId, datum);
+    var gewassen = l.filter(function (x) { return x.bus.wasStatus === "gewassen"; }).length;
+    var niet = l.filter(function (x) { return x.bus.wasStatus === "niet"; }).length;
+    return { total: l.length, gewassen: gewassen, niet: niet, open: l.length - gewassen - niet,
+             pct: l.length ? Math.round(gewassen / l.length * 100) : 0 };
   }
 
   /* ----- Kwaliteit: vak-soort + emballage per vak ----- */
@@ -1583,6 +1636,7 @@
     getDiensten: getDiensten, setDienst: setDienst, importSheet: importSheet,
     getSchade: getSchade, schadeImportColumns: schadeImportColumns, schadeAddBus: schadeAddBus, schadeToggle: schadeToggle, schadeSetDock: schadeSetDock, schadeSetOpmerking: schadeSetOpmerking, schadeRemove: schadeRemove, schadeReset: schadeReset, schadeStats: schadeStats,
     setBusSteekproef: setBusSteekproef, steekproefDone: steekproefDone, steekproefStats: steekproefStats, steekproevenList: steekproevenList, recentGecontroleerdeBussen: recentGecontroleerdeBussen, busHeeftProbleem: busHeeftProbleem,
+    setBusWassen: setBusWassen, wasLijst: wasLijst, wasStats: wasStats, wasCanEdit: wasCanEdit, setWasStatus: setWasStatus,
     vorigeShift: vorigeShift, steekproefControleer: steekproefControleer, steekproefControleStats: steekproefControleStats,
     getKwaliteit: getKwaliteit, vakSoort: vakSoort, setVakSoort: setVakSoort, emballageSet: emballageSet, emballageVakTotal: emballageVakTotal, emballageVakArr: emballageVakArr, clearEmbVak: clearEmbVak,
     getTrolley: getTrolley, addPendelPlan: addPendelPlan, removePendel: removePendel, pendelImport: pendelImport, pendelBump: pendelBump, trolleySetStock: trolleySetStock, trolleyBump: trolleyBump, recentPendels: recentPendels, komendePendels: komendePendels,
