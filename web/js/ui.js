@@ -135,6 +135,17 @@
     return '<img class="logo-mark" src="img/jumbo-logo.svg?v=30" alt="Jumbo" style="height:' + h + 'px" />';
   }
 
+  /* ---------- footer met copyright-jaar ---------- */
+  function copyrightLine() { return "&copy; " + new Date().getFullYear() + " HubConnect &middot; Jumbo Bezorgservice"; }
+  function authFoot() { return '<p class="auth-foot">' + copyrightLine() + "</p>"; }
+
+  /* ---------- knop in laad-stand (spinner i.p.v. tekst, tijdens een async actie) ---------- */
+  function setBtnLoading(btn, loading) {
+    if (!btn) return;
+    if (loading) { btn.dataset.label = btn.innerHTML; btn.innerHTML = '<span class="spinner spinner-btn"></span>'; btn.disabled = true; }
+    else { if (btn.dataset.label) btn.innerHTML = btn.dataset.label; btn.disabled = false; }
+  }
+
   /* ---------- toast ---------- */
   function toast(msg, type) {
     var root = el("toast-root");
@@ -367,7 +378,7 @@
           "</div>" +
         "</section>" +
 
-        '<footer class="l3-foot">HubConnect &middot; Jumbo Bezorgservice</footer>' +
+        '<footer class="l3-foot">' + copyrightLine() + "</footer>" +
       "</div>";
 
     document.querySelectorAll("[data-go=login]").forEach(function (b) { b.addEventListener("click", function () {
@@ -487,7 +498,7 @@
 
   function renderLogin() {
     el("app").innerHTML =
-      '<div class="auth-wrap"><div class="auth-card">' +
+      '<div class="auth-wrap"><div class="auth-col"><div class="auth-card">' +
         '<div class="auth-head">' +
           '<button class="auth-back" data-back>' + svg("arrowLeft", "icon-sm") + " Terug</button>" +
           logo(38) + '<div class="auth-title"><h1>Inloggen</h1><p>Welkom terug bij ' + PORTAL + "</p></div></div>" +
@@ -504,17 +515,17 @@
           "</form>" +
           "</div>" +
         "</div>" +
-      "</div></div>";
+      "</div>" + authFoot() + "</div></div>";
 
     el("app").querySelector("[data-back]").addEventListener("click", function () { authScreen = "landing"; render(); });
     bindAuthModeSeg();
     el("loginForm").addEventListener("submit", function (e) {
       e.preventDefault();
       var f = e.target, btn = f.querySelector('button[type="submit"]');
-      if (btn) btn.disabled = true;
+      setBtnLoading(btn, true);
       S.login(f.identifier.value, f.password.value)
         .then(function () { resetNav(); render(); })
-        .catch(function (err) { if (btn) btn.disabled = false; var m = el("authMsg"); if (m) m.innerHTML = '<div class="alert alert-error">' + esc(err.message) + "</div>"; });
+        .catch(function (err) { setBtnLoading(btn, false); var m = el("authMsg"); if (m) m.innerHTML = '<div class="alert alert-error">' + esc(err.message) + "</div>"; });
     });
   }
 
@@ -523,7 +534,7 @@
      =================================================================== */
   function renderRegisterCode() {
     el("app").innerHTML =
-      '<div class="auth-wrap"><div class="auth-card">' +
+      '<div class="auth-wrap"><div class="auth-col"><div class="auth-card">' +
         '<div class="auth-head">' +
           '<button class="auth-back" data-back>' + svg("arrowLeft", "icon-sm") + " Terug</button>" +
           logo(38) + '<div class="auth-title"><h1>Account registreren</h1><p>Vul de code in die je van je teamleider hebt gekregen.</p></div></div>' +
@@ -538,7 +549,7 @@
           "</form>" +
           "</div>" +
         "</div>" +
-      "</div></div>";
+      "</div>" + authFoot() + "</div></div>";
 
     el("app").querySelector("[data-back]").addEventListener("click", function () { switchAuthScreen("login"); });
     bindAuthModeSeg();
@@ -555,7 +566,7 @@
   function renderRegisterForm() {
     if (!regInvite) { authScreen = "register-code"; render(); return; }
     el("app").innerHTML =
-      '<div class="auth-wrap"><div class="auth-card">' +
+      '<div class="auth-wrap"><div class="auth-col"><div class="auth-card">' +
         '<div class="auth-head">' +
           '<button class="auth-back" data-back>' + svg("arrowLeft", "icon-sm") + " Terug</button>" +
           logo(38) + '<div class="auth-title"><h1>Jouw gegevens</h1><p>Je start als Bezorger</p></div></div>' +
@@ -574,7 +585,7 @@
           "</form>" +
           "</div>" +
         "</div>" +
-      "</div></div>";
+      "</div>" + authFoot() + "</div></div>";
 
     el("app").querySelector("[data-back]").addEventListener("click", function () { regInvite = null; switchAuthScreen("register-code"); });
     bindAuthModeSeg();
@@ -582,10 +593,10 @@
       e.preventDefault();
       var f = e.target, btn = f.querySelector('button[type="submit"]');
       if (f.p1.value !== f.p2.value) { el("regMsg").innerHTML = '<div class="alert alert-error">De wachtwoorden komen niet overeen.</div>'; return; }
-      if (btn) btn.disabled = true;
+      setBtnLoading(btn, true);
       S.registerWithCode(regInvite.code, { voornaam: f.voornaam.value, achternaam: f.achternaam.value, personeelsnummer: f.num.value, email: f.email.value, wachtwoord: f.p1.value })
         .then(function () { regInvite = null; resetNav(); toast("Welkom! Je account is aangemaakt.", "ok"); render(); })
-        .catch(function (err) { if (btn) btn.disabled = false; var m = el("regMsg"); if (m) m.innerHTML = '<div class="alert alert-error">' + esc(err.message) + "</div>"; });
+        .catch(function (err) { setBtnLoading(btn, false); var m = el("regMsg"); if (m) m.innerHTML = '<div class="alert alert-error">' + esc(err.message) + "</div>"; });
     });
   }
 
@@ -594,7 +605,7 @@
      =================================================================== */
   function renderForcePassword(u) {
     el("app").innerHTML =
-      '<div class="auth-wrap"><div class="auth-card">' +
+      '<div class="auth-wrap"><div class="auth-col"><div class="auth-card">' +
         '<div class="auth-head">' + logo(38) + "<h1>Stel je wachtwoord in</h1><p>Welkom " + esc(u.voornaam) + "! Kies een eigen wachtwoord.</p></div>" +
         '<div class="auth-body">' +
           '<div class="alert alert-info">Je logde in met een eenmalige code. Stel nu een persoonlijk wachtwoord in om verder te gaan.</div>' +
@@ -604,15 +615,15 @@
             '<div id="pwMsg"></div>' +
             '<button class="btn btn-primary btn-block" type="submit">' + svg("check") + "Opslaan en doorgaan</button>" +
           "</form>" +
-        "</div></div></div>";
+        "</div></div>" + authFoot() + "</div></div>";
     el("pwForm").addEventListener("submit", function (e) {
       e.preventDefault();
       var f = e.target, btn = f.querySelector('button[type="submit"]');
       if (f.p1.value !== f.p2.value) { el("pwMsg").innerHTML = '<div class="alert alert-error">De wachtwoorden komen niet overeen.</div>'; return; }
-      if (btn) btn.disabled = true;
+      setBtnLoading(btn, true);
       S.setInitialPassword(f.p1.value)
         .then(function () { resetNav(); toast("Wachtwoord ingesteld.", "ok"); render(); })
-        .catch(function (err) { if (btn) btn.disabled = false; var m = el("pwMsg"); if (m) m.innerHTML = '<div class="alert alert-error">' + esc(err.message) + "</div>"; });
+        .catch(function (err) { setBtnLoading(btn, false); var m = el("pwMsg"); if (m) m.innerHTML = '<div class="alert alert-error">' + esc(err.message) + "</div>"; });
     });
   }
 
@@ -2209,7 +2220,7 @@
     });
     if (canEdit) {
       document.querySelectorAll("[data-cell]").forEach(function (b) { b.addEventListener("click", function () { openPlanCell(b.getAttribute("data-cell")); }); });
-      document.querySelectorAll("[data-delrow]").forEach(function (b) { b.addEventListener("click", function () { var p = b.getAttribute("data-delrow").split("|"); try { S.removePlanRow(p[0], p[1]); renderPlanning(); } catch (e) { toast(e.message, "err"); } }); });
+      document.querySelectorAll("[data-delrow]").forEach(function (b) { b.addEventListener("click", function () { var p = b.getAttribute("data-delrow").split("|"); try { S.removePlanRow(p[0], p[1]); toast("Rij verwijderd.", "ok"); renderPlanning(); } catch (e) { toast(e.message, "err"); } }); });
       var ar = el("plAddRow"); if (ar) ar.addEventListener("click", function () { try { S.addPlanRow(plan.id, el("plNewRow").value); renderPlanning(); } catch (e) { toast(e.message, "err"); } });
     }
     el("plDownload").addEventListener("click", function () { downloadPlanningPNG(plan); });
@@ -3255,20 +3266,20 @@
   function bindDashKlaarzetten(c) {
     document.querySelectorAll("[data-kztab]").forEach(function (b) { b.addEventListener("click", function () { state.kzTab = b.getAttribute("data-kztab"); renderDashboard(); }); });
     var il = el("kzImportLaden"); if (il) il.addEventListener("click", function () { try { var n = S.importSheet(c.h, c.d, c.dd, el("kzSheetLaden").value, "laden"); toast(n + " ritten geïmporteerd.", "ok"); renderDashboard(); } catch (e) { toast(e.message, "err"); } });
-    var rl = el("kzResetLaden"); if (rl) rl.addEventListener("click", function () { try { S.lcReset(c.h, c.d, c.dd); renderDashboard(); } catch (e) { toast(e.message, "err"); } });
+    var rl = el("kzResetLaden"); if (rl) rl.addEventListener("click", function () { try { S.lcReset(c.h, c.d, c.dd); toast("Laadproces gereset.", "ok"); renderDashboard(); } catch (e) { toast(e.message, "err"); } });
     var isc = el("kzImportSchade"); if (isc) isc.addEventListener("click", function () { try { var n = S.importSheet(c.h, c.d, c.dd, el("kzSheetSchade").value, "schade"); toast(n + " bussen geïmporteerd.", "ok"); renderDashboard(); } catch (e) { toast(e.message, "err"); } });
-    var rsc = el("kzResetSchade"); if (rsc) rsc.addEventListener("click", function () { try { S.schadeReset(c.h, c.d, c.dd); renderDashboard(); } catch (e) { toast(e.message, "err"); } });
+    var rsc = el("kzResetSchade"); if (rsc) rsc.addEventListener("click", function () { try { S.schadeReset(c.h, c.d, c.dd); toast("Schadecontrole gereset.", "ok"); renderDashboard(); } catch (e) { toast(e.message, "err"); } });
     var pa = el("penAdd"); if (pa) pa.addEventListener("click", function () { try { S.addPendelPlan(c.h, c.d, c.dd, el("penTijd").value); renderDashboard(); } catch (e) { toast(e.message, "err"); } });
     var pi = el("kzImportPendel"); if (pi) pi.addEventListener("click", function () { try { var r = S.pendelImport(c.h, c.d, el("kzPendelImport").value); toast(r.total + " pendels geïmporteerd (" + r.am + " AM · " + r.pm + " PM).", "ok"); renderDashboard(); } catch (e) { toast(e.message, "err"); } });
     var pci = el("kzPcImport"); if (pci) pci.addEventListener("click", function () { try { var n = S.pcImport(c.h, c.d, c.dd, el("kzPcSheet").value); toast(n + " regels in de tellijst gezet.", "ok"); renderDashboard(); } catch (e) { toast(e.message, "err"); } });
-    var pcc = el("kzPcClear"); if (pcc) pcc.addEventListener("click", function () { try { S.pcReset(c.h, c.d, c.dd); renderDashboard(); } catch (e) { toast(e.message, "err"); } });
-    document.querySelectorAll("[data-pendeldel]").forEach(function (b) { b.addEventListener("click", function () { try { S.removePendel(c.h, c.d, c.dd, b.getAttribute("data-pendeldel")); renderDashboard(); } catch (e) { toast(e.message, "err"); } }); });
+    var pcc = el("kzPcClear"); if (pcc) pcc.addEventListener("click", function () { try { S.pcReset(c.h, c.d, c.dd); toast("Tellijst gewist.", "ok"); renderDashboard(); } catch (e) { toast(e.message, "err"); } });
+    document.querySelectorAll("[data-pendeldel]").forEach(function (b) { b.addEventListener("click", function () { try { S.removePendel(c.h, c.d, c.dd, b.getAttribute("data-pendeldel")); toast("Pendel verwijderd.", "ok"); renderDashboard(); } catch (e) { toast(e.message, "err"); } }); });
     var sa = el("lcSetAantal"); if (sa) sa.addEventListener("click", function () { try { S.lcSetAantal(c.h, c.d, c.dd, el("lcAantal").value); renderDashboard(); } catch (e) { toast(e.message, "err"); } });
     document.querySelectorAll("[data-lcset]").forEach(function (inp) { inp.addEventListener("change", function () { var p = inp.getAttribute("data-lcset").split("|"); var data = {}; data[p[1]] = inp.value; try { S.lcSetupVak(c.h, c.d, c.dd, parseInt(p[0], 10), data); } catch (e) { toast(e.message, "err"); } }); });
     document.querySelectorAll("[data-lcze]").forEach(function (cb) { cb.addEventListener("change", function () { try { S.lcSetupVak(c.h, c.d, c.dd, parseInt(cb.getAttribute("data-lcze"), 10), { ze: cb.checked }); } catch (e) { toast(e.message, "err"); } }); });
     document.querySelectorAll("[data-dock]").forEach(function (sl) { sl.addEventListener("change", function () { try { S.schadeSetDock(c.h, c.d, c.dd, sl.getAttribute("data-dock"), sl.value); renderDashboard(); } catch (e) { toast(e.message, "err"); } }); });
     document.querySelectorAll("[data-scopm]").forEach(function (inp) { inp.addEventListener("change", function () { try { S.schadeSetOpmerking(c.h, c.d, c.dd, inp.getAttribute("data-scopm"), inp.value); } catch (e) { toast(e.message, "err"); } }); });
-    document.querySelectorAll("[data-schadedel]").forEach(function (b) { b.addEventListener("click", function () { try { S.schadeRemove(c.h, c.d, c.dd, b.getAttribute("data-schadedel")); renderDashboard(); } catch (e) { toast(e.message, "err"); } }); });
+    document.querySelectorAll("[data-schadedel]").forEach(function (b) { b.addEventListener("click", function () { try { S.schadeRemove(c.h, c.d, c.dd, b.getAttribute("data-schadedel")); toast("Bus verwijderd.", "ok"); renderDashboard(); } catch (e) { toast(e.message, "err"); } }); });
     var add = el("scAdd"); if (add) add.addEventListener("click", function () { try { S.schadeAddBus(c.h, c.d, c.dd, el("scNaam").value, el("scBus").value, el("scKent").value); renderDashboard(); } catch (e) { toast(e.message, "err"); } });
     // banner-knop naar klaarzetten
     var bb = el("app").querySelector('.todo-banner [data-dashtab]'); if (bb) bb.addEventListener("click", function () { state.dashTab = "klaarzetten"; renderDashboard(); });
@@ -3313,11 +3324,12 @@
   function bootScreen(msg, err) {
     el("app").innerHTML = '<div class="auth-wrap"><div class="auth-card" style="max-width:380px"><div class="auth-head">' + logo(38) +
       "<h1>HubConnect</h1><p>" + esc(msg) + "</p></div>" +
-      (err ? '<div class="auth-body"><div class="alert alert-error">' + esc(err) + '</div><button class="btn btn-primary btn-block" id="retry">Opnieuw proberen</button></div>' : "") + "</div></div>";
+      (err ? '<div class="auth-body"><div class="alert alert-error">' + esc(err) + '</div><button class="btn btn-primary btn-block" id="retry">Opnieuw proberen</button></div>' : '<div class="auth-body" style="display:flex;justify-content:center;padding-top:4px"><span class="spinner"></span></div>') + "</div></div>";
     var r = el("retry"); if (r) r.addEventListener("click", boot);
   }
   function boot() {
     bootScreen("Verbinden met de server…");
+    S.setSaveErrorHandler(function () { toast("Wijziging kon niet worden opgeslagen — controleer je verbinding.", "err"); });
     S.boot(function (err) {
       if (err) { bootScreen("Geen verbinding met de server.", "Controleer of de server draait en de database bereikbaar is. (" + (err.message || err) + ")"); return; }
       startRealtime();

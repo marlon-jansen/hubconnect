@@ -416,7 +416,7 @@ public class Server {
       String path = ex.getRequestURI().getPath();
       if (path.equals("/") || path.isEmpty()) path = "/index.html";
       Path file = webroot.resolve("." + path).normalize();
-      if (!file.startsWith(webroot) || !Files.exists(file) || Files.isDirectory(file)) { sendJson(ex, 404, "{\"error\":\"not found\"}"); return; }
+      if (!file.startsWith(webroot) || !Files.exists(file) || Files.isDirectory(file)) { sendNotFound(ex, webroot); return; }
       byte[] bytes = Files.readAllBytes(file);
       secHeaders(ex);
       ex.getResponseHeaders().set("Content-Type", contentType(file.toString()));
@@ -424,6 +424,19 @@ public class Server {
       ex.sendResponseHeaders(200, bytes.length);
       ex.getResponseBody().write(bytes);
     } catch (Exception e) { try { sendJson(ex, 500, "{\"error\":\"static\"}"); } catch (IOException ignore) {} } finally { ex.close(); }
+  }
+  // Onbekend pad (geen bestand op de schijf): custom 404.html tonen i.p.v. kale JSON, met fallback als die ontbreekt.
+  static void sendNotFound(HttpExchange ex, Path webroot) throws IOException {
+    try {
+      Path notFound = webroot.resolve("404.html").normalize();
+      if (!Files.exists(notFound)) { sendJson(ex, 404, "{\"error\":\"not found\"}"); return; }
+      byte[] bytes = Files.readAllBytes(notFound);
+      secHeaders(ex);
+      ex.getResponseHeaders().set("Content-Type", "text/html; charset=utf-8");
+      ex.getResponseHeaders().set("Cache-Control", "no-cache");
+      ex.sendResponseHeaders(404, bytes.length);
+      ex.getResponseBody().write(bytes);
+    } catch (Exception e) { sendJson(ex, 404, "{\"error\":\"not found\"}"); }
   }
 
   /* ===================== helpers ===================== */

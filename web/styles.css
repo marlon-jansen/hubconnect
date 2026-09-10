@@ -33,7 +33,7 @@
 }
 
 * { box-sizing: border-box; }
-html, body { margin: 0; padding: 0; }
+html, body { margin: 0; padding: 0; overflow-x: hidden; }
 html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; touch-action: manipulation; }
 body {
   font-family: var(--font);
@@ -66,6 +66,7 @@ svg { display: block; }
   cursor: pointer; transition: .15s; white-space: nowrap;
   background: var(--surface-2); color: var(--ink);
 }
+.btn { text-decoration: none; }
 .btn:hover { filter: brightness(.97); }
 .btn:active { transform: translateY(1px); }
 .btn:disabled { opacity: .5; cursor: not-allowed; }
@@ -88,9 +89,10 @@ svg { display: block; }
     radial-gradient(1200px 500px at 50% -10%, var(--jumbo-yellow-soft), transparent 60%),
     var(--bg);
 }
+.auth-col { width: 100%; max-width: 430px; display: flex; flex-direction: column; align-items: stretch; gap: 16px; }
 .auth-card {
   position: relative;
-  width: 100%; max-width: 430px; background: var(--card);
+  width: 100%; background: var(--card);
   border-radius: 20px; box-shadow: var(--shadow-lg); overflow: hidden;
 }
 .auth-head { background: var(--jumbo-yellow); padding: 26px 28px 22px; }
@@ -405,6 +407,19 @@ main { max-width: 1100px; margin: 0 auto; padding: 22px 18px 80px; }
 .toast.err { background: var(--red); }
 .toast.err .icon { color: #fff; }
 @keyframes toastIn { from { transform: translateY(14px); opacity: 0; } }
+
+/* ===== Spinner (laadstand: boot-scherm en async knoppen) ===== */
+.spinner {
+  display: inline-block; width: 22px; height: 22px; border-radius: 50%;
+  border: 3px solid var(--line); border-top-color: var(--jumbo-yellow);
+  animation: spin .7s linear infinite;
+}
+.spinner-btn { width: 16px; height: 16px; border-width: 2px; border-color: rgba(255,255,255,.35); border-top-color: #fff; vertical-align: -3px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 1.4s; } }
+
+/* ===== Copyright-footer onder de auth-kaart ===== */
+.auth-foot { text-align: center; font-size: 12px; font-weight: 700; color: var(--muted); margin: 0; }
 
 /* ===== Responsive ===== */
 @media (max-width: 640px) {
