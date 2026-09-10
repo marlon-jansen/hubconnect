@@ -471,6 +471,7 @@ public class Server {
     if (f.endsWith(".css")) return "text/css; charset=utf-8";
     if (f.endsWith(".js")) return "text/javascript; charset=utf-8";
     if (f.endsWith(".json")) return "application/json; charset=utf-8";
+    if (f.endsWith(".txt")) return "text/plain; charset=utf-8";
     if (f.endsWith(".svg")) return "image/svg+xml";
     if (f.endsWith(".png")) return "image/png";
     if (f.endsWith(".jpg") || f.endsWith(".jpeg")) return "image/jpeg";
