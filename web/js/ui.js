@@ -78,6 +78,7 @@
     moon: '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>',
     droplet: '<path d="M12 2.5s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/>',
     thermo: '<path d="M14 14.9V5a2 2 0 1 0-4 0v9.9a4 4 0 1 0 4 0z"/><path d="M12 9.5v5"/>',
+    scan: '<path d="M3 8V5a2 2 0 0 1 2-2h3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M8 21H5a2 2 0 0 1-2-2v-3"/><path d="M3 12h18"/>',
     van: '<path d="M3 7h11v9H3z"/><path d="M14 10h4l3 3v3h-7z"/><circle cx="7" cy="18" r="1.6"/><circle cx="17" cy="18" r="1.6"/>',
     devices: '<rect x="2" y="4.5" width="13" height="9.5" rx="1.5"/><path d="M5 18h6M8 14v4"/><rect x="15.5" y="9" width="6.5" height="12" rx="1.5"/><path d="M17.8 18.5h1.9"/>',
     bolt: '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
@@ -2717,6 +2718,98 @@
       '<p class="cellsub" style="margin:10px 2px 0">Alleen-lezen archief. Het oordeel volgt uit de wettelijke normtemperaturen; bij een afwijking is een actie verplicht vastgelegd (WI 01).</p>';
   }
 
+  /* ---------- Boxnummer scannen (QR én streepjescode) ----------
+     Twee routes, want de hub gebruikt Android én iPhone:
+       1. BarcodeDetector — zit ingebouwd in Chrome/Android, kost niets extra.
+       2. ZXing (js/vendor/zxing.min.js) — voor Safari/iPhone, dat die API niet heeft.
+     De bibliotheek wordt pas ingeladen als hij nodig is, zodat de app licht blijft.
+     De camera regel ik zelf (achtercamera), zodat beide routes hetzelfde beeld delen. */
+  var zxingPromise = null;
+  function appVersion() {                       // cache-bust gelijk aan de rest van de app
+    var s = document.querySelector('script[src*="js/ui.js"]');
+    var m = s && s.getAttribute("src").match(/\?v=(\d+)/);
+    return m ? m[1] : "";
+  }
+  function loadZXing() {
+    if (window.ZXing) return Promise.resolve(window.ZXing);
+    if (zxingPromise) return zxingPromise;
+    zxingPromise = new Promise(function (res, rej) {
+      var s = document.createElement("script");
+      s.src = "js/vendor/zxing.min.js" + (appVersion() ? "?v=" + appVersion() : "");
+      s.onload = function () { window.ZXing ? res(window.ZXing) : rej(new Error("De scanner kon niet geladen worden.")); };
+      s.onerror = function () { zxingPromise = null; rej(new Error("De scanner kon niet geladen worden.")); };
+      document.head.appendChild(s);
+    });
+    return zxingPromise;
+  }
+  function scanBeschikbaar() { return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia); }
+
+  function openBoxScanner(onFound) {
+    if (!scanBeschikbaar()) { toast("Deze browser kan de camera niet gebruiken — typ het nummer.", "err"); return; }
+    var stream = null, reader = null, gestopt = false, bewaker = null;
+    function stop() {
+      gestopt = true;
+      if (bewaker) { clearInterval(bewaker); bewaker = null; }
+      if (reader) { try { reader.reset(); } catch (e) {} reader = null; }
+      if (stream) { stream.getTracks().forEach(function (t) { try { t.stop(); } catch (e) {} }); stream = null; }
+    }
+    var mod = openModal({
+      title: "Boxnummer scannen", icon: "scan",
+      body: '<div class="scan-wrap"><video id="scanVid" playsinline muted autoplay></video><div class="scan-frame"></div></div>' +
+        '<div id="scanMsg" class="scan-msg">Camera starten…</div>',
+      foot: '<button class="btn btn-ghost" data-close>Annuleren</button>',
+      onMount: function (ov, close) {
+        var video = ov.querySelector("#scanVid"), msg = ov.querySelector("#scanMsg");
+        function zeg(t, err) { msg.textContent = t; msg.classList.toggle("err", !!err); }
+        function klaar(waarde) {
+          var v = String(waarde == null ? "" : waarde).trim();
+          if (!v || gestopt) return;
+          stop(); close(); onFound(v);
+        }
+        // De camera moet ook stoppen als de gebruiker via de achtergrond of het kruisje sluit.
+        bewaker = setInterval(function () { if (!document.body.contains(ov)) stop(); }, 400);
+
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } }, audio: false })
+          .then(function (s) {
+            if (gestopt) { s.getTracks().forEach(function (t) { t.stop(); }); return; }
+            stream = s; video.srcObject = s;
+            var p = video.play(); if (p && p.catch) p.catch(function () {});
+            zeg("Richt de camera op de code op de box.");
+            if ("BarcodeDetector" in window) return startNatief(video, klaar, zeg);
+            return startZXing(s, video, klaar, zeg);
+          })
+          .catch(function (e) {
+            var geweigerd = e && (e.name === "NotAllowedError" || e.name === "SecurityError");
+            zeg(geweigerd ? "Geen toegang tot de camera. Sta dat toe in je browser, of typ het nummer."
+                          : "Camera niet beschikbaar — typ het nummer.", true);
+          });
+
+        function startNatief(vid, gevonden, zeggen) {
+          return window.BarcodeDetector.getSupportedFormats().then(function (fmts) {
+            var det = new window.BarcodeDetector({ formats: fmts });
+            (function lus() {
+              if (gestopt) return;
+              det.detect(vid).then(function (codes) {
+                if (codes && codes.length) return gevonden(codes[0].rawValue);
+                setTimeout(lus, 120);
+              }).catch(function () { setTimeout(lus, 300); });
+            })();
+          }).catch(function () { return startZXing(stream, vid, gevonden, zeggen); });
+        }
+        function startZXing(s, vid, gevonden, zeggen) {
+          zeggen("Scanner laden…");
+          return loadZXing().then(function (Z) {
+            if (gestopt) return;
+            zeggen("Richt de camera op de code op de box.");
+            reader = new Z.BrowserMultiFormatReader();
+            reader.decodeFromStream(s, vid, function (result) { if (result) gevonden(result.getText()); });
+          }).catch(function (e) { zeggen(e.message + " Typ het nummer.", true); });
+        }
+      }
+    });
+    return mod;
+  }
+
   // Meting vastleggen of aanpassen voor één vak. Toont live het oordeel en vraagt om een actie zodra het afwijkt.
   function openPenTemp(c, pen, nr, slot, refresh) {
     var meting = (pen.temps || {})[slot.id];
@@ -2738,7 +2831,10 @@
       body: '<form id="ptForm" autocomplete="off">' + groepVeld +
         '<div class="row2">' +
           '<div class="field"><label>Temperatuur (°C)</label><input name="temp" inputmode="decimal" placeholder="bv. 4,2 of -18" value="' + esc(m.temp === "" ? "" : String(m.temp).replace(".", ",")) + '" required></div>' +
-          '<div class="field"><label>Boxnummer</label><input name="box" placeholder="optioneel" value="' + esc(m.box || "") + '"></div>' +
+          '<div class="field"><label>Boxnummer</label><div class="box-scan">' +
+            '<input name="box" placeholder="bv. 0687" value="' + esc(m.box || "") + '" required>' +
+            (scanBeschikbaar() ? '<button type="button" class="btn btn-ghost scan-btn" id="ptScan" title="Code op de box scannen">' + svg("scan", "icon-sm") + "Scan</button>" : "") +
+          "</div></div>" +
         "</div>" +
         '<div class="field"><label>Gemeten product</label><input name="product" placeholder="bv. salade, pizza, yoghurt" value="' + esc(m.product || "") + '" required></div>' +
         '<div class="field"><label>THT (houdbaarheidsdatum)</label><div class="seg pt-seg">' +
@@ -2769,6 +2865,16 @@
         }
         f.addEventListener("input", sync);
         f.addEventListener("change", sync);
+        var scanKnop = ov.querySelector("#ptScan");
+        if (scanKnop) scanKnop.addEventListener("click", function () {
+          openBoxScanner(function (waarde) {
+            f.box.value = waarde;
+            f.box.focus();
+            // De ruwe waarde tonen: zo zie je meteen of er meer in de code zit dan het nummer.
+            toast("Gescand: " + waarde, "ok");
+            sync();
+          });
+        });
         ov.querySelectorAll("[data-ptht]").forEach(function (b) {
           b.addEventListener("click", function () {
             tht = b.getAttribute("data-ptht") === "ok";

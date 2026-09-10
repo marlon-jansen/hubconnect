@@ -1308,8 +1308,10 @@
     if (t < -40 || t > 40) throw new Error("Die temperatuur lijkt niet te kloppen (-40 tot 40 °C).");
     var product = String(data.product || "").trim();
     if (!product) throw new Error("Vul in welk product je hebt gemeten.");
+    var box = String(data.box || "").trim();
+    if (!box) throw new Error("Vul het boxnummer in — scan de code op de box of typ het nummer.");
     var actie = String(data.actie || "").trim();
-    var m = { groep: groep, temp: t, product: product, box: String(data.box || "").trim(), tht: data.tht !== false, actie: actie };
+    var m = { groep: groep, temp: t, product: product, box: box, tht: data.tht !== false, actie: actie };
     if (tempAfwijking(m) && !actie) throw new Error("Bij een afwijking is een actie verplicht — waarschuw je leidinggevende en beschrijf wat er met de producten is gedaan.");
     m.doorId = u.id; m.doorNaam = u.voornaam + " " + u.achternaam; m.at = now();   // controleur wordt automatisch vastgelegd
     tempsOf(p)[slot.id] = m;
