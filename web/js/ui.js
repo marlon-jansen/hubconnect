@@ -2061,6 +2061,7 @@
     // Takenplanning tijdelijk verborgen (op verzoek volledig eruit).
     if (S.can.seeBeheer(u)) m.push({ id: "personeelsbeheer", name: "Personeelsbeheer", icon: "userCog", color: "teal", group: "Beheer", desc: "Medewerkers, functies, taken en hubs." });
     if (S.can.seeBussenbeheer(u)) m.push({ id: "bussenbeheer", name: "Bussenbeheer", icon: "van", color: "gray", group: "Beheer", desc: "Bussen per shift, met focus op probleembussen." });
+    if (S.tempCanArchive(u)) m.push({ id: "temparchief", name: "Temperatuurarchief", icon: "thermo", color: "red", group: "Beheer", desc: "Dagoverzicht van alle temperatuurcontroles (RF 11 HUB)." });
     // Proces-volgorde: Senior Dashboard, Laadproces, Schadecontrole, Kwaliteit.
     if (senior) m.push({ id: "dashboard", name: "Senior Dashboard", icon: "chart", color: "dark", group: "Proces", desc: "Realtime overzicht van de shift." });
     // Bezorgers zien een procesmodule zodra ze de bijbehorende taak toegewezen krijgen (personeelsbeheer).
@@ -2141,6 +2142,7 @@
     if (state.module === "lc") return renderLC();
     if (state.module === "bussenbeheer") return renderBussenbeheer();
     if (state.module === "buswassing") return renderBuswassing();
+    if (state.module === "temparchief") return renderTempArchief();
     var u = S.currentUser();
     var info = {
       takenplanning: { name: "Takenplanning", icon: "clipboardList", desc: "Hier maak je straks het weekrooster (medewerkers × dagen, AM/PM en taken) en download je het als afbeelding voor de groepsapp." },
@@ -2733,6 +2735,13 @@
       "<tbody>" + body + "</tbody></table></div></div>" +
       '<p class="cellsub" style="margin:10px 2px 0">Alleen-lezen archief. Het oordeel volgt uit de wettelijke normtemperaturen; bij een afwijking is een actie verplicht vastgelegd (WI 01).</p>';
   }
+  // Eigen module onder "Beheer" (v=103, was een tab in Laadproces). Per dag (AM + PM samen), dus alleen een datumkiezer.
+  function renderTempArchief() {
+    var c = ctx();
+    el("app").innerHTML = moduleShell("Temperatuurarchief", dayBar() + tempArchiefBody(c), { noShift: true });
+    bindModuleHeader(renderTempArchief);
+    bindShiftBar(renderTempArchief);
+  }
 
   /* ---------- Boxnummer scannen (QR én streepjescode) ----------
      Twee routes, want de hub gebruikt Android én iPhone:
@@ -2932,14 +2941,12 @@
     // Temperatuurregistratie: de LC-dienst óf de binnendienst, binnen hetzelfde tijdvenster.
     var canTemp = !state.viewOnly && opWindowOK(u, "lc", c) && S.tempCanEdit(u, c.h, c.d, c.dd);
     if (!state.lcTab || state.lcTab === "pendels") state.lcTab = state.lcTab === "pendels" ? "pc" : (state.lcTab || "laden");
-    var canArchief = S.tempCanArchive(u);                       // teamleider en hoger
-    if (state.lcTab === "archief" && !canArchief) state.lcTab = "pc";
+    if (state.lcTab === "archief") state.lcTab = "pc";           // archief is sinds v=103 een eigen module onder Beheer
     var seg = '<div class="seg" style="margin-bottom:16px;flex-wrap:wrap">' +
       '<button data-lctab="laden" class="' + (state.lcTab === "laden" ? "active" : "") + '">Laden</button>' +
       '<button data-lctab="pc" class="' + (state.lcTab === "pc" ? "active" : "") + '">Pendelcontrol</button>' +
       '<button data-lctab="tellen" class="' + (state.lcTab === "tellen" ? "active" : "") + '">Tellen</button>' +
       '<button data-lctab="statiegeld" class="' + (state.lcTab === "statiegeld" ? "active" : "") + '">Statiegeld</button>' +
-      (canArchief ? '<button data-lctab="archief" class="' + (state.lcTab === "archief" ? "active" : "") + '">Temperatuurarchief</button>' : "") +
       "</div>";
 
     // ----- LADEN -----
@@ -3042,8 +3049,7 @@
       : '<div class="cellsub" style="padding:12px">Er zijn nog geen vakken ingesteld op statiegeld (dat regelt Kwaliteit).</div>';
 
     var body = state.lcTab === "pc" ? pcBody : state.lcTab === "tellen" ? tellenBody
-      : state.lcTab === "statiegeld" ? statiegeldBody
-      : state.lcTab === "archief" ? tempArchiefBody(c) : ladenBody;
+      : state.lcTab === "statiegeld" ? statiegeldBody : ladenBody;
     el("app").innerHTML = moduleShell("Laadproces", windowLockNote(u, "lc", c) + seg + body);
     bindModuleHeader(renderLC);
     document.querySelectorAll("[data-lctab]").forEach(function (b) { b.addEventListener("click", function () { state.lcTab = b.getAttribute("data-lctab"); renderLC(); }); });

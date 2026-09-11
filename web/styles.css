@@ -1257,6 +1257,7 @@ button.n2-bolt:hover { background: var(--surface-2); }
 /* zwarte Dashboard-tegel */
 .tile-dark::before { background: var(--ink-fixed); }
 .tile-dark .tile-ico { background: var(--ink-fixed); color: var(--jumbo-yellow); }
+.tile-red::before { background: var(--red); } .tile-red .tile-ico { background: var(--red-soft); color: var(--red); }
 .tile-gray::before { background: #6b7280; } .tile-gray .tile-ico { background: var(--surface-2); color: #6b7280; }
 
 /* dekkingsstrip takenplanning */
