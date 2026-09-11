@@ -3349,6 +3349,21 @@
       document.querySelectorAll("details.prep").forEach(function (d) { d.addEventListener("toggle", function () { state.prepOpen[d.getAttribute("data-prep")] = d.open; }); });
     } else if (state.dashTab === "overzicht") {
       document.querySelectorAll("[data-viewmod]").forEach(function (b) { b.addEventListener("click", function () { state.module = b.getAttribute("data-viewmod"); state.viewOnly = true; render(); }); });
+      // kerngetallen → bijbehorende pagina
+      document.querySelectorAll("[data-goto]").forEach(function (b) {
+        b.addEventListener("click", function () {
+          var p = b.getAttribute("data-goto").split("|"), mod = p[0], tab = p[1];
+          if (mod === "dash") {
+            if (tab === "steekproef") { state.dashTab = "voorbereiding"; if (!state.prepOpen) state.prepOpen = {}; state.prepOpen.steekproef = true; }
+            else state.dashTab = tab;
+            renderDashboard(); return;
+          }
+          if (mod === "bussenbeheer") { state.module = "bussenbeheer"; state.viewOnly = false; render(); return; }
+          state.module = mod; state.viewOnly = true;
+          if (mod === "lc" && tab) state.lcTab = tab;
+          render();
+        });
+      });
       var pcBtn = el("app").querySelector("[data-viewpc]"); if (pcBtn) pcBtn.addEventListener("click", function () { state.module = "lc"; state.lcTab = "pc"; state.viewOnly = true; render(); });
     }
     animateTab(el("app").querySelector("main"), "dash:" + state.dashTab);
@@ -3434,9 +3449,10 @@
     }
     var ring = function (pct, cls) { return '<div class="dash-ring ' + cls + '" style="--p:' + pct + '"><span>' + pct + "%</span></div>"; };
     // Kleine kerngetallen onder de ring: label + waarde, optioneel gekleurd (ok/warn/err)
+    // Elk kerngetal is een knop naar de pagina waar het over gaat (data-goto = "module|tab").
     function facts(items) {
       return '<div class="dash-facts">' + items.map(function (f) {
-        return '<div class="dash-fact' + (f.cls ? " " + f.cls : "") + '"><b>' + f.val + "</b><span>" + esc(f.lab) + "</span></div>";
+        return '<button type="button" class="dash-fact' + (f.cls ? " " + f.cls : "") + '"' + (f.go ? ' data-goto="' + f.go + '"' : "") + "><b>" + f.val + "</b><span>" + esc(f.lab) + "</span></button>";
       }).join("") + "</div>";
     }
     function recentList(items, leeg) { return items.length ? '<ul class="dash-recent">' + items.join("") + "</ul>" : '<div class="cellsub dash-recent-empty">' + esc(leeg || "Nog niets.") + "</div>"; }
@@ -3444,15 +3460,16 @@
 
     // ----- Laden -----
     var lcVakken = S.getLC(c.h, c.d, c.dd).vakken;
-    var lcN2 = lcVakken.filter(function (v) { return (v.bus || v.rit) && (v.jbt || v.type === "N2" || v.tweedeRit); }).length;
-    var lcLeeg = lcVakken.filter(function (v) { return !(v.bus || v.rit); }).length;
+    var lcGevuld = lcVakken.filter(function (v) { return v.bus || v.rit; });
+    var lcRit2 = lcGevuld.filter(function (v) { return v.tweedeRit; }).length;
+    var lcJbt = lcGevuld.filter(function (v) { return v.jbt && !v.tweedeRit; }).length;
     var recentGeladen = recentList(S.recentGeladenBussen(c.h, c.d, c.dd).map(function (v) { return recentItem("check", "Bus " + (v.bus || "vak " + v.nr), fmtClock(v.geladenAt)); }), "Nog geen bussen geladen");
     var ladenInner = '<div class="dash-row">' + ring(lcS.pct, "o") + '<div><div class="dash-big">' + lcS.done + " / " + lcS.used + '</div><div class="cellsub">vakken geladen</div></div></div>' +
       facts([
-        { lab: "nog te laden", val: lcS.used - lcS.done, cls: lcS.used - lcS.done ? "warn" : "ok" },
-        { lab: "N2 / JBT / 2e rit", val: lcN2 },
-        { lab: "vakken klaargezet", val: lcS.total },
-        { lab: "leeg", val: lcLeeg }
+        { lab: "nog te laden (1e ritten)", val: lcS.used - lcS.done, cls: lcS.used - lcS.done ? "warn" : "ok", go: "lc|laden" },
+        { lab: "2e ritten", val: lcRit2, go: "lc|laden" },
+        { lab: "JBT-ritten", val: lcJbt, go: "lc|laden" },
+        { lab: "vakken gevuld", val: lcGevuld.length, go: "lc|laden" }
       ]) +
       '<div class="dash-recent-title">Recent geladen</div>' + recentGeladen;
 
@@ -3463,22 +3480,29 @@
     var recentSchade = recentList(S.recentGecontroleerdeBussen(c.h, c.d, c.dd).map(function (b) { return recentItem("check", "Bus " + (b.bus || "?"), fmtClock(b.gecontroleerdAt)); }), "Nog geen bussen gecontroleerd");
     var schadeInner = '<div class="dash-row">' + ring(sc.pct, "g") + '<div><div class="dash-big">' + sc.done + " / " + sc.total + '</div><div class="cellsub">bussen gecontroleerd</div></div></div>' +
       facts([
-        { lab: "nog te doen", val: sc.total - sc.done, cls: sc.total - sc.done ? "warn" : "ok" },
-        { lab: "met afwijking", val: scProbleem, cls: scProbleem ? "err" : "" },
-        { lab: "steekproeven", val: spSt.done + " / " + spSt.total, cls: spSt.done >= spSt.total ? "ok" : "" },
-        { lab: "vorige shift te checken", val: scc.total - scc.done, cls: scc.total - scc.done ? "warn" : "ok" }
+        { lab: "nog te controleren", val: sc.total - sc.done, cls: sc.total - sc.done ? "warn" : "ok", go: "schadecontrole|" },
+        { lab: "afwijkingen", val: scProbleem, cls: scProbleem ? "err" : "", go: "bussenbeheer|" },
+        { lab: "steekproeven te doen", val: Math.max(0, spSt.total - spSt.done), cls: spSt.done >= spSt.total ? "ok" : "warn", go: "schadecontrole|" },
+        { lab: "steekproeven controleren vorige shift", val: scc.total - scc.done, cls: scc.total - scc.done ? "warn" : "ok", go: "dash|steekproef" }
       ]) +
       '<div class="dash-recent-title">Recent gecontroleerd</div>' + recentSchade;
 
     // ----- Pendels -----
     var tr = S.getTrolley(c.h, c.d, c.dd), tSt = S.tempStats(c.h, c.d, c.dd);
     var komendePendels = recentList(S.komendePendels(c.h, c.d, c.dd).map(function (p) { return recentItem("van", "Pendel " + (p.tijd || "?"), p.tijd || null); }), "Geen aankomende pendels");
-    var pendelInner = '<div class="dash-row">' + ring(pc.pct, "b") + '<div><div class="dash-big">' + pc.done + " / " + pc.total + '</div><div class="cellsub">tellijst-vakken geteld</div></div></div>' +
+    // Geweest = de geplande aankomsttijd is verstreken (alleen op de dag zelf; eerdere dagen: alles, latere: niets).
+    var nowMin = new Date().getHours() * 60 + new Date().getMinutes(), vandaag = ymd(new Date());
+    var pGeweest = tr.pendels.filter(function (p) {
+      if (c.d < vandaag) return true; if (c.d > vandaag) return false;
+      var m = /^(\d{1,2}):(\d{2})$/.exec(p.tijd || ""); return !!m && (parseInt(m[1], 10) * 60 + parseInt(m[2], 10)) <= nowMin;
+    }).length;
+    var pPct = tr.pendels.length ? Math.round(pGeweest / tr.pendels.length * 100) : 0;
+    var pendelInner = '<div class="dash-row">' + ring(pPct, "b") + '<div><div class="dash-big">' + pGeweest + " / " + tr.pendels.length + '</div><div class="cellsub">pendels geweest</div></div></div>' +
       facts([
-        { lab: "pendels klaargezet", val: tr.pendels.length },
-        { lab: "temperatuur klaar", val: tSt.klaar + " / " + tSt.total, cls: tSt.total && tSt.klaar >= tSt.total ? "ok" : "" },
-        { lab: "afwijkingen", val: tSt.afwijkingen, cls: tSt.afwijkingen ? "err" : "" },
-        { lab: "trolleys op de hub", val: (tr.stock4 || 0) + (tr.stock5 || 0) }
+        { lab: "tellijst: vakken geteld", val: pc.done + " / " + pc.total, cls: pc.total && pc.done >= pc.total ? "ok" : "", go: "lc|tellen" },
+        { lab: "pendels getemperatuurd", val: tSt.klaar + " / " + tSt.total, cls: tSt.total && tSt.klaar >= tSt.total ? "ok" : "", go: "lc|pc" },
+        { lab: "afwijkingen", val: tSt.afwijkingen, cls: tSt.afwijkingen ? "err" : "", go: "lc|pc" },
+        { lab: "trolleys op de hub", val: (tr.stock4 || 0) + (tr.stock5 || 0), go: "dash|trolley" }
       ]) +
       '<div class="dash-recent-title">Volgende pendels</div>' + komendePendels +
       '<button class="btn btn-sm dash-view" data-viewpc>' + svg("arrowRight", "icon-sm") + "Bekijk Pendelcontrol</button>";
@@ -3489,8 +3513,8 @@
     var vakTotals = embVakken.map(function (i) { var n = S.emballageVakTotal(c.h, c.d, c.dd, i); embTot += n; if (n) embGevuld++; return '<div class="emb-vaktot"><span>Vak ' + i + ":</span> <b>" + n + "</b></div>"; }).join("");
     var kwalInner = '<div class="dash-row"><div><div class="dash-big">' + embTot + '</div><div class="cellsub">kratjes emballage</div></div></div>' +
       facts([
-        { lab: "statiegeldvakken", val: embVakken.length },
-        { lab: "vakken met emballage", val: embGevuld, cls: embGevuld ? "warn" : "ok" }
+        { lab: "statiegeldvakken", val: embVakken.length, go: "kwaliteit|" },
+        { lab: "vakken met emballage", val: embGevuld, cls: embGevuld ? "warn" : "ok", go: "kwaliteit|" }
       ]) +
       '<div class="dash-recent-title">Emballage per vak</div>' +
       (vakTotals ? '<div class="emb-vaktots">' + vakTotals + "</div>" : '<div class="cellsub dash-recent-empty">Geen statiegeldvakken ingesteld</div>');
