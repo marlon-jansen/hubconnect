@@ -80,6 +80,7 @@
     thermo: '<path d="M14 14.9V5a2 2 0 1 0-4 0v9.9a4 4 0 1 0 4 0z"/><path d="M12 9.5v5"/>',
     scan: '<path d="M3 8V5a2 2 0 0 1 2-2h3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M8 21H5a2 2 0 0 1-2-2v-3"/><path d="M3 12h18"/>',
     van: '<path d="M3 7h11v9H3z"/><path d="M14 10h4l3 3v3h-7z"/><circle cx="7" cy="18" r="1.6"/><circle cx="17" cy="18" r="1.6"/>',
+    vanFast: '<path d="M8 7h9v9H8z"/><path d="M17 10h2.5l2.5 3v3h-5z"/><circle cx="11.5" cy="18" r="1.6"/><circle cx="19" cy="18" r="1.6"/><path d="M2 9h4M1 12h5M2 15h4"/>',
     devices: '<rect x="2" y="4.5" width="13" height="9.5" rx="1.5"/><path d="M5 18h6M8 14v4"/><rect x="15.5" y="9" width="6.5" height="12" rx="1.5"/><path d="M17.8 18.5h1.9"/>',
     bolt: '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
     tag: '<path d="M20.6 13.4 12 22l-9-9V4a1 1 0 0 1 1-1h9z"/><circle cx="7.5" cy="7.5" r="1.5"/>',
@@ -3149,14 +3150,14 @@
 
     // ----- LADEN -----
     // Filter "Alleen nog te laden": bussen met rit/bus die nog niet geladen zijn (JBT/N2 hoeven niet).
-    var lcVakken = state.lcOnlyOpen ? lc.vakken.filter(function (v) { return !(v.jbt || v.type === "N2" || v.tweedeRit) && !v.geladen && (v.bus || v.rit); }) : lc.vakken;
+    var eersteRitten = lc.vakken.filter(function (v) { return !v.tweedeRit; }), tweedeRitten = lc.vakken.filter(function (v) { return v.tweedeRit; });
+    var lcVakken = state.lcOnlyOpen ? eersteRitten.filter(function (v) { return !(v.jbt || v.type === "N2") && !v.geladen && (v.bus || v.rit); }) : eersteRitten;
     var rows = lcVakken.length ? lcVakken.map(function (v) {
       var noLoad = v.jbt || v.type === "N2" || v.tweedeRit; // JBT, N2 en 2e ritten hoeven niet geladen te worden
       var busEditable = canLoad && isPM && v.type !== "N2"; // op PM mag de LC alleen diesel-bussen aanpassen
       var busCell = busEditable ? '<input class="lc-in" data-lcbus="' + v.nr + '" placeholder="busnr" value="' + esc(v.bus) + '">' : '<span class="' + (v.bus ? "cellname" : "cellsub") + '">' + (v.bus ? esc(v.bus) : "—") + "</span>";
       var typeBadge = v.type === "N2" ? '<span class="badge n2">' + svg("bolt", "icon-sm") + "N2</span>" : '<span class="badge diesel">' + svg("droplet", "icon-sm") + "Diesel</span>";
       var typeCell = (v.jbt ? '<span class="badge jbt">' + svg("cap", "icon-sm") + "JBT</span> " : "") + typeBadge;
-      var rit2 = v.tweedeRit ? '<div style="margin-top:4px"><span class="badge rit2">' + svg("refresh", "icon-sm") + "2e rit</span></div>" : "";
       // JBT/N2: afvinkvakje grijs & aangevinkt (niet aanklikbaar); overige vakken normaal
       var chkCell = noLoad
         ? '<label class="chk-box grey ro" title="Hoeft niet geladen te worden"><input type="checkbox" checked disabled>' + svg("check", "icon-sm") + "</label>"
@@ -3164,15 +3165,23 @@
       var rowCls = noLoad ? "lc-noload" : (v.geladen ? "sc-done" : "");
       var timeCell = (showTimes && v.geladen && v.geladenAt) ? '<div class="chk-time">' + fmtClock(v.geladenAt) + "</div>" : "";
       return "<tr class=\"" + rowCls + "\"><td class=\"lc-nr cellname\">Vak " + v.nr + "</td>" +
-        '<td class="cellsub" data-th="Vertrek">' + (v.vertrek ? esc(v.vertrek) : "—") + rit2 + '</td><td data-th="Bus">' + busCell + "</td>" +
+        '<td class="cellsub" data-th="Vertrek">' + (v.vertrek ? esc(v.vertrek) : "—") + '</td><td data-th="Bus">' + busCell + "</td>" +
         '<td class="cellsub" data-th="Rit">' + (v.rit ? esc(v.rit) : "—") + '</td><td data-th="Type">' + typeCell + "</td>" +
         '<td data-th="ZE" style="text-align:center">' + (v.ze ? '<span class="badge dock">ZE</span>' : "") + "</td>" +
         '<td class="sc-chk" data-th="Geladen">' + chkCell + timeCell + "</td></tr>";
     }).join("") : '<tr><td colspan="7"><div class="cellsub" style="padding:14px">' + (state.lcOnlyOpen && lc.vakken.length ? "Alle bussen zijn geladen. 🎉" : "Er is nog geen laadlijst klaargezet.") + "</div></td></tr>";
-    var table = '<div class="panel" style="padding:0"><div class="table-scroll"><table class="table lc-table">' +
-      "<thead><tr><th>Vak</th><th>Vertrek</th><th>Bus</th><th>Rit</th><th>Type</th><th>ZE</th><th>Geladen</th></tr></thead><tbody>" + rows + "</tbody></table></div></div>";
+    var table = panel("vanFast", "1e ritten", '<div class="table-scroll"><table class="table lc-table">' +
+      "<thead><tr><th>Vak</th><th>Vertrek</th><th>Bus</th><th>Rit</th><th>Type</th><th>ZE</th><th>Geladen</th></tr></thead><tbody>" + rows + "</tbody></table></div>");
     var lcFilter = lc.vakken.length ? '<label class="chk lc-filter"><input type="checkbox" id="lcOnlyOpen"' + (state.lcOnlyOpen ? " checked" : "") + "> Alleen nog te laden</label>" : "";
-    var ladenBody = opProgress(st.done, st.used, "vakken geladen") + lcFilter + table;
+    // 2e ritten apart: hoeven niet geladen te worden, alleen ter info (vertrektijd, bus, rit)
+    var rit2Rows = tweedeRitten.map(function (v) {
+      return '<tr><td class="lc-nr cellname">Vak ' + v.nr + '</td><td class="cellsub" data-th="Vertrek">' + (v.vertrek ? esc(v.vertrek) : "—") + '</td>' +
+        '<td data-th="Bus"><span class="' + (v.bus ? "cellname" : "cellsub") + '">' + (v.bus ? esc(v.bus) : "—") + '</span></td><td class="cellsub" data-th="Rit">' + (v.rit ? esc(v.rit) : "—") + "</td>" +
+        '<td data-th="Type">' + (v.type === "N2" ? '<span class="badge n2">' + svg("bolt", "icon-sm") + "N2</span>" : '<span class="badge diesel">' + svg("droplet", "icon-sm") + "Diesel</span>") + "</td></tr>";
+    }).join("");
+    var rit2Block = tweedeRitten.length ? panel("refresh", "2e ritten",
+      '<div class="table-scroll"><table class="table lc-table"><thead><tr><th>Vak</th><th>Vertrek</th><th>Bus</th><th>Rit</th><th>Type</th></tr></thead><tbody>' + rit2Rows + "</tbody></table></div>") : "";
+    var ladenBody = opProgress(st.done, st.used, "vakken geladen") + lcFilter + table + rit2Block;
 
     // ----- PENDELCONTROL: pendels (retour) links, telling rechts, import onder -----
     function ctl(id, field, val) {
@@ -3515,12 +3524,14 @@
       '<label class="chk" style="margin-top:8px"><input type="checkbox" id="kzLadenOokSchade" checked> Ook de schadecontrolelijst uit deze sheet vullen</label>' +
       '<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"><button class="btn btn-primary btn-sm" id="kzImportLaden">' + svg("check", "icon-sm") + "Importeren</button>" +
       '<button class="btn btn-ghost btn-sm" id="kzResetLaden">' + svg("trash", "icon-sm") + "Laden leegmaken</button></div></div>";
-    var lcRows = lc.vakken.length ? lc.vakken.map(function (v) {
+    function lcRowHTML(v) {
       var inp = function (f, ph, val) { return '<input class="lc-in" data-lcset="' + v.nr + "|" + f + '" placeholder="' + ph + '" value="' + esc(val) + '">'; };
-      return "<tr><td class=\"lc-nr cellname\">Vak " + v.nr + '</td><td data-th="Vertrek">' + inp("vertrek", "tijd", v.vertrek || "") + (v.tweedeRit ? '<div style="margin-top:4px"><span class="badge rit2">2e rit</span></div>' : "") + '</td><td data-th="Bus">' + inp("bus", "busnr", v.bus) + '</td><td data-th="Rit">' + inp("rit", "rit", v.rit) + "</td>" +
+      return "<tr><td class=\"lc-nr cellname\">Vak " + v.nr + '</td><td data-th="Vertrek">' + inp("vertrek", "tijd", v.vertrek || "") + '</td><td data-th="Bus">' + inp("bus", "busnr", v.bus) + '</td><td data-th="Rit">' + inp("rit", "rit", v.rit) + "</td>" +
         '<td data-th="Type"><select class="lc-in" data-lcset="' + v.nr + '|type"><option value="diesel"' + (v.type !== "N2" ? " selected" : "") + ">Diesel</option><option value=\"N2\"" + (v.type === "N2" ? " selected" : "") + ">N2</option></select></td>" +
         '<td data-th="ZE" style="text-align:center"><input type="checkbox" data-lcze="' + v.nr + '"' + (v.ze ? " checked" : "") + "></td></tr>";
-    }).join("") : '<tr><td colspan="6"><div class="cellsub" style="padding:12px">Importeer de planning of stel het aantal vakken in.</div></td></tr>';
+    }
+    var lcRows = lc.vakken.length ? lc.vakken.map(lcRowHTML).join("") : '<tr><td colspan="6"><div class="cellsub" style="padding:12px">Importeer de planning of stel het aantal vakken in.</div></td></tr>';
+    var kzRit2 = "";
     var tr = S.getTrolley(c.h, c.d, c.dd);
     var pendelRows = tr.pendels.length ? tr.pendels.map(function (p, i) {
       var meta = [];
@@ -3541,7 +3552,7 @@
       '<div style="margin-top:10px">' + pendelRows + "</div></div>";
     var ladenBlock = ladenImport + '<div class="kz-section"><div class="kz-h">' + svg("inbox", "icon-sm") + "Laden klaarzetten</div>" +
       '<div class="lc-setup"><label>Aantal vakken</label><input type="number" min="0" max="60" id="lcAantal" value="' + (lc.aantal || lc.vakken.length) + '"><button class="btn btn-dark btn-sm" id="lcSetAantal">' + svg("check", "icon-sm") + "Instellen</button></div>" +
-      '<div class="panel" style="padding:0;margin-top:10px"><div class="table-scroll"><table class="table lc-table"><thead><tr><th>Vak</th><th>Vertrek</th><th>Bus</th><th>Rit</th><th>Type</th><th>ZE</th></tr></thead><tbody>' + lcRows + "</tbody></table></div></div></div>";
+      '<div class="panel" style="padding:0;margin-top:10px"><div class="table-scroll"><table class="table lc-table"><thead><tr><th>Vak</th><th>Vertrek</th><th>Bus</th><th>Rit</th><th>Type</th><th>ZE</th></tr></thead><tbody>' + lcRows + "</tbody></table></div></div>" + kzRit2 + "</div>";
     var pcImportBlockDash = '<div class="kz-section"><div class="kz-h">' + svg("download", "icon-sm") + "Tellijst klaarzetten (" + (c.dd === "PM" ? "PM" : "AM") + ")</div>" +
       '<p class="cellsub" style="margin:0 0 8px">Plak de debriefing-tellijst — kolommen SUBRITNR · TROLLEYS · KRATTEN · VERSBOXEN · DIEPVRIESBOXEN · KWGR. Verschijnt bij Laadproces &rsaquo; Tellen.</p>' +
       '<textarea id="kzPcSheet" rows="4" class="kz-sheet" placeholder="Plak hier de tellijst…"></textarea>' +
