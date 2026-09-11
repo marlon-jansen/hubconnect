@@ -2146,7 +2146,7 @@
     var mods = portalModules(u);
     function tileHTML(m) {
       var st = S.moduleStatus(m.id);
-      var badge = st === "onderhoud" ? '<span class="tile-state onderhoud">' + svg("wrench", "icon-sm") + "Onderhoud</span>" : st === "verborgen" ? '<span class="tile-state verborgen">Verborgen</span>' : "";
+      var badge = st === "onderhoud" ? '<span class="tile-state onderhoud" title="In onderhoud">' + svg("wrench", "icon-sm") + "</span>" : st === "verborgen" ? '<span class="tile-state verborgen" title="Verborgen">' + svg("lock", "icon-sm") + "</span>" : "";
       return '<button class="tile tile-' + m.color + (st !== "actief" ? " tile-off" : "") + '" data-module="' + m.id + '">' +
         '<span class="tile-ico">' + svg(m.icon, "icon-lg") + "</span>" +
         '<span class="tile-name">' + esc(m.name) + "</span>" + badge + "</button>"; // geen uitlegregel onder de naam (op verzoek)
@@ -2198,7 +2198,7 @@
   function renderModuleOnderhoud(st) {
     var m = S.MODULES.filter(function (x) { return x.id === state.module; })[0];
     el("app").innerHTML = portalHeader(S.currentUser(), true) +
-      '<main><div class="onderhoud">' + svg(st === "verborgen" ? "lock" : "wrench", "icon-lg") +
+      '<main><div class="onderhoud-page">' + svg(st === "verborgen" ? "lock" : "wrench", "icon-lg") +
         "<h2>" + esc(m ? m.naam : "Module") + (st === "verborgen" ? " is niet beschikbaar" : " is in onderhoud") + "</h2>" +
         "<p>" + (st === "verborgen" ? "Deze module is door de beheerder uitgezet." : "Er wordt aan deze module gewerkt. Probeer het later opnieuw.") + "</p>" +
         '<button class="btn btn-primary" data-portal>' + svg("arrowLeft", "icon-sm") + "Terug naar het menu</button></div></main>";
