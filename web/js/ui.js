@@ -3659,6 +3659,24 @@
         }
       }).catch(function () { /* even geen verbinding; volgende tik opnieuw */ });
     }, 3000);
+    startUpdateCheck();
+  }
+  /* Nieuwe app-versie? Een open tab/telefoon blijft anders weken op oude code draaien (en overschrijft
+     via de PUT van de hele staat fixes van anderen). Elke 2 min index.html ophalen, ?v= vergelijken met
+     de geladen versie, en bij verschil herladen — maar niet midden in een dialoog of formulier. */
+  var updateTimer = null;
+  function startUpdateCheck() {
+    if (updateTimer || !appVersion()) return;
+    updateTimer = setInterval(function () {
+      fetch("/?u=" + Date.now(), { cache: "no-store" }).then(function (r) { return r.ok ? r.text() : ""; }).then(function (html) {
+        var m = html.match(/js\/ui\.js\?v=(\d+)/);
+        if (!m || m[1] === appVersion()) return;
+        var bezig = document.querySelector(".modal-overlay") || (document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName));
+        if (bezig) return; // volgende tik opnieuw proberen
+        toast("Nieuwe versie van HubConnect — even herladen…", "ok");
+        setTimeout(function () { location.reload(); }, 1200);
+      }).catch(function () {});
+    }, 120000);
   }
   // Sessie verlopen: lokaal uitloggen en terug naar het inlogscherm. De vlag voorkomt dat
   // meerdere gelijktijdige 401's dit allemaal apart afhandelen.
