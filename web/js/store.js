@@ -883,7 +883,7 @@
   function getDiensten(hubId, datum, dagdeel) {
     if (!db.diensten) db.diensten = {};
     var k = opKey(hubId, datum, dagdeel);
-    if (!db.diensten[k]) db.diensten[k] = { schadecontrole: [], lc: [], kwaliteit: [], buswassing: [] };
+    if (!db.diensten[k]) db.diensten[k] = { schadecontrole: [], lc: [], kwaliteit: [], buswassing: [], afgerond: null };
     return db.diensten[k];
   }
   function setDienst(hubId, datum, dagdeel, moduleKey, userIds) {
@@ -892,8 +892,32 @@
   }
   function canOpShift(u, hubId, datum, dagdeel, moduleKey) {
     if (isAdmin(u) || level(u) >= 4) return true;
-    var d = getDiensten(hubId, datum, dagdeel)[moduleKey] || [];
+    var ds = getDiensten(hubId, datum, dagdeel);
+    if (ds.afgerond) return false; // shift afgerond door de senior: uitvoerders kunnen niets meer aanpassen
+    var d = ds[moduleKey] || [];
     return d.indexOf(u.id) !== -1; // alleen uitvoerrecht via expliciete dienst-toewijzing (dashboard), niet via de taak in personeelsbeheer
+  }
+  /* ----- Shift afronden (senior+) -----
+     Zet de shift dicht: iedereen met een dienst wordt uit z'n taakmodule gehaald en kan er niet meer in. */
+  function shiftAfgerond(hubId, datum, dagdeel) { return !!getDiensten(hubId, datum, dagdeel).afgerond; }
+  function shiftAfronden(hubId, datum, dagdeel, ongedaan) {
+    var u = currentUser();
+    if (!isSetup(u)) throw new Error("Alleen binnendienst (senior+) mag de shift afronden.");
+    getDiensten(hubId, datum, dagdeel).afgerond = ongedaan ? null : { by: u.id, byNaam: u.voornaam + " " + u.achternaam, at: now() };
+    save();
+  }
+  /* Toegang tot een taakmodule voor een uitvoerder (bezorger/senior zonder toewijzing): alleen de shift van
+     NU (vandaag + dagdeel volgens de klok) en alleen als hij daarvoor is aangewezen en de shift niet is afgerond. */
+  var TAAK_MODULES = { lc: "LC", schadecontrole: "Schadecontrole", kwaliteit: "Kwaliteit", buswassing: "Buswassing" };
+  function taskAccess(u, moduleKey) {
+    var datum = todayYmd(), dagdeel = defaultDagdeelFor(moduleKey);
+    if (isSetup(u)) return { free: true, allowed: true, datum: datum, dagdeel: dagdeel };
+    var heeftTaak = u.taken.indexOf(TAAK_MODULES[moduleKey]) !== -1;
+    var afgerond = shiftAfgerond(u.hubId, datum, dagdeel);
+    var toegewezen = moduleKey === "buswassing"
+      ? dagdelenVoor(datum).some(function (dd) { return !getDiensten(u.hubId, datum, dd).afgerond && (getDiensten(u.hubId, datum, dd).buswassing || []).indexOf(u.id) !== -1; })
+      : !afgerond && (getDiensten(u.hubId, datum, dagdeel)[moduleKey] || []).indexOf(u.id) !== -1;
+    return { free: false, heeftTaak: heeftTaak, allowed: toegewezen, afgerond: afgerond, datum: datum, dagdeel: dagdeel };
   }
   // Tijdvensters per taak: PM begint op onderstaand tijdstip; ervoor is het AM.
   var PM_START = { lc: 13 * 60, pc: 13 * 60, kwaliteit: 16 * 60, schadecontrole: 16 * 60 };
@@ -1610,12 +1634,12 @@
   var MODULES = [
     { id: "ruilhub", naam: "RuilHub" }, { id: "dashboard", naam: "Senior Dashboard" }, { id: "lc", naam: "Laadproces" },
     { id: "schadecontrole", naam: "Schadecontrole" }, { id: "kwaliteit", naam: "Kwaliteit" }, { id: "buswassing", naam: "Buswassing" },
-    { id: "personeelsbeheer", naam: "Personeelsbeheer" }, { id: "bussenbeheer", naam: "Bussenbeheer" }, { id: "temparchief", naam: "Temperatuurarchief" }
+    { id: "personeelsbeheer", naam: "Personeelsbeheer" }, { id: "bussenbeheer", naam: "Bussenbeheer" }, { id: "temparchief", naam: "Temperatuurarchief" }, { id: "modulebeheer", naam: "Modulebeheer" }
   ];
   function moduleStatus(id) { return (db.moduleStatus && db.moduleStatus[id]) || "actief"; }
   function setModuleStatus(id, status) {
     if (!isAdmin(currentUser())) throw new Error("Alleen de beheerder kan modules aan- of uitzetten.");
-    if (id === "personeelsbeheer" && status !== "actief") throw new Error("Personeelsbeheer kan niet uit — daar zet je 'm weer aan.");
+    if ((id === "personeelsbeheer" || id === "modulebeheer") && status !== "actief") throw new Error("Deze module kan niet uit.");
     if (!db.moduleStatus) db.moduleStatus = {};
     if (status === "actief") delete db.moduleStatus[id]; else db.moduleStatus[id] = status === "verborgen" ? "verborgen" : "onderhoud";
     save();
@@ -1820,6 +1844,7 @@
     shiftsForHub: shiftsForHub, taskOffersForHub: taskOffersForHub, backupsForHub: backupsForHub, calloutsForHub: calloutsForHub,
     logsForHub: logsForHub, usersForHub: usersForHub, manageableUsers: manageableUsers,
     MODULES: MODULES, moduleStatus: moduleStatus, setModuleStatus: setModuleStatus,
+    TAAK_MODULES: TAAK_MODULES, taskAccess: taskAccess, shiftAfgerond: shiftAfgerond, shiftAfronden: shiftAfronden,
     canSwitchHub: canSwitchHub, setViewHub: setViewHub, hubsFor: hubsFor, overHubs: overHubs, setUserHubs: setUserHubs,
     pendingForApprover: pendingForApprover, pendingCount: pendingCount
   };

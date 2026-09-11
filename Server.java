@@ -88,6 +88,8 @@ public class Server {
       "ALTER TABLE users ADD COLUMN IF NOT EXISTS hub_ids JSONB",
       // buswassing-dienst (v=101) werd niet opgeslagen: kolom toevoegen
       "ALTER TABLE diensten ADD COLUMN IF NOT EXISTS buswassing JSONB",
+      // shift afgerond door de senior ({by, at}) — taakmodules gaan dan dicht voor de uitvoerders
+      "ALTER TABLE diensten ADD COLUMN IF NOT EXISTS afgerond JSONB",
       // Voedselbank-temperatuurregistratie (retouren koel/diepvries) per shift, in Kwaliteit
       "ALTER TABLE kwaliteit ADD COLUMN IF NOT EXISTS voedselbank JSONB",
       // Trolley-steekproef door Kwaliteit (ingesteld door de binnendienst) per shift
@@ -230,7 +232,7 @@ public class Server {
     root.add("trolleyStock", trs);
     JsonObject di = new JsonObject();
     try (ResultSet r = c.createStatement().executeQuery("SELECT * FROM diensten")) {
-      while (r.next()) { JsonObject o = new JsonObject(); o.add("schadecontrole", parse(r.getString("schadecontrole"), "[]")); o.add("lc", parse(r.getString("lc"), "[]")); o.add("kwaliteit", parse(r.getString("kwaliteit"), "[]")); o.add("buswassing", parse(r.getString("buswassing"), "[]")); di.add(key(r), o); }
+      while (r.next()) { JsonObject o = new JsonObject(); o.add("schadecontrole", parse(r.getString("schadecontrole"), "[]")); o.add("lc", parse(r.getString("lc"), "[]")); o.add("kwaliteit", parse(r.getString("kwaliteit"), "[]")); o.add("buswassing", parse(r.getString("buswassing"), "[]")); o.add("afgerond", parse(r.getString("afgerond"), "null")); di.add(key(r), o); }
     }
     root.add("diensten", di);
 
@@ -335,7 +337,7 @@ public class Server {
       for (Map.Entry<String,JsonElement> en : obj(root,"trolleyStock").entrySet()) { String[] k = en.getKey().split("\\|",2); JsonObject o = en.getValue().getAsJsonObject();
         exec(c, "INSERT INTO trolley_stock (hub_id,datum,stock4,stock5) VALUES (?,?,?,?)", k[0], k[1], intOf(o,"stock4"), intOf(o,"stock5")); }
       for (Map.Entry<String,JsonElement> en : obj(root,"diensten").entrySet()) { String[] k = en.getKey().split("\\|",3); JsonObject o = en.getValue().getAsJsonObject();
-        exec(c, "INSERT INTO diensten (hub_id,datum,dagdeel,schadecontrole,lc,kwaliteit,buswassing) VALUES (?,?,?,?::jsonb,?::jsonb,?::jsonb,?::jsonb)", k[0],k[1],k[2],jraw(o,"schadecontrole","[]"),jraw(o,"lc","[]"),jraw(o,"kwaliteit","[]"),jraw(o,"buswassing","[]")); }
+        exec(c, "INSERT INTO diensten (hub_id,datum,dagdeel,schadecontrole,lc,kwaliteit,buswassing,afgerond) VALUES (?,?,?,?::jsonb,?::jsonb,?::jsonb,?::jsonb,?::jsonb)", k[0],k[1],k[2],jraw(o,"schadecontrole","[]"),jraw(o,"lc","[]"),jraw(o,"kwaliteit","[]"),jraw(o,"buswassing","[]"),jraw(o,"afgerond","null")); }
 
       // meta (_seq, appversion)
       if (root.has("_seq") && !root.get("_seq").isJsonNull()) setMeta(c, "_seq", root.get("_seq").getAsString());

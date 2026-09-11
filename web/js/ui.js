@@ -107,6 +107,7 @@
     inbox: '<path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5 5h14l3 7v6a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-6z"/>',
     wrench: '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>',
     lock: '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+    lockOpen: '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.5-2"/>',
     key: '<circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.5 12.5 21 2M16 7l3 3M14 9l2 2"/>',
     pencil: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
     trash: '<path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>',
@@ -1648,7 +1649,6 @@
   function viewBeheer(embedded) {
     var u = S.currentUser();
     var tabs = [{ id: "team", label: "Medewerkers" }, { id: "hubs", label: "Hubs" }, { id: "tasks", label: "Taken" }];
-    if (S.isAdmin(u)) tabs.push({ id: "modules", label: "Modules" });
     if (S.can.resetData(u)) tabs.push({ id: "data", label: "Gegevens" });
     if (!tabs.some(function (t) { return t.id === state.beheerTab; })) state.beheerTab = "team";
 
@@ -1656,7 +1656,7 @@
       return '<button data-btab="' + t.id + '" class="' + (state.beheerTab === t.id ? "active" : "") + '">' + t.label + "</button>";
     }).join("") + "</div>";
 
-    var body = state.beheerTab === "team" ? beheerTeam() : (state.beheerTab === "hubs" ? beheerHubs() : (state.beheerTab === "tasks" ? beheerTasks() : state.beheerTab === "modules" ? beheerModules() : beheerData()));
+    var body = state.beheerTab === "team" ? beheerTeam() : (state.beheerTab === "hubs" ? beheerHubs() : (state.beheerTab === "tasks" ? beheerTasks() : beheerData()));
     var head = embedded ? "" : '<div class="page-head"><div><h2>Beheren</h2><p>Medewerkers, functies, taken en hubs.</p></div></div>';
     return head + seg + body;
   }
@@ -1811,14 +1811,21 @@
   // Modules aan/uit (beheerder): actief · onderhoud (zichtbaar, dicht voor niet-beheerders) · verborgen (voor iedereen weg).
   function beheerModules() {
     var rows = S.MODULES.map(function (m) {
-      var st = S.moduleStatus(m.id), vast = m.id === "personeelsbeheer";
+      var st = S.moduleStatus(m.id), vast = m.id === "personeelsbeheer" || m.id === "modulebeheer";
       function opt(v, l) { return '<option value="' + v + '"' + (st === v ? " selected" : "") + ">" + l + "</option>"; }
       var badge = st === "actief" ? '<span class="badge st-goedgekeurd">Actief</span>' : st === "onderhoud" ? '<span class="badge st-afwachting">Onderhoud</span>' : '<span class="badge st-afgekeurd">Verborgen</span>';
       return '<tr><td class="cellname">' + esc(m.naam) + "</td><td data-th=\"Status\">" + badge + "</td>" +
         '<td data-th="Instellen">' + (vast ? '<span class="cellsub">Altijd aan</span>' : '<select class="pill-select" data-modstatus="' + m.id + '">' + opt("actief", "Actief") + opt("onderhoud", "Onderhoud") + opt("verborgen", "Verborgen") + "</select>") + "</td></tr>";
     }).join("");
-    return panel("grid", "Modules", '<p class="cellsub" style="margin:0 12px 10px">Onderhoud: de tegel blijft staan maar alleen de beheerder kan erin. Verborgen: de module is voor iedereen weg.</p>' +
-      tableScroll("<thead><tr><th>Module</th><th>Status</th><th>Instellen</th></tr></thead><tbody>" + rows + "</tbody>"));
+    return panel("grid", "Modules", tableScroll("<thead><tr><th>Module</th><th>Status</th><th>Instellen</th></tr></thead><tbody>" + rows + "</tbody>"));
+  }
+  function renderModulebeheer() {
+    reRender = renderModulebeheer;
+    el("app").innerHTML = moduleShell("Modulebeheer", beheerModules(), { noShift: true });
+    bindModuleHeader();
+    document.querySelectorAll("[data-modstatus]").forEach(function (sl) {
+      sl.addEventListener("change", function () { try { S.setModuleStatus(sl.getAttribute("data-modstatus"), sl.value); toast("Module bijgewerkt.", "ok"); renderModulebeheer(); } catch (e) { toast(e.message, "err"); renderModulebeheer(); } });
+    });
   }
   function bindBeheer() {
     document.querySelectorAll("[data-modstatus]").forEach(function (sl) {
@@ -2115,6 +2122,7 @@
     if (S.can.seeBeheer(u)) m.push({ id: "personeelsbeheer", name: "Personeelsbeheer", icon: "userCog", color: "teal", group: "Beheer", desc: "Medewerkers, functies, taken en hubs." });
     if (S.can.seeBussenbeheer(u)) m.push({ id: "bussenbeheer", name: "Bussenbeheer", icon: "van", color: "gray", group: "Beheer", desc: "Bussen per shift, met focus op probleembussen." });
     if (S.tempCanArchive(u)) m.push({ id: "temparchief", name: "Temperatuurarchief", icon: "thermo", color: "red", group: "Beheer", desc: "Dagoverzicht van alle temperatuurcontroles (RF 11 HUB)." });
+    if (S.isAdmin(u)) m.push({ id: "modulebeheer", name: "Modulebeheer", icon: "grid", color: "gray", group: "Beheer", desc: "Modules aan- of uitzetten." });
     // Proces-volgorde: Senior Dashboard, Laadproces, Schadecontrole, Kwaliteit.
     if (senior) m.push({ id: "dashboard", name: "Senior Dashboard", icon: "chart", color: "dark", group: "Leidinggevende", desc: "Realtime overzicht van de shift." });
     // Bezorgers zien een procesmodule zodra ze de bijbehorende taak toegewezen krijgen (personeelsbeheer).
@@ -2147,7 +2155,16 @@
     function tileHTML(m) {
       var st = S.moduleStatus(m.id);
       var badge = st === "onderhoud" ? '<span class="tile-state onderhoud" title="In onderhoud">' + svg("wrench", "icon-sm") + "</span>" : st === "verborgen" ? '<span class="tile-state verborgen" title="Verborgen">' + svg("lock", "icon-sm") + "</span>" : "";
-      return '<button class="tile tile-' + m.color + (st !== "actief" ? " tile-off" : "") + '" data-module="' + m.id + '">' +
+      var locked = false;
+      if (st === "actief" && S.TAAK_MODULES[m.id]) {
+        var acc = S.taskAccess(u, m.id);
+        if (!acc.free) {
+          locked = !acc.allowed;
+          badge = locked ? '<span class="tile-state dicht" title="Niet aangewezen voor deze shift">' + svg("lock", "icon-sm") + "</span>"
+                         : '<span class="tile-state open" title="Aangewezen voor deze shift">' + svg("lockOpen", "icon-sm") + "</span>";
+        }
+      }
+      return '<button class="tile tile-' + m.color + (st !== "actief" || locked ? " tile-off" : "") + '" data-module="' + m.id + '"' + (locked ? ' data-locked="1"' : "") + ">" +
         '<span class="tile-ico">' + svg(m.icon, "icon-lg") + "</span>" +
         '<span class="tile-name">' + esc(m.name) + "</span>" + badge + "</button>"; // geen uitlegregel onder de naam (op verzoek)
     }
@@ -2186,7 +2203,10 @@
     var gb = el("app").querySelector("[data-goto-beheer]"); if (gb) gb.addEventListener("click", function () { state.module = "personeelsbeheer"; render(); });
     var hp = el("portalHub"); if (hp) hp.addEventListener("change", function () { try { S.setViewHub(hp.value); render(); } catch (e) { toast(e.message, "err"); } });
     document.querySelectorAll("[data-module]").forEach(function (b) {
-      b.addEventListener("click", function () { state.module = b.getAttribute("data-module"); state.view = "shifts"; state.viewOnly = false; state.dashBack = false; render(); });
+      b.addEventListener("click", function () {
+        if (b.getAttribute("data-locked")) { var acc = S.taskAccess(u, b.getAttribute("data-module")); toast(acc.afgerond ? "De shift is afgerond — deze taak is gesloten." : "Je bent voor deze shift niet aangewezen voor deze taak.", "err"); return; }
+        state.module = b.getAttribute("data-module"); state.view = "shifts"; state.viewOnly = false; state.dashBack = false; render();
+      });
     });
   }
 
@@ -2212,6 +2232,14 @@
     // Module in onderhoud of verborgen: alleen de beheerder komt erin, de rest ziet een nette melding.
     var mst = S.moduleStatus(state.module);
     if (mst !== "actief" && !S.isAdmin(S.currentUser())) return renderModuleOnderhoud(mst);
+    // Uitvoerder in een taakmodule: alleen de shift van nu, en alleen als hij is aangewezen en de shift niet is afgerond.
+    if (S.TAAK_MODULES[state.module] && !state.viewOnly) {
+      var acc = S.taskAccess(S.currentUser(), state.module);
+      if (!acc.free) {
+        if (!acc.allowed) { state.module = null; toast(acc.afgerond ? "De shift is afgerond door de senior." : "Je bent voor deze shift niet aangewezen voor deze taak.", "err"); return renderPortal(); }
+        state.opDate = acc.datum; state.opShift = acc.dagdeel; state.shiftLocked = true;
+      } else state.shiftLocked = false;
+    } else state.shiftLocked = false;
     if (state.module === "takenplanning") return renderPlanning();
     if (state.module === "personeelsbeheer") return renderPersoneelsbeheer();
     if (state.module === "dashboard") return renderDashboard();
@@ -2221,6 +2249,7 @@
     if (state.module === "bussenbeheer") return renderBussenbeheer();
     if (state.module === "buswassing") return renderBuswassing();
     if (state.module === "temparchief") return renderTempArchief();
+    if (state.module === "modulebeheer") return renderModulebeheer();
     var u = S.currentUser();
     var info = {
       takenplanning: { name: "Takenplanning", icon: "clipboardList", desc: "Hier maak je straks het weekrooster (medewerkers × dagen, AM/PM en taken) en download je het als afbeelding voor de groepsapp." },
@@ -2424,6 +2453,7 @@
   }
   function shiftBar() {
     ensureShiftState();
+    if (state.shiftLocked) return lockedBar(true);
     var dd = new Date(state.opDate + "T00:00:00");
     var dn = ["zo", "ma", "di", "wo", "do", "vr", "za"][dd.getDay()];
     var lbl = dn + " " + dd.getDate() + "-" + (dd.getMonth() + 1) + "-" + dd.getFullYear();
@@ -2434,6 +2464,15 @@
       '<div class="datepick-pop opdate-pop" hidden></div></div>' +
       '<div class="seg"><button data-opshift="AM" class="am-btn ' + (state.opShift === "AM" ? "active" : "") + '">' + svg("sun", "icon-sm") + "AM</button>" +
       (sun ? "" : '<button data-opshift="PM" class="pm-btn ' + (state.opShift === "PM" ? "active" : "") + '">' + svg("moon", "icon-sm") + "PM</button>") + "</div></div>";
+  }
+  // Datum/shift zichtbaar maar niet aanpasbaar (uitvoerder in z'n toegewezen shift).
+  function lockedBar(metShift) {
+    var dd = new Date(state.opDate + "T00:00:00");
+    var dn = ["zo", "ma", "di", "wo", "do", "vr", "za"][dd.getDay()];
+    var lbl = dn + " " + dd.getDate() + "-" + (dd.getMonth() + 1) + "-" + dd.getFullYear();
+    return '<div class="shiftbar shiftbar-locked"><div class="seg"><button class="active" disabled style="text-transform:capitalize">' + svg("calendar", "icon-sm") + esc(lbl) + "</button></div>" +
+      (metShift ? '<div class="seg"><button class="' + (state.opShift === "AM" ? "am-btn" : "pm-btn") + ' active" disabled>' + svg(state.opShift === "AM" ? "sun" : "moon", "icon-sm") + esc(state.opShift) + "</button></div>" : "") +
+      '<span class="cellsub shiftbar-lock">' + svg("lockOpen", "icon-sm") + "Jouw shift</span></div>";
   }
   function bindShiftBar(rer) {
     document.querySelectorAll("[data-opday]").forEach(function (b) { b.addEventListener("click", function () { var m = new Date(state.opDate + "T00:00:00"); m.setDate(m.getDate() + parseInt(b.getAttribute("data-opday"), 10)); state.opDate = ymd(m); ensureShiftState(); rer(); }); });
@@ -2574,6 +2613,7 @@
      PM-lijst heeft aangemerkt. Daarom een datumbalk zonder AM/PM-schakelaar. */
   function dayBar() {
     ensureShiftState();
+    if (state.shiftLocked) return lockedBar(false);
     var d = new Date(state.opDate + "T00:00:00");
     var dn = ["zo", "ma", "di", "wo", "do", "vr", "za"][d.getDay()];
     var lbl = dn + " " + d.getDate() + "-" + (d.getMonth() + 1) + "-" + d.getFullYear();
@@ -3373,8 +3413,19 @@
       : state.dashTab === "trolley" ? dashTrolley(c)
       : state.dashTab === "steekproeven" ? dashSteekproeven(c)
       : dashOverzicht(c);
-    el("app").innerHTML = moduleShell("Senior Dashboard", seg + body);
+    var afg = S.getDiensten(c.h, c.d, c.dd).afgerond;
+    var afrondBtn = '<div class="dash-afrond">' + (afg
+      ? '<span class="badge st-goedgekeurd">' + svg("check", "icon-sm") + "Shift afgerond " + fmtClock(afg.at) + "</span>" + (S.isSetup(u) ? '<button class="btn btn-ghost btn-sm" data-heropen>Heropenen</button>' : "")
+      : (S.isSetup(u) && !state.viewOnly ? '<button class="btn btn-dark btn-sm" data-afronden>' + svg("check", "icon-sm") + "Shift afronden</button>" : "")) + "</div>";
+    el("app").innerHTML = moduleShell("Senior Dashboard", '<div class="dash-tabrow">' + seg + afrondBtn + "</div>" + body);
     el("app").classList.toggle("dash-page", state.dashTab === "overzicht"); // compacte kop op het overzicht (alles in beeld)
+    var ab = el("app").querySelector("[data-afronden]"); if (ab) ab.addEventListener("click", function () {
+      openModal({ title: "Shift afronden", icon: "check",
+        body: '<p style="margin:0">Je staat op het punt de shift <b>' + esc(fmtDate(c.d)) + " · " + esc(c.dd) + "</b> af te ronden. Iedereen met een dienst wordt uit z'n taakmodule gehaald en kan niets meer aanpassen.</p>",
+        foot: '<button class="btn btn-ghost" data-close>Annuleren</button><button class="btn btn-primary" id="afrondOk">' + svg("check", "icon-sm") + "Shift afronden</button>",
+        onMount: function (ov, close) { ov.querySelector("#afrondOk").addEventListener("click", function () { try { S.shiftAfronden(c.h, c.d, c.dd); close(); toast("Shift afgerond.", "ok"); renderDashboard(); } catch (e) { toast(e.message, "err"); } }); } });
+    });
+    var hb = el("app").querySelector("[data-heropen]"); if (hb) hb.addEventListener("click", function () { try { S.shiftAfronden(c.h, c.d, c.dd, true); toast("Shift heropend.", "ok"); renderDashboard(); } catch (e) { toast(e.message, "err"); } });
     bindModuleHeader(renderDashboard);
     document.querySelectorAll("[data-dashtab]").forEach(function (b) { b.addEventListener("click", function () { state.dashTab = b.getAttribute("data-dashtab"); renderDashboard(); }); });
     if (state.dashTab === "trolley") bindDashTrolley(c);
@@ -3812,7 +3863,12 @@
         return r.ok ? r.json() : null;
       }).then(function (j) {
         if (j && j.version && j.version !== S.serverVersion) {
-          S.refresh(function () { if (!document.querySelector(".modal-overlay")) render(); });
+          S.refresh(function () {
+            // Shift door de senior afgerond terwijl een uitvoerder in z'n taakmodule zit → terug naar het menu.
+            var u = S.currentUser();
+            if (u && S.TAAK_MODULES[state.module] && !state.viewOnly && !S.taskAccess(u, state.module).allowed) { state.module = null; toast("De shift is afgerond door de senior.", "err"); render(); return; }
+            if (!document.querySelector(".modal-overlay")) render();
+          });
         }
       }).catch(function () { /* even geen verbinding; volgende tik opnieuw */ });
     }, 3000);
