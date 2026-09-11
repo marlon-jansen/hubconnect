@@ -2648,7 +2648,7 @@
     }
     var rows = lijst.length ? lijst.map(function (row) {
       var b = row.bus;
-      var wie = b.wasAt ? '<div class="chk-time">' + fmtClock(b.wasAt) + (b.wasDoor && S.userById(b.wasDoor) ? " · " + fullName(S.userById(b.wasDoor)) : "") + "</div>" : "";
+      var wie = b.wasAt ? '<div class="was-time">' + fmtClock(b.wasAt) + (b.wasDoor && S.userById(b.wasDoor) ? " · " + fullName(S.userById(b.wasDoor)) : "") + "</div>" : "";
       return "<tr><td><div class=\"cellname\">Bus " + esc(b.bus || "?") + "</div><div class=\"cellsub\">" +
           esc(b.naam || "") + (b.kenteken ? " · " + esc(b.kenteken) : "") + "</div></td>" +
         '<td data-th="Shift"><span class="badge">' + svg(row.dagdeel === "PM" ? "moon" : "sun", "icon-sm") + esc(row.dagdeel) + "</span></td>" +
