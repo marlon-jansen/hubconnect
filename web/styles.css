@@ -1105,6 +1105,27 @@ details.prep[open] > summary .prep-chev { transform: rotate(180deg); }
 details.prep[open] > summary { border-bottom: 1px solid var(--line); }
 .prep-body { padding: 12px 16px 16px; }
 .prep-body .kz-section:last-child { margin-bottom: 0; }
+/* Diensten: keuzelijst met zoekveld per proces */
+.dienst-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+.pick { position: relative; display: flex; align-items: center; gap: 6px; }
+.pick-btn { flex: 1; display: inline-flex; align-items: center; gap: 8px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); font-family: inherit; font-size: 14px; font-weight: 700; color: var(--muted); cursor: pointer; text-align: left; min-width: 0; }
+.pick-btn.has { color: var(--ink); border-color: var(--jumbo-yellow); }
+.pick-btn > span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pick-btn .icon { color: var(--jumbo-yellow-dark); flex: 0 0 auto; }
+.pick-chev { color: var(--muted) !important; transition: transform .2s var(--ease); }
+.pick.open .pick-chev { transform: rotate(180deg); }
+.pick-clear { flex: 0 0 auto; width: 34px; height: 38px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); color: var(--muted); cursor: pointer; display: grid; place-items: center; }
+.pick-clear:hover { color: var(--red); border-color: var(--red); }
+.pick-menu { display: none; position: absolute; z-index: 40; top: calc(100% + 6px); left: 0; right: 0; background: var(--card); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow-lg); padding: 6px; }
+.pick.open .pick-menu { display: block; }
+.pick-search { display: flex; align-items: center; gap: 8px; padding: 4px 8px; border-bottom: 1px solid var(--line); margin-bottom: 4px; color: var(--muted); }
+.pick-search input { flex: 1; border: 0; background: transparent; padding: 8px 0; font-family: inherit; font-size: 14px; font-weight: 600; color: var(--ink); outline: none; }
+.pick-list { max-height: 240px; overflow-y: auto; }
+.pick-item { display: flex; align-items: center; gap: 10px; width: 100%; border: 0; background: transparent; text-align: left; padding: 9px 10px; border-radius: 8px; font-family: inherit; font-size: 14px; font-weight: 700; color: var(--ink); cursor: pointer; }
+.pick-item:hover { background: var(--surface-2); }
+.pick-item.on { background: var(--jumbo-yellow-soft); }
+.pick-item .icon { color: var(--green-bright); flex: 0 0 auto; }
+.pick-dot { width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid var(--line); flex: 0 0 auto; }
 /* Trolleyvoorraad-tab */
 .troll-body { padding: 14px 18px; }
 .troll-nums { display: flex; gap: 30px; margin-top: 8px; }
