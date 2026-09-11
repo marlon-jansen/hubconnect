@@ -1554,6 +1554,58 @@
     return { counted: !!q.at, voltooid: !!q.voltooid, c4: q.c4 || 0, c5: q.c5 || 0, d4: d4, d5: d5, has: !!q.at && (d4 !== 0 || d5 !== 0) };
   }
 
+  /* ----- Trolley-steekproef -----
+     De binnendienst zet voor een PM-shift (zondag: AM) een steekproef aan. Kwaliteit telt dan álle
+     trolleys blind (zonder de systeemvoorraad te zien) en dient de telling in. De binnendienst ziet
+     telling + systeem + verschil en sluit af: voorraad aanpassen naar de telling, of "klopt".
+     Status: "open" → "ingediend" → "gecontroleerd". Opgeslagen in trolley.steekproef (eigen kolom). */
+  function spTrolleyMogelijk(datum, dagdeel) { return dagdeel === "PM" || isSunday(datum); }
+  function spTrolleyGet(hubId, datum, dagdeel) { return getTrolley(hubId, datum, dagdeel).steekproef || null; }
+  function spTrolleyStart(hubId, datum, dagdeel) {
+    var u = currentUser();
+    if (!isSetup(u)) throw new Error("Alleen binnendienst (senior+) mag een steekproef instellen.");
+    if (!spTrolleyMogelijk(datum, dagdeel)) throw new Error("Een trolley-steekproef kan alleen in de PM-shift (op zondag in de AM).");
+    if (isFutureDay(datum)) throw new Error("Een steekproef kan alleen op de dag zelf.");
+    var t = getTrolley(hubId, datum, dagdeel);
+    if (t.steekproef && t.steekproef.status !== "gecontroleerd") throw new Error("Er staat al een steekproef open voor deze shift.");
+    t.steekproef = { status: "open", gevraagdDoor: u.id, gevraagdAt: now(), c4: null, c5: null, doorId: null, doorNaam: "", ingediendAt: null, gecontroleerdAt: null, uitkomst: "" };
+    save();
+  }
+  function spTrolleyAnnuleer(hubId, datum, dagdeel) {
+    if (!isSetup(currentUser())) throw new Error("Geen rechten.");
+    var t = getTrolley(hubId, datum, dagdeel);
+    if (t.steekproef && t.steekproef.status === "open") { t.steekproef = null; save(); }
+  }
+  // Kwaliteit dient de blinde telling in.
+  function spTrolleyIndienen(hubId, datum, dagdeel, c4, c5) {
+    var u = currentUser();
+    if (!(canOpShift(u, hubId, datum, dagdeel, "kwaliteit", "Kwaliteit") || isSetup(u))) throw new Error("Je bent deze shift niet aangewezen voor Kwaliteit.");
+    var sp = spTrolleyGet(hubId, datum, dagdeel);
+    if (!sp || sp.status !== "open") throw new Error("Er staat geen steekproef open.");
+    var n4 = parseInt(c4, 10), n5 = parseInt(c5, 10);
+    if (isNaN(n4) || isNaN(n5) || n4 < 0 || n5 < 0) throw new Error("Vul voor 4-laags én 5-laags een aantal in.");
+    sp.c4 = n4; sp.c5 = n5; sp.doorId = u.id; sp.doorNaam = u.voornaam + " " + u.achternaam; sp.ingediendAt = now(); sp.status = "ingediend";
+    save();
+  }
+  // Binnendienst sluit af: "aanpassen" zet de systeemvoorraad op de telling, "klopt" laat 'm staan.
+  function spTrolleyAfsluiten(hubId, datum, dagdeel, actie, s4, s5) {
+    if (!isSetup(currentUser())) throw new Error("Alleen binnendienst (senior+) mag de steekproef afsluiten.");
+    var sp = spTrolleyGet(hubId, datum, dagdeel);
+    if (!sp || sp.status !== "ingediend") throw new Error("Er is nog geen telling ingediend.");
+    if (actie === "aanpassen") {
+      var st = markCounted(hubId, datum);
+      st.stock4 = Math.max(0, parseInt(s4 == null ? sp.c4 : s4, 10) || 0);
+      st.stock5 = Math.max(0, parseInt(s5 == null ? sp.c5 : s5, 10) || 0);
+    }
+    sp.status = "gecontroleerd"; sp.gecontroleerdAt = now(); sp.uitkomst = actie === "aanpassen" ? "aangepast" : "klopt";
+    save();
+  }
+  function spTrolleyVerschil(hubId, datum, dagdeel) {
+    var t = getTrolley(hubId, datum, dagdeel), sp = t.steekproef;
+    if (!sp || sp.c4 == null) return null;
+    return { c4: sp.c4, c5: sp.c5, s4: t.stock4 || 0, s5: t.stock5 || 0, d4: sp.c4 - (t.stock4 || 0), d5: sp.c5 - (t.stock5 || 0) };
+  }
+
   /* ----- LC (laden) ----- */
   function getLC(hubId, datum, dagdeel) { if (!db.lc) db.lc = {}; var k = opKey(hubId, datum, dagdeel); if (!db.lc[k]) db.lc[k] = { vakken: [], aantal: 0 }; return db.lc[k]; }
   function newVak(nr) { return { nr: nr, vertrek: "", bus: "", rit: "", ze: false, type: "diesel", jbt: false, geladen: false }; }
@@ -1741,6 +1793,7 @@
     setBusWassen: setBusWassen, wasLijst: wasLijst, wasStats: wasStats, wasCanEdit: wasCanEdit, setWasStatus: setWasStatus,
     vorigeShift: vorigeShift, steekproefControleer: steekproefControleer, steekproefControleStats: steekproefControleStats,
     getKwaliteit: getKwaliteit, vakSoort: vakSoort, setVakSoort: setVakSoort, emballageSet: emballageSet, emballageVakTotal: emballageVakTotal, emballageVakArr: emballageVakArr, clearEmbVak: clearEmbVak,
+    spTrolleyMogelijk: spTrolleyMogelijk, spTrolleyGet: spTrolleyGet, spTrolleyStart: spTrolleyStart, spTrolleyAnnuleer: spTrolleyAnnuleer, spTrolleyIndienen: spTrolleyIndienen, spTrolleyAfsluiten: spTrolleyAfsluiten, spTrolleyVerschil: spTrolleyVerschil,
     getTrolley: getTrolley, addPendelPlan: addPendelPlan, removePendel: removePendel, pendelImport: pendelImport, pendelBump: pendelBump, trolleySetStock: trolleySetStock, trolleyBump: trolleyBump, recentPendels: recentPendels, komendePendels: komendePendels,
     qtelGet: qtelGet, qtelBump: qtelBump, qtelReset: qtelReset, qtelVoltooien: qtelVoltooien, qtelAfwijking: qtelAfwijking,
     getLC: getLC, lcSetAantal: lcSetAantal, lcSetupVak: lcSetupVak, lcSetBus: lcSetBus, lcToggleGeladen: lcToggleGeladen, lcImportColumns: lcImportColumns, lcReset: lcReset, lcStats: lcStats, recentGeladenBussen: recentGeladenBussen,

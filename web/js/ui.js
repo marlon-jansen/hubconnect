@@ -2640,18 +2640,45 @@
     var table = '<div class="panel" style="padding:0"><div class="table-scroll"><table class="table"><thead><tr><th>Vak</th><th>Wat mag erin</th><th>Emballage</th></tr></thead><tbody>' + rows + "</tbody></table></div></div>";
 
     // Tabs: Vakken (emballage) · Voedselbank (temperatuur retouren). Trolleys tellen is weg (v=102).
-    if (!state.kwTab || state.kwTab === "trolleys") state.kwTab = "vakken";
+    if (!state.kwTab) state.kwTab = "vakken";
+    var spT = S.spTrolleyGet(c.h, c.d, c.dd), spActief = !!spT && spT.status !== "gecontroleerd";
+    if (state.kwTab === "trolleys" && !spActief) state.kwTab = "vakken";
     var seg = '<div class="seg" style="margin-bottom:16px">' +
       '<button data-kwtab="vakken" class="' + (state.kwTab === "vakken" ? "active" : "") + '">Vakken</button>' +
-      '<button data-kwtab="voedselbank" class="' + (state.kwTab === "voedselbank" ? "active" : "") + '">Voedselbank</button></div>';
+      '<button data-kwtab="voedselbank" class="' + (state.kwTab === "voedselbank" ? "active" : "") + '">Retouren</button>' +
+      (spActief ? '<button data-kwtab="trolleys" class="' + (state.kwTab === "trolleys" ? "active" : "") + (spT.status === "open" ? " tab-warn" : "") + '">Trolleys' + (spT.status === "open" ? '<span class="tab-bang">!</span>' : "") + "</button>" : "") + "</div>";
     var canVb = !state.viewOnly && opWindowOK(u, "kwaliteit", c) && S.vbCanEdit(u, c.h, c.d, c.dd);
-    el("app").innerHTML = moduleShell("Kwaliteit", windowLockNote(u, "kwaliteit", c) + seg + (state.kwTab === "voedselbank" ? vbBody(c, canVb) : table));
+    el("app").innerHTML = moduleShell("Kwaliteit", windowLockNote(u, "kwaliteit", c) + seg + (state.kwTab === "voedselbank" ? vbBody(c, canVb) : state.kwTab === "trolleys" ? spTrolleyBody(c, spT, canEdit) : table));
     bindModuleHeader(renderKwaliteit);
     document.querySelectorAll("[data-kwtab]").forEach(function (b) { b.addEventListener("click", function () { state.kwTab = b.getAttribute("data-kwtab"); state.vbAdding = false; renderKwaliteit(); }); });
     document.querySelectorAll("[data-vaksoort]").forEach(function (s) { s.addEventListener("change", function () { try { S.setVakSoort(c.h, c.d, c.dd, parseInt(s.getAttribute("data-vaksoort"), 10), s.value); renderKwaliteit(); } catch (e) { toast(e.message, "err"); } }); });
     document.querySelectorAll("[data-embopen]").forEach(function (b) { b.addEventListener("click", function () { openEmbVak(c, parseInt(b.getAttribute("data-embopen"), 10)); }); });
     if (state.kwTab === "voedselbank") bindVb(c);
+    var spf = el("spTrolleyForm"); if (spf) spf.addEventListener("submit", function (e) {
+      e.preventDefault();
+      try { S.spTrolleyIndienen(c.h, c.d, c.dd, spf.elements.c4.value, spf.elements.c5.value); toast("Telling ingediend — de binnendienst controleert 'm.", "ok"); renderKwaliteit(); }
+      catch (err) { toast(err.message, "err"); }
+    });
     animateTab(el("app").querySelector("main"), "kwaliteit:" + state.kwTab);
+  }
+  // Steekproef trolleys: Kwaliteit telt blind (ziet de systeemvoorraad niet) en dient in.
+  function spTrolleyBody(c, sp, canEdit) {
+    if (sp.status === "ingediend") {
+      return panel("clipboard", "Trolley-steekproef — ingediend",
+        '<div class="troll-body"><div class="troll-nums"><div class="troll-num"><span class="dash-big">' + sp.c4 + '</span><span class="cellsub">4-laags</span></div>' +
+        '<div class="troll-num"><span class="dash-big">' + sp.c5 + '</span><span class="cellsub">5-laags</span></div></div>' +
+        '<div class="troll-status ok">' + svg("check", "icon-sm") + "Ingediend door " + esc(sp.doorNaam) + " om " + fmtClock(sp.ingediendAt) + " — de binnendienst controleert de telling.</div></div>");
+    }
+    if (!canEdit) return panel("clipboard", "Trolley-steekproef", '<div class="troll-body"><div class="cellsub">Er staat een steekproef open; alleen de Kwaliteit-dienst kan tellen.</div></div>');
+    return panel("clipboard", "Trolley-steekproef",
+      '<form id="spTrolleyForm" class="troll-body" autocomplete="off">' +
+        '<p class="cellsub" style="margin:0 0 12px">Tel álle trolleys op de hub en vul de aantallen in.</p>' +
+        '<div class="vb-grid" style="max-width:420px">' +
+          '<div class="field"><label>4-laags</label><input class="lc-in" type="number" inputmode="numeric" min="0" name="c4" required></div>' +
+          '<div class="field"><label>5-laags</label><input class="lc-in" type="number" inputmode="numeric" min="0" name="c5" required></div>' +
+        "</div>" +
+        '<button class="btn btn-primary" type="submit">' + svg("check", "icon-sm") + "Telling indienen</button>" +
+      "</form>");
   }
 
   /* ---------- Voedselbank: temperatuur retouren vóór koel/diepvries (formulier "Registratieformulier temperatuur Voedselbank") ---------- */
@@ -3296,7 +3323,17 @@
     var c = ctx(), u = c.u;
     if (!state.dashTab || state.dashTab === "klaarzetten" || state.dashTab === "diensten") state.dashTab = state.dashTab ? "voorbereiding" : "overzicht";
     var tabs = [["overzicht", "Overzicht"], ["voorbereiding", "Voorbereiding"], ["trolley", "Trolleyvoorraad"], ["steekproeven", "Steekproeven"]];
-    var seg = '<div class="seg dash-tabs" style="margin:14px 0 16px;flex-wrap:wrap">' + tabs.map(function (t) { return '<button data-dashtab="' + t[0] + '" class="' + (state.dashTab === t[0] ? "active" : "") + '">' + t[1] + "</button>"; }).join("") + "</div>";
+    // Tabknoppen kleuren mee: Voorbereiding oranje+! zolang er iets mist; Trolleyvoorraad blauw tijdens een
+    // lopende steekproef en oranje+! zodra Kwaliteit de telling heeft ingediend.
+    var tabState = {};
+    if (prepOpenCount(c) > 0) tabState.voorbereiding = "warn";
+    var spT = S.spTrolleyGet(c.h, c.d, c.dd);
+    if (spT && spT.status === "open") tabState.trolley = "info";
+    else if (spT && spT.status === "ingediend") tabState.trolley = "warn";
+    var seg = '<div class="seg dash-tabs" style="margin:14px 0 16px;flex-wrap:wrap">' + tabs.map(function (t) {
+      var st = tabState[t[0]] || "";
+      return '<button data-dashtab="' + t[0] + '" class="' + (state.dashTab === t[0] ? "active" : "") + (st ? " tab-" + st : "") + '">' + t[1] + (st === "warn" ? '<span class="tab-bang">!</span>' : "") + "</button>";
+    }).join("") + "</div>";
     var body = state.dashTab === "voorbereiding" ? dashVoorbereiding(c)
       : state.dashTab === "trolley" ? dashTrolley(c)
       : state.dashTab === "steekproeven" ? dashSteekproeven(c)
@@ -3305,7 +3342,8 @@
     el("app").classList.toggle("dash-page", state.dashTab === "overzicht"); // compacte kop op het overzicht (alles in beeld)
     bindModuleHeader(renderDashboard);
     document.querySelectorAll("[data-dashtab]").forEach(function (b) { b.addEventListener("click", function () { state.dashTab = b.getAttribute("data-dashtab"); renderDashboard(); }); });
-    if (state.dashTab === "voorbereiding") {
+    if (state.dashTab === "trolley") bindDashTrolley(c);
+    else if (state.dashTab === "voorbereiding") {
       bindDashKlaarzetten(c); bindDashDiensten(c); bindSpControle(c);
       // open/dicht-stand van de checklist-items onthouden, zodat een actie (die opnieuw rendert) het item niet dichtklapt
       document.querySelectorAll("details.prep").forEach(function (d) { d.addEventListener("toggle", function () { state.prepOpen[d.getAttribute("data-prep")] = d.open; }); });
@@ -3322,6 +3360,18 @@
     document.querySelectorAll("[data-spctrl]").forEach(function (cb) { cb.addEventListener("change", function () { try { S.steekproefControleer(c.h, prevS.datum, prevS.dagdeel, cb.getAttribute("data-spctrl"), { controleGedaan: cb.checked }); renderDashboard(); } catch (e) { toast(e.message, "err"); } }); });
   }
 
+  // Aantal voorbereidingsonderdelen dat nog open staat (zelfde criteria als de checklist).
+  function prepOpenCount(c) {
+    var lcS = S.lcStats(c.h, c.d, c.dd), sc = S.schadeStats(c.h, c.d, c.dd), tr = S.getTrolley(c.h, c.d, c.dd), d = S.getDiensten(c.h, c.d, c.dd);
+    var prevSc = S.vorigeShift(c.d, c.dd), scc = S.steekproefControleStats(c.h, prevSc.datum, prevSc.dagdeel);
+    var n = 0;
+    if (!(lcS.used > 0)) n++;
+    if (!(tr.pendels.length > 0)) n++;
+    if (!(sc.total > 0) && !(c.dd !== "PM" && !dockShift(c))) n++;
+    if (["lc", "schadecontrole", "kwaliteit"].some(function (k) { return !(d[k] || []).length; })) n++;
+    if (!(scc.total === 0 || scc.done >= scc.total)) n++;
+    return n;
+  }
   /* ---------- Voorbereiding: checklist (uitklapbaar) — groen+vinkje als klaar, oranje+uitroepteken als nog te doen ---------- */
   function dashVoorbereiding(c) {
     if (!state.prepOpen) state.prepOpen = {};
@@ -3370,7 +3420,7 @@
     // Steekproeven van de vorige shift moeten nog tegen het Jumbo-systeem gecontroleerd worden
     var prevSc = S.vorigeShift(c.d, c.dd), scc = S.steekproefControleStats(c.h, prevSc.datum, prevSc.dagdeel);
     if (scc.total > 0 && scc.done < scc.total) todo.push("Steekproeven van de vorige shift controleren (" + (scc.total - scc.done) + " open)");
-    var todoBanner = todo.length ? '<div class="todo-banner">' + svg("alertTri", "icon-sm") + "<div><b>Nog te doen:</b> " + todo.map(esc).join(" · ") + "</div></div>" : "";
+    var todoBanner = ""; // geen melding meer op het overzicht — de tab 'Voorbereiding' kleurt oranje zolang er iets mist
 
     // Wie heeft deze shift de dienst? (namen onder de kop van elke kaart)
     function dienstNamen(key) {
@@ -3474,12 +3524,44 @@
 
   // Trolleyvoorraad-tab: alleen de systeemvoorraad (alleen-lezen). De kwaliteitstelling is verwijderd (v=102).
   function dashTrolley(c) {
-    var tr = S.getTrolley(c.h, c.d, c.dd);
+    var tr = S.getTrolley(c.h, c.d, c.dd), sp = S.spTrolleyGet(c.h, c.d, c.dd);
     function nums(v4, v5) {
       return '<div class="troll-nums"><div class="troll-num"><span class="dash-big">' + (v4 || 0) + '</span><span class="cellsub">4-laags</span></div>' +
         '<div class="troll-num"><span class="dash-big">' + (v5 || 0) + '</span><span class="cellsub">5-laags</span></div></div>';
     }
-    return panel("inbox", "Trolley-voorraad (systeem)", '<div class="troll-body"><div class="cellsub">Huidige voorraad volgens het systeem</div>' + nums(tr.stock4, tr.stock5) + "</div>");
+    var sys = panel("inbox", "Trolley-voorraad (systeem)", '<div class="troll-body"><div class="cellsub">Huidige voorraad volgens het systeem</div>' + nums(tr.stock4, tr.stock5) + "</div>");
+    var mag = S.spTrolleyMogelijk(c.d, c.dd) && !S.isFutureDay(c.d);
+    var spBody;
+    if (!sp || sp.status === "gecontroleerd") {
+      spBody = (sp ? '<div class="troll-status ok">' + svg("check", "icon-sm") + "Steekproef gecontroleerd om " + fmtClock(sp.gecontroleerdAt) + " (" + (sp.uitkomst === "aangepast" ? "voorraad aangepast" : "voorraad klopte") + ")</div>" : "") +
+        (mag ? '<div style="margin-top:' + (sp ? "12px" : "0") + '"><button class="btn btn-primary" data-spstart>' + svg("clipboard", "icon-sm") + "Steekproef instellen</button>" +
+               '<div class="cellsub" style="margin-top:8px">Kwaliteit telt dan alle trolleys blind en dient de telling in.</div></div>'
+             : '<div class="cellsub">Een steekproef kan alleen in de PM-shift (op zondag in de AM).</div>');
+    } else if (sp.status === "open") {
+      spBody = '<div class="troll-status" style="color:var(--blue)">' + svg("clock", "icon-sm") + "Steekproef loopt — Kwaliteit telt de trolleys</div>" +
+        '<div style="margin-top:12px"><button class="btn btn-ghost btn-sm" data-spannuleer>' + svg("x", "icon-sm") + "Steekproef annuleren</button></div>";
+    } else { // ingediend
+      var v = S.spTrolleyVerschil(c.h, c.d, c.dd);
+      function dtxt(d) { return (d > 0 ? "+" : "") + d; }
+      var klopt = v.d4 === 0 && v.d5 === 0;
+      spBody = '<div class="cellsub">Geteld door ' + esc(sp.doorNaam) + " · " + fmtClock(sp.ingediendAt) + "</div>" +
+        '<div class="sp-cmp"><div><span class="cellsub">Telling</span>' + nums(v.c4, v.c5) + "</div><div><span class=\"cellsub\">Systeem</span>" + nums(v.s4, v.s5) + "</div></div>" +
+        '<div class="troll-status ' + (klopt ? "ok" : "err") + '">' + svg(klopt ? "check" : "alertTri", "icon-sm") + (klopt ? "Telling komt overeen met het systeem" : "Verschil: " + dtxt(v.d4) + " (4-laags) · " + dtxt(v.d5) + " (5-laags)") + "</div>" +
+        '<div class="sp-adjust" id="spAdjust" hidden><div class="add-inline"><label>4-laags <input type="number" min="0" id="spS4" class="lc-in" value="' + v.c4 + '"></label>' +
+          '<label>5-laags <input type="number" min="0" id="spS5" class="lc-in" value="' + v.c5 + '"></label><button class="btn btn-primary btn-sm" data-spopslaan>' + svg("check", "icon-sm") + "Opslaan</button></div></div>" +
+        '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"><button class="btn btn-primary btn-sm" data-spaanpassen>' + svg("pencil", "icon-sm") + "Voorraad aanpassen</button>" +
+          '<button class="btn btn-ghost btn-sm" data-spklopt>' + svg("check", "icon-sm") + "Klopt, geen aanpassing</button></div>";
+    }
+    return sys + panel("clipboard", "Steekproef Kwaliteit", '<div class="troll-body">' + spBody + "</div>");
+  }
+  function bindDashTrolley(c) {
+    var q = function (sel) { return el("app").querySelector(sel); };
+    var b;
+    if ((b = q("[data-spstart]"))) b.addEventListener("click", function () { try { S.spTrolleyStart(c.h, c.d, c.dd); toast("Steekproef ingesteld — Kwaliteit ziet 'm nu.", "ok"); renderDashboard(); } catch (e) { toast(e.message, "err"); } });
+    if ((b = q("[data-spannuleer]"))) b.addEventListener("click", function () { try { S.spTrolleyAnnuleer(c.h, c.d, c.dd); renderDashboard(); } catch (e) { toast(e.message, "err"); } });
+    if ((b = q("[data-spaanpassen]"))) b.addEventListener("click", function () { var a = el("spAdjust"); a.hidden = !a.hidden; });
+    if ((b = q("[data-spopslaan]"))) b.addEventListener("click", function () { try { S.spTrolleyAfsluiten(c.h, c.d, c.dd, "aanpassen", el("spS4").value, el("spS5").value); toast("Voorraad aangepast.", "ok"); renderDashboard(); } catch (e) { toast(e.message, "err"); } });
+    if ((b = q("[data-spklopt]"))) b.addEventListener("click", function () { try { S.spTrolleyAfsluiten(c.h, c.d, c.dd, "klopt"); toast("Steekproef afgesloten.", "ok"); renderDashboard(); } catch (e) { toast(e.message, "err"); } });
   }
 
   // Steekproeven-tab: controleren tegen het Jumbo-systeem (vorige shift) + overzicht deze shift.

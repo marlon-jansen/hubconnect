@@ -1127,6 +1127,16 @@ details.prep[open] > summary { border-bottom: 1px solid var(--line); }
 .pick-item.on { background: var(--jumbo-yellow-soft); }
 .pick-item .icon { color: var(--green-bright); flex: 0 0 auto; }
 .pick-dot { width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid var(--line); flex: 0 0 auto; }
+/* tabknoppen met status: oranje (+!) = actie nodig, blauw = loopt */
+.seg button.tab-warn { color: var(--orange); }
+.seg button.tab-warn.active { background: var(--orange-soft); color: var(--orange); }
+.seg button.tab-info { color: var(--blue); }
+.seg button.tab-info.active { background: var(--blue-soft); color: var(--blue); }
+.tab-bang { display: inline-grid; place-items: center; width: 16px; height: 16px; margin-left: 6px; border-radius: 50%; background: var(--orange); color: #fff; font-size: 11px; font-weight: 900; line-height: 1; vertical-align: middle; }
+.sp-cmp { display: flex; gap: 32px; flex-wrap: wrap; margin-top: 8px; }
+.sp-adjust { margin-top: 12px; }
+.sp-adjust label { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; font-size: 13px; }
+.sp-adjust input { max-width: 90px; }
 /* Trolleyvoorraad-tab */
 .troll-body { padding: 14px 18px; }
 .troll-nums { display: flex; gap: 30px; margin-top: 8px; }
