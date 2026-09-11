@@ -3578,7 +3578,8 @@
         '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"><button class="btn btn-primary btn-sm" data-spaanpassen>' + svg("pencil", "icon-sm") + "Voorraad aanpassen</button>" +
           '<button class="btn btn-ghost btn-sm" data-spklopt>' + svg("check", "icon-sm") + "Klopt, geen aanpassing</button></div>";
     }
-    return sys + panel("clipboard", "Steekproef Kwaliteit", '<div class="troll-body">' + spBody + "</div>");
+    // In de AM-shift (behalve zondag) is er geen steekproef: blok helemaal weglaten.
+    return sys + (S.spTrolleyMogelijk(c.d, c.dd) ? panel("clipboard", "Steekproef Kwaliteit", '<div class="troll-body">' + spBody + "</div>") : "");
   }
   function bindDashTrolley(c) {
     var q = function (sel) { return el("app").querySelector(sel); };

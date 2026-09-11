@@ -1162,7 +1162,8 @@ details.prep[open] > summary { border-bottom: 1px solid var(--line); }
 .dash-fact { background: var(--surface-2); border: 0; border-radius: 10px; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px; min-width: 0; text-align: left; font-family: inherit; color: var(--ink); cursor: pointer; transition: background .15s var(--ease); }
 .dash-fact:hover { background: var(--line); }
 .dash-fact b { font-size: 17px; font-weight: 900; line-height: 1.1; }
-.dash-fact span { font-size: 11.5px; font-weight: 700; color: var(--ink-soft); line-height: 1.2; }
+.dash-fact span { font-size: 11.5px; font-weight: 700; color: var(--ink-soft); line-height: 1.2; min-height: 2.4em; display: block; } /* vaste hoogte (2 regels) zodat de lijstjes eronder in alle kaarten gelijk uitlijnen */
+.dash-facts { grid-auto-rows: 1fr; }
 .dash-fact.ok b { color: var(--green-bright); }
 .dash-fact.warn b { color: var(--orange); }
 .dash-fact.err b { color: var(--red); }
