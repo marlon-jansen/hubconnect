@@ -238,6 +238,8 @@ public class Server {
     Map<String, String> meta = readMeta(c);
     if (meta.containsKey("_seq")) root.addProperty("_seq", Long.parseLong(meta.get("_seq")));
     if (meta.containsKey("appversion")) root.addProperty("version", Integer.parseInt(meta.get("appversion")));
+    // modulestatus (beheerder): {module: "onderhoud"|"verborgen"} — als JSON in meta
+    root.add("moduleStatus", parse(meta.get("module_status"), "{}"));
 
     return GSON.toJson(root);
   }
@@ -338,6 +340,8 @@ public class Server {
       // meta (_seq, appversion)
       if (root.has("_seq") && !root.get("_seq").isJsonNull()) setMeta(c, "_seq", root.get("_seq").getAsString());
       if (root.has("version") && !root.get("version").isJsonNull()) setMeta(c, "appversion", root.get("version").getAsString());
+      // modulestatus mag alleen de beheerder wijzigen; anderen sturen de bestaande waarde ongewijzigd mee
+      if (root.has("moduleStatus") && root.get("moduleStatus").isJsonObject() && actor != null && "admin".equals(str(actor, "rol"))) setMeta(c, "module_status", root.get("moduleStatus").toString());
       c.commit();
       c.setAutoCommit(prevAuto);
     } catch (Exception ex) {
