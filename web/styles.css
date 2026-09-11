@@ -1166,6 +1166,7 @@ details.prep[open] > summary { border-bottom: 1px solid var(--line); }
 .dash-fact.ok b { color: var(--green-bright); }
 .dash-fact.warn b { color: var(--orange); }
 .dash-fact.err b { color: var(--red); }
+.dash-fact.info b { color: var(--blue); }
 /* Buswassing: brede balk onder het raster, alleen op dagen met een waslijst */
 .dash-wasbar { --dash-accent: var(--blue); position: relative; overflow: hidden; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; box-shadow: var(--shadow); margin-bottom: 18px; }
 .dash-wasbar::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 4px; background: var(--dash-accent); }
