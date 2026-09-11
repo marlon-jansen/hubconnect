@@ -3483,7 +3483,7 @@
         { lab: "Nog te controleren", val: sc.total - sc.done, cls: sc.total - sc.done ? "warn" : "ok", go: "schadecontrole|" },
         { lab: "Afwijkingen", val: scProbleem, cls: scProbleem ? "err" : "", go: "bussenbeheer|" },
         { lab: "Steekproeven voltooid", val: spSt.done + " / " + spSt.total, cls: spSt.done >= spSt.total ? "ok" : "warn", go: "schadecontrole|" },
-        { lab: "Steekproeven controleren vorige shift", val: scc.total - scc.done, cls: scc.total - scc.done ? "warn" : "ok", go: "dash|steekproef" }
+        { lab: "Steekproeven controleren", val: scc.total - scc.done, cls: scc.total - scc.done ? "warn" : "ok", go: "dash|steekproef" }
       ]) +
       '<div class="dash-recent-title">Recent gecontroleerd</div>' + recentSchade;
 
