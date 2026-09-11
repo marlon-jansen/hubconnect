@@ -1367,6 +1367,44 @@
     var lv = tempOordeel(m.groep, m.temp).level;
     return lv === "retour" || lv === "proces" || m.tht === false;
   }
+  /* ----- Voedselbank: temperatuur van retouren vóór ze de koel-/diepvriesunit ingaan -----
+     Digitale versie van "Registratieformulier temperatuur Voedselbank". Per shift een lijst van
+     metingen: koelbox of vriesbox, temperatuur, controleur (automatisch), actie bij afwijking.
+     Opgeslagen in kwaliteit.voedselbank (eigen kolom op de server). */
+  function vbList(hubId, datum, dagdeel) {
+    var k = getKwaliteit(hubId, datum, dagdeel);
+    if (!Array.isArray(k.voedselbank)) k.voedselbank = [];
+    return k.voedselbank;
+  }
+  function vbCanEdit(u, hubId, datum, dagdeel) { return isSetup(u) || canOpShift(u, hubId, datum, dagdeel, "kwaliteit", "Kwaliteit"); }
+  // Oordeel per meting: vriesbox = diepvriesnorm; koelbox = kip- of overige koelnorm.
+  function vbOordeel(m) { return tempOordeel(m.type === "dv" ? "dv" : (m.koelGroep === "kip" ? "kip" : "koel"), m.temp); }
+  function vbAfwijking(m) { var lv = vbOordeel(m).level; return lv === "retour" || lv === "proces"; }
+  function vbAdd(hubId, datum, dagdeel, data) {
+    var u = currentUser();
+    if (!vbCanEdit(u, hubId, datum, dagdeel)) throw new Error("Je bent deze shift niet aangewezen voor Kwaliteit.");
+    var m = {
+      id: uid("vb"), type: data.type === "dv" ? "dv" : "koel", koelGroep: data.koelGroep === "kip" ? "kip" : "koel",
+      temp: parseTemp(data.temp), actie: (data.actie || "").trim(),
+      doorId: u.id, doorNaam: u.voornaam + " " + u.achternaam, at: now()
+    };
+    if (m.temp == null) throw new Error("Vul de temperatuur in.");
+    if (vbAfwijking(m) && !m.actie) throw new Error("Bij een afwijking is de actie verplicht: waarschuw je leidinggevende en beschrijf wat er met de producten is gedaan.");
+    vbList(hubId, datum, dagdeel).push(m); save();
+    return m;
+  }
+  function vbRemove(hubId, datum, dagdeel, id) {
+    if (!vbCanEdit(currentUser(), hubId, datum, dagdeel)) throw new Error("Geen rechten.");
+    var k = getKwaliteit(hubId, datum, dagdeel);
+    k.voedselbank = vbList(hubId, datum, dagdeel).filter(function (m) { return m.id !== id; }); save();
+  }
+  // Dagoverzicht (AM + PM) voor het archief.
+  function vbArchief(hubId, datum) {
+    if (!tempCanArchive(currentUser())) throw new Error("Alleen een teamleider of hoger kan het archief inzien.");
+    var uit = [];
+    dagdelenVoor(datum).forEach(function (dd) { vbList(hubId, datum, dd).forEach(function (m) { uit.push({ dagdeel: dd, m: m }); }); });
+    return uit;
+  }
   function findPendel(hubId, datum, dagdeel, penId) {
     return getTrolley(hubId, datum, dagdeel).pendels.filter(function (p) { return p.id === penId; })[0] || null;
   }
@@ -1702,6 +1740,7 @@
     getLC: getLC, lcSetAantal: lcSetAantal, lcSetupVak: lcSetupVak, lcSetBus: lcSetBus, lcToggleGeladen: lcToggleGeladen, lcImportColumns: lcImportColumns, lcReset: lcReset, lcStats: lcStats, recentGeladenBussen: recentGeladenBussen,
     getPCRows: getPCRows, pcImport: pcImport, pcToggle: pcToggle, pcSetLayer: pcSetLayer, pcReset: pcReset, pcStats: pcStats, pcCanEdit: pcCanEdit,
     TEMP_GROEPEN: TEMP_GROEPEN, TEMP_SLOTS: TEMP_SLOTS, tempGroep: tempGroep, tempSlot: tempSlot, tempOordeel: tempOordeel, tempAfwijking: tempAfwijking,
+    vbList: vbList, vbCanEdit: vbCanEdit, vbOordeel: vbOordeel, vbAfwijking: vbAfwijking, vbAdd: vbAdd, vbRemove: vbRemove, vbArchief: vbArchief,
     tempCanEdit: tempCanEdit, tempCanArchive: tempCanArchive, pendelTemps: pendelTemps, setPendelTemp: setPendelTemp, clearPendelTemp: clearPendelTemp,
     setPendelRit: setPendelRit, tempStats: tempStats, tempArchief: tempArchief,
     shiftsForHub: shiftsForHub, taskOffersForHub: taskOffersForHub, backupsForHub: backupsForHub, calloutsForHub: calloutsForHub,
