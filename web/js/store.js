@@ -913,11 +913,19 @@
     var datum = todayYmd(), dagdeel = defaultDagdeelFor(moduleKey);
     if (isSetup(u)) return { free: true, allowed: true, datum: datum, dagdeel: dagdeel };
     var heeftTaak = u.taken.indexOf(TAAK_MODULES[moduleKey]) !== -1;
-    var afgerond = shiftAfgerond(u.hubId, datum, dagdeel);
-    var toegewezen = moduleKey === "buswassing"
-      ? dagdelenVoor(datum).some(function (dd) { return !getDiensten(u.hubId, datum, dd).afgerond && (getDiensten(u.hubId, datum, dd).buswassing || []).indexOf(u.id) !== -1; })
-      : !afgerond && (getDiensten(u.hubId, datum, dagdeel)[moduleKey] || []).indexOf(u.id) !== -1;
-    return { free: false, heeftTaak: heeftTaak, allowed: toegewezen, afgerond: afgerond, datum: datum, dagdeel: dagdeel };
+    // Kijk eerst naar het dagdeel volgens de klok, daarna naar het andere dagdeel van vandaag: de senior wijst
+    // soms al vóór de omslagtijd toe aan de PM (of andersom), en dan moet de uitvoerder er ook in kunnen.
+    var kandidaten = [dagdeel].concat(dagdelenVoor(datum).filter(function (dd) { return dd !== dagdeel; }));
+    var key = moduleKey === "buswassing" ? "buswassing" : moduleKey;
+    var gevonden = null, afgerondGezien = false;
+    kandidaten.forEach(function (dd) {
+      if (gevonden) return;
+      var ds = getDiensten(u.hubId, datum, dd);
+      if ((ds[key] || []).indexOf(u.id) === -1) return;
+      if (ds.afgerond) { afgerondGezien = true; return; }
+      gevonden = dd;
+    });
+    return { free: false, heeftTaak: heeftTaak, allowed: !!gevonden, afgerond: !gevonden && afgerondGezien, datum: datum, dagdeel: gevonden || dagdeel };
   }
   // Tijdvensters per taak: PM begint op onderstaand tijdstip; ervoor is het AM.
   var PM_START = { lc: 13 * 60, pc: 13 * 60, kwaliteit: 16 * 60, schadecontrole: 16 * 60 };
