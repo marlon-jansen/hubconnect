@@ -1333,13 +1333,14 @@ details.prep[open] > summary { border-bottom: 1px solid var(--line); }
 .portal-welcome p { margin: 0; color: var(--muted); font-weight: 600; font-size: 15px; }
 /* modulestatus op de menutegel + onderhoudspagina */
 .tile-off { opacity: .6; }
-.tile-state { position: absolute; top: 8px; right: 8px; display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; padding: 3px 8px; border-radius: 999px; flex: 0 0 auto; }
+.tile-state { margin-left: auto; width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center; flex: 0 0 auto; }
+.tile-state .icon { width: 18px; height: 18px; }
 .tile-state.onderhoud { background: var(--orange-soft); color: var(--orange); }
 .tile-state.verborgen { background: var(--red-soft); color: var(--red); }
-.onderhoud { max-width: 520px; margin: 40px auto; text-align: center; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 36px 24px; box-shadow: var(--shadow); }
-.onderhoud .icon-lg { width: 44px; height: 44px; color: var(--orange); }
-.onderhoud h2 { margin: 12px 0 6px; }
-.onderhoud p { color: var(--muted); font-weight: 600; margin: 0 0 18px; }
+.onderhoud-page { max-width: 520px; margin: 40px auto; text-align: center; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 36px 24px; box-shadow: var(--shadow); }
+.onderhoud-page .icon-lg { width: 44px; height: 44px; color: var(--orange); }
+.onderhoud-page h2 { margin: 12px 0 6px; }
+.onderhoud-page p { color: var(--muted); font-weight: 600; margin: 0 0 18px; }
 /* hub-kiezer op de menupagina (Manager Thuisbezorging / beheerder) */
 .portal-hubpick { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: -10px 0 22px; }
 .portal-hubpick label { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
