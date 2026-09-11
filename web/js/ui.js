@@ -2496,15 +2496,18 @@
   // op basis van de klok en de tijdvensters — tot de gebruiker zelf een shift kiest (opShiftUserSet).
   function autoShift(moduleKey) {
     if (!state.opDate) state.opDate = ymd(new Date());
+    if (state.shiftLocked) return; // uitvoerder zit vast in zijn toegewezen shift
     if (!state.opShiftUserSet) state.opShift = S.defaultDagdeelFor(moduleKey);
   }
   // Docks toewijzen/tonen hoort bij de PM-shift; op zondag is er geen PM, dus dan bij AM.
   function dockShift(c) { return c.dd === "PM" || S.isSunday(c.d); }
   // Mag de taakuitvoerder deze shift nu nog bewerken? (binnendienst/senior+ mag altijd.)
-  function opWindowOK(u, moduleKey, c) { return S.isSetup(u) || S.withinShiftWindow(moduleKey, c.d, c.dd); }
+  // Sinds v=131 is de toewijzing door de senior de poort: wie in zijn toegewezen shift zit (shiftLocked) mag werken,
+  // ook buiten het oude tijdvenster. Het venster geldt alleen nog voor wie vrij door datum/shift bladert.
+  function opWindowOK(u, moduleKey, c) { return S.isSetup(u) || state.shiftLocked || S.withinShiftWindow(moduleKey, c.d, c.dd); }
   // Melding wanneer je wél de dienst hebt maar buiten het tijdvenster valt → alleen-lezen.
   function windowLockNote(u, moduleKey, c) {
-    if (state.viewOnly || S.isSetup(u)) return "";
+    if (state.viewOnly || S.isSetup(u) || state.shiftLocked) return "";
     if (!S.canOpShift(u, c.h, c.d, c.dd, moduleKey)) return "";
     if (S.withinShiftWindow(moduleKey, c.d, c.dd)) return "";
     return '<div class="alert" style="margin-bottom:12px">' + svg("lock", "icon-sm") + " Buiten de tijd van deze " + c.dd + "-shift — je kunt nu alleen bekijken, niet meer aanpassen.</div>";
