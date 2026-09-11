@@ -2145,7 +2145,7 @@
     var info = {
       takenplanning: { name: "Takenplanning", icon: "clipboardList", desc: "Hier maak je straks het weekrooster (medewerkers × dagen, AM/PM en taken) en download je het als afbeelding voor de groepsapp." },
       schadecontrole: { name: "Schadecontrole", icon: "shield", desc: "Hier komt de schadecontrole: bussen importeren uit de planning (busnummer + kenteken) en per bus afvinken (schadecontrole, tolkrol, kabeltjes, doekjes). De binnendienst volgt de voortgang live." },
-      kwaliteit: { name: "Kwaliteit", icon: "award", desc: "Hier komt de kwaliteitsmodule: emballage/kratten tellen en de trolley-teller (4- en 5-laags), met live overzicht voor de binnendienst." },
+      kwaliteit: { name: "Kwaliteit", icon: "award", desc: "Hier komt de kwaliteitsmodule: emballage/kratten tellen per vak, met live overzicht voor de binnendienst." },
       lc: { name: "Laadproces", icon: "inbox", desc: "Hier komt het laadproces: vakken (1–40) koppelen aan bussen en ritnummers, importeren in de ochtend en handmatig invullen in de middag." }
     }[state.module] || { name: "Module", icon: "grid", desc: "" };
 
@@ -2572,74 +2572,12 @@
     }).join("");
     var table = '<div class="panel" style="padding:0"><div class="table-scroll"><table class="table"><thead><tr><th>Vak</th><th>Wat mag erin</th><th>Emballage</th></tr></thead><tbody>' + rows + "</tbody></table></div></div>";
 
-    // Trolley-voorraad (systeem, alleen-lezen voor Kwaliteit) + eigen controle-telling (D-kwal-tel)
-    var tr = S.getTrolley(c.h, c.d, c.dd);
-    var q = S.qtelGet(c.h, c.d, c.dd);
-    var afw = S.qtelAfwijking(c.h, c.d, c.dd);
-    var future = S.isFutureDay(c.d);            // vooruit tellen mag niet — alleen op de dag zelf
-    var canCount = canEdit && !future;                          // Kwaliteit-dienst mag tellen
-    var canAdjust = false;                                      // de voorraad wordt hier NOOIT aangepast — alleen de binnendienst via het dashboard
-    function voorraadItem(field, n) {
-      return '<div class="tro-counter"><div class="tro-lab">' + svg(n === 5 ? "layers5" : "layers4", "icon-sm") + n + "-laags</div>" +
-        '<div class="tro-ctrl">' +
-          (canAdjust ? '<button class="tro-btn" data-troll="' + field + '|-1">&minus;</button>' : "") +
-          '<span class="tro-val">' + (tr[field] || 0) + "</span>" +
-          (canAdjust ? '<button class="tro-btn" data-troll="' + field + '|1">+</button>' : "") +
-        "</div></div>";
-    }
-    function telItem(field, n) {
-      return '<div class="tro-counter"><div class="tro-lab">' + svg(n === 5 ? "layers5" : "layers4", "icon-sm") + n + "-laags</div>" +
-        '<div class="tro-ctrl">' +
-          (canCount ? '<button class="tro-btn" data-qtel="' + field + '|-1">&minus;</button>' : "") +
-          '<span class="tro-val">' + (q[field] || 0) + "</span>" +
-          (canCount ? '<button class="tro-btn" data-qtel="' + field + '|1">+</button>' : "") +
-        "</div>" +
-        (canCount ? '<button class="btn btn-ghost btn-sm tro-volvak" data-qtelvak="' + field + '">' + svg("plus", "icon-sm") + "Vol vak (14)</button>" : "") +
-        "</div>";
-    }
-    var futureHint = future ? '<div class="alert" style="margin-bottom:12px">' + svg("calendar", "icon-sm") + " Dit is een toekomstige dag — trolleys tel je alleen op de dag zelf. De getoonde stand is de overdracht van de laatste telling." + "</div>" : "";
-    var voorraadPanel = panel("inbox", "Trolley-voorraad (systeem)",
-      '<div class="cellsub" style="margin-bottom:8px">Alleen-lezen — de voorraad wordt via het laadproces bijgehouden en alleen door de binnendienst (dashboard) gecorrigeerd.</div>' +
-      '<div class="tro-row">' + voorraadItem("stock5", 5) + voorraadItem("stock4", 4) +
-        '<div class="tro-counter"><div class="tro-lab">Totaal</div><div class="tro-ctrl"><span class="tro-val">' + ((tr.stock4 || 0) + (tr.stock5 || 0)) + "</span></div></div>" +
-      "</div>");
-    function afwTxt(d) { return (d >= 0 ? "+" : "") + d; }
-    var afwLine = afw.counted ? (afw.has
-      ? '<div class="tro-afw err">' + svg("alertTri", "icon-sm") + "Afwijking t.o.v. de voorraad: " + afwTxt(afw.d5) + " (5-laags), " + afwTxt(afw.d4) + " (4-laags). De senior krijgt hiervan een melding.</div>"
-      : '<div class="tro-afw ok">' + svg("check", "icon-sm") + "Telling klopt met de systeemvoorraad.</div>") : "";
-    var voltooiRow = "";
-    if (canCount) {
-      voltooiRow = '<div class="tro-voltooid">' +
-        (q.voltooid
-          ? '<span class="badge st-goedgekeurd">' + svg("check", "icon-sm") + "Telling voltooid</span>" +
-            '<button class="btn btn-ghost btn-sm" data-qtelheropen>' + svg("refresh", "icon-sm") + "Heropenen</button>"
-          : '<button class="btn btn-primary btn-sm" data-qtelvoltooi>' + svg("check", "icon-sm") + "Telling voltooien</button>") +
-        '<button class="btn btn-ghost btn-sm" data-qtelreset>' + svg("trash", "icon-sm") + "Telling wissen</button></div>";
-    } else if (q.voltooid) {
-      voltooiRow = '<div class="tro-voltooid"><span class="badge st-goedgekeurd">' + svg("check", "icon-sm") + "Telling voltooid</span></div>";
-    }
-    var telPanel = panel("clipboard", "Mijn telling (Kwaliteit)",
-      '<div class="tro-row">' + telItem("c5", 5) + telItem("c4", 4) +
-        '<div class="tro-counter"><div class="tro-lab">Totaal geteld</div><div class="tro-ctrl"><span class="tro-val">' + ((q.c4 || 0) + (q.c5 || 0)) + "</span></div></div>" +
-      "</div>" + afwLine + voltooiRow);
-    var trolleyPanel = futureHint + voorraadPanel + telPanel;
-
-    if (!state.kwTab) state.kwTab = "vakken";
-    var seg = '<div class="seg" style="margin-bottom:16px">' +
-      '<button data-kwtab="vakken" class="' + (state.kwTab === "vakken" ? "active" : "") + '">Vakken</button>' +
-      '<button data-kwtab="trolleys" class="' + (state.kwTab === "trolleys" ? "active" : "") + '">Trolleys tellen</button></div>';
-    el("app").innerHTML = moduleShell("Kwaliteit", windowLockNote(u, "kwaliteit", c) + seg + (state.kwTab === "trolleys" ? trolleyPanel : table));
+    // Trolleys tellen is uit Kwaliteit gehaald (v=102): alleen nog de vakken + emballage.
+    el("app").innerHTML = moduleShell("Kwaliteit", windowLockNote(u, "kwaliteit", c) + table);
     bindModuleHeader(renderKwaliteit);
-    document.querySelectorAll("[data-kwtab]").forEach(function (b) { b.addEventListener("click", function () { state.kwTab = b.getAttribute("data-kwtab"); renderKwaliteit(); }); });
     document.querySelectorAll("[data-vaksoort]").forEach(function (s) { s.addEventListener("change", function () { try { S.setVakSoort(c.h, c.d, c.dd, parseInt(s.getAttribute("data-vaksoort"), 10), s.value); renderKwaliteit(); } catch (e) { toast(e.message, "err"); } }); });
     document.querySelectorAll("[data-embopen]").forEach(function (b) { b.addEventListener("click", function () { openEmbVak(c, parseInt(b.getAttribute("data-embopen"), 10)); }); });
-    document.querySelectorAll("[data-troll]").forEach(function (b) { b.addEventListener("click", function () { var p = b.getAttribute("data-troll").split("|"); try { S.trolleyBump(c.h, c.d, c.dd, p[0], parseInt(p[1], 10)); renderKwaliteit(); } catch (e) { toast(e.message, "err"); } }); });
-    document.querySelectorAll("[data-qtel]").forEach(function (b) { b.addEventListener("click", function () { var p = b.getAttribute("data-qtel").split("|"); try { S.qtelBump(c.h, c.d, c.dd, p[0], parseInt(p[1], 10)); renderKwaliteit(); } catch (e) { toast(e.message, "err"); } }); });
-    document.querySelectorAll("[data-qtelvak]").forEach(function (b) { b.addEventListener("click", function () { try { S.qtelBump(c.h, c.d, c.dd, b.getAttribute("data-qtelvak"), 14); renderKwaliteit(); } catch (e) { toast(e.message, "err"); } }); });
-    var qr = el("app").querySelector("[data-qtelreset]"); if (qr) qr.addEventListener("click", function () { try { S.qtelReset(c.h, c.d, c.dd); renderKwaliteit(); } catch (e) { toast(e.message, "err"); } });
-    var qv = el("app").querySelector("[data-qtelvoltooi]"); if (qv) qv.addEventListener("click", function () { try { S.qtelVoltooien(c.h, c.d, c.dd, true); toast("Telling voltooid.", "ok"); renderKwaliteit(); } catch (e) { toast(e.message, "err"); } });
-    var qh = el("app").querySelector("[data-qtelheropen]"); if (qh) qh.addEventListener("click", function () { try { S.qtelVoltooien(c.h, c.d, c.dd, false); toast("Telling heropend.", "ok"); renderKwaliteit(); } catch (e) { toast(e.message, "err"); } });
-    animateTab(el("app").querySelector("main"), "kwaliteit:" + state.kwTab);
+    animateTab(el("app").querySelector("main"), "kwaliteit");
   }
   function openEmbVak(c, vak, refresh) {
     refresh = refresh || renderKwaliteit;
@@ -3181,7 +3119,6 @@
     var prevSc = S.vorigeShift(c.d, c.dd), scc = S.steekproefControleStats(c.h, prevSc.datum, prevSc.dagdeel);
     if (scc.total > 0 && scc.done < scc.total) todo.push("Steekproeven van de vorige shift controleren (" + (scc.total - scc.done) + " open)");
     var todoBanner = todo.length ? '<div class="todo-banner">' + svg("alertTri", "icon-sm") + "<div><b>Nog te doen:</b> " + todo.map(esc).join(" · ") + "</div></div>" : "";
-    var qAfw = S.qtelAfwijking(c.h, c.d, c.dd);
 
     function tile(title, icon, color, inner, mod) {
       var view = mod ? '<button class="btn btn-sm dash-view" data-viewmod="' + mod + '">' + svg("arrowRight", "icon-sm") + "Bekijk voortgang</button>" : "";
@@ -3202,34 +3139,19 @@
       tile("Pendels", "van", "blue", '<div class="dash-row">' + ring(pc.pct, "b") + '<div><div class="dash-big">' + pc.done + " / " + pc.total + '</div><div class="cellsub">pendels gecontroleerd</div></div></div>' + '<div class="dash-recent-title">Volgende pendels</div>' + komendePendels + '<button class="btn btn-sm dash-view" data-viewpc>' + svg("arrowRight", "icon-sm") + "Bekijk Pendelcontrol</button>", null) +
       tile("Kwaliteit", "award", "purple",
         '<div class="dash-recent-title">Emballage per vak</div>' +
-        (vakTotals ? '<div class="emb-vaktots">' + vakTotals + "</div>" : '<div class="cellsub">Nog niets geteld</div>') +
-        '<div class="dash-recent-title">Trolley-telling</div>' +
-        (qAfw.voltooid
-          ? '<div class="dash-telstatus ok">' + svg("check", "icon-sm") + "Telling voltooid</div>"
-          : '<div class="dash-telstatus">' + svg("clock", "icon-sm") + "Nog niet voltooid</div>") +
-        (qAfw.has ? '<div class="dash-telstatus err">' + svg("alertTri", "icon-sm") + "Trolleyafwijking</div>" : ""), "kwaliteit") +
+        (vakTotals ? '<div class="emb-vaktots">' + vakTotals + "</div>" : '<div class="cellsub">Nog niets geteld</div>'), "kwaliteit") +
       "</div>";
     return todoBanner + grid;
   }
 
-  // Trolleyvoorraad-tab: systeemvoorraad (alleen-lezen) + de telling van de kwaliteiter.
+  // Trolleyvoorraad-tab: alleen de systeemvoorraad (alleen-lezen). De kwaliteitstelling is verwijderd (v=102).
   function dashTrolley(c) {
     var tr = S.getTrolley(c.h, c.d, c.dd);
-    var afw = S.qtelAfwijking(c.h, c.d, c.dd);
     function nums(v4, v5) {
       return '<div class="troll-nums"><div class="troll-num"><span class="dash-big">' + (v4 || 0) + '</span><span class="cellsub">4-laags</span></div>' +
         '<div class="troll-num"><span class="dash-big">' + (v5 || 0) + '</span><span class="cellsub">5-laags</span></div></div>';
     }
-    var sys = panel("inbox", "Trolley-voorraad (systeem)", '<div class="troll-body"><div class="cellsub">Huidige voorraad volgens het systeem</div>' + nums(tr.stock4, tr.stock5) + "</div>");
-    var telInner = afw.counted
-      ? '<div class="cellsub">Geteld door kwaliteit</div>' + nums(afw.c4, afw.c5) +
-        '<div class="troll-status ' + (afw.voltooid ? "ok" : "") + '">' + svg(afw.voltooid ? "check" : "clock", "icon-sm") + (afw.voltooid ? "Telling voltooid" : "Telling nog niet voltooid") + "</div>" +
-        (afw.has
-          ? '<div class="troll-status err">' + svg("alertTri", "icon-sm") + "Afwijking: " + (afw.d4 > 0 ? "+" : "") + afw.d4 + " (4-laags) · " + (afw.d5 > 0 ? "+" : "") + afw.d5 + " (5-laags)</div>"
-          : '<div class="troll-status ok">' + svg("check", "icon-sm") + "Komt overeen met het systeem</div>")
-      : '<div class="cellsub">De kwaliteiter heeft nog niet geteld.</div>';
-    var tel = panel("award", "Telling kwaliteit", '<div class="troll-body">' + telInner + "</div>");
-    return sys + tel;
+    return panel("inbox", "Trolley-voorraad (systeem)", '<div class="troll-body"><div class="cellsub">Huidige voorraad volgens het systeem</div>' + nums(tr.stock4, tr.stock5) + "</div>");
   }
 
   // Steekproeven-tab: controleren tegen het Jumbo-systeem (vorige shift) + overzicht deze shift.
