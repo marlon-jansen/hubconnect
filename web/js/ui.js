@@ -3405,7 +3405,7 @@
     var spT = S.spTrolleyGet(c.h, c.d, c.dd);
     if (spT && spT.status === "open") tabState.trolley = "info";
     else if (spT && spT.status === "ingediend") tabState.trolley = "warn";
-    var seg = '<div class="seg dash-tabs" style="margin:14px 0 16px;flex-wrap:wrap">' + tabs.map(function (t) {
+    var seg = '<div class="seg dash-tabs" style="flex-wrap:wrap">' + tabs.map(function (t) {
       var st = tabState[t[0]] || "";
       return '<button data-dashtab="' + t[0] + '" class="' + (state.dashTab === t[0] ? "active" : "") + (st ? " tab-" + st : "") + '">' + t[1] + (st === "warn" ? '<span class="tab-bang">!</span>' : st === "info" ? svg("clock", "icon-sm tab-clock") : "") + "</button>";
     }).join("") + "</div>";
