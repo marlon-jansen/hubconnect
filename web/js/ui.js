@@ -84,6 +84,8 @@
     bolt: '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
     tag: '<path d="M20.6 13.4 12 22l-9-9V4a1 1 0 0 1 1-1h9z"/><circle cx="7.5" cy="7.5" r="1.5"/>',
     user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+    fridge: '<rect x="5" y="2" width="14" height="20" rx="2"/><path d="M5 9h14M8 5v2M8 12v4"/>',
+    snow: '<path d="M12 2v20M2 12h20M4.9 4.9l14.2 14.2M19.1 4.9 4.9 19.1M12 2l-2 2M12 2l2 2M12 22l-2-2M12 22l2-2M2 12l2-2M2 12l2 2M22 12l-2-2M22 12l-2 2"/>',
     users: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 5a3.5 3.5 0 0 1 0 7M22 20a6 6 0 0 0-5-5.9"/>',
     userPlus: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M19 8v6M22 11h-6"/>',
     userCog: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 11 0"/><circle cx="18.5" cy="16.5" r="2.2"/><path d="M18.5 13.4v1M18.5 18.6v1M21.2 15l-.9.5M16.7 17.5l-.9.5M21.2 18l-.9-.5M16.7 15.5l-.9-.5"/>',
@@ -96,7 +98,7 @@
     list: '<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>',
     history: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 8v4l3 2"/>',
     chart: '<path d="M3 3v18h18"/><rect x="7" y="11" width="3" height="6"/><rect x="12" y="7" width="3" height="10"/><rect x="17" y="13" width="3" height="4"/>',
-    settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8 2 2 0 1 1-2.8 2.8 1.6 1.6 0 0 0-2.7 1.1 2 2 0 1 1-4 0 1.6 1.6 0 0 0-2.7-1.1 2 2 0 1 1-2.8-2.8A1.6 1.6 0 0 0 2.6 15a2 2 0 1 1 0-4 1.6 1.6 0 0 0 1.1-2.7 2 2 0 1 1 2.8-2.8A1.6 1.6 0 0 0 9.2 6.6a2 2 0 1 1 4 0 1.6 1.6 0 0 0 2.7-1.1 2 2 0 1 1 2.8 2.8A1.6 1.6 0 0 0 21.4 11a2 2 0 1 1 0 4z"/>',
+    settings: '<path d="M10.68 4.52 L10.23 1.95 L13.77 1.95 L13.32 4.52 L16.36 5.77 L17.85 3.64 L20.36 6.15 L18.23 7.64 L19.48 10.68 L22.05 10.23 L22.05 13.77 L19.48 13.32 L18.23 16.36 L20.36 17.85 L17.85 20.36 L16.36 18.23 L13.32 19.48 L13.77 22.05 L10.23 22.05 L10.68 19.48 L7.64 18.23 L6.15 20.36 L3.64 17.85 L5.77 16.36 L4.52 13.32 L1.95 13.77 L1.95 10.23 L4.52 10.68 L5.77 7.64 L3.64 6.15 L6.15 3.64 L7.64 5.77 Z"/><circle cx="12" cy="12" r="3.6"/>',
     plus: '<path d="M12 5v14M5 12h14"/>',
     search: '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>',
     eye: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>',
@@ -2390,14 +2392,29 @@
     var dn = ["zo", "ma", "di", "wo", "do", "vr", "za"][dd.getDay()];
     var lbl = dn + " " + dd.getDate() + "-" + (dd.getMonth() + 1) + "-" + dd.getFullYear();
     var sun = S.isSunday(state.opDate);
-    return '<div class="shiftbar"><div class="seg"><button data-opday="-1">' + svg("arrowLeft", "icon-sm") + "</button>" +
-      '<button class="active" style="cursor:default;text-transform:capitalize">' + svg("calendar", "icon-sm") + esc(lbl) + "</button>" +
-      '<button data-opday="1">' + svg("arrowRight", "icon-sm") + "</button></div>" +
+    return '<div class="shiftbar"><div class="seg opdate-seg"><button data-opday="-1">' + svg("arrowLeft", "icon-sm") + "</button>" +
+      '<button class="active" data-opdate style="text-transform:capitalize" title="Kies een datum">' + svg("calendar", "icon-sm") + esc(lbl) + "</button>" +
+      '<button data-opday="1">' + svg("arrowRight", "icon-sm") + "</button>" +
+      '<div class="datepick-pop opdate-pop" hidden></div></div>' +
       '<div class="seg"><button data-opshift="AM" class="am-btn ' + (state.opShift === "AM" ? "active" : "") + '">' + svg("sun", "icon-sm") + "AM</button>" +
       (sun ? "" : '<button data-opshift="PM" class="pm-btn ' + (state.opShift === "PM" ? "active" : "") + '">' + svg("moon", "icon-sm") + "PM</button>") + "</div></div>";
   }
   function bindShiftBar(rer) {
     document.querySelectorAll("[data-opday]").forEach(function (b) { b.addEventListener("click", function () { var m = new Date(state.opDate + "T00:00:00"); m.setDate(m.getDate() + parseInt(b.getAttribute("data-opday"), 10)); state.opDate = ymd(m); ensureShiftState(); rer(); }); });
+    // Klik op de datum: dezelfde kalender als in RuilHub, direct een dag kiezen.
+    var dbtn = document.querySelector("[data-opdate]"), pop = document.querySelector(".opdate-pop");
+    if (dbtn && pop) {
+      var view = new Date(state.opDate + "T00:00:00");
+      function draw() {
+        pop.innerHTML = calendarHTML(view, state.opDate);
+        pop.querySelector("[data-pm]").onclick = function () { view.setMonth(view.getMonth() - 1); draw(); };
+        pop.querySelector("[data-nm]").onclick = function () { view.setMonth(view.getMonth() + 1); draw(); };
+        pop.querySelectorAll("[data-day]").forEach(function (d) { d.onclick = function () { state.opDate = d.getAttribute("data-day"); ensureShiftState(); rer(); }; });
+      }
+      dbtn.addEventListener("click", function (e) { e.stopPropagation(); if (pop.hidden) { view = new Date(state.opDate + "T00:00:00"); draw(); pop.hidden = false; } else pop.hidden = true; });
+      pop.addEventListener("click", function (e) { e.stopPropagation(); });
+      document.addEventListener("click", function close() { if (!document.body.contains(pop)) { document.removeEventListener("click", close); return; } pop.hidden = true; });
+    }
     document.querySelectorAll("[data-opshift]").forEach(function (b) { b.addEventListener("click", function () { state.opShift = b.getAttribute("data-opshift"); state.opShiftUserSet = true; rer(); }); });
   }
   // Zet bij het (opnieuw) openen van een taakmodule de shift-kiezer op de juiste shift voor die taak,
@@ -2523,9 +2540,10 @@
     var d = new Date(state.opDate + "T00:00:00");
     var dn = ["zo", "ma", "di", "wo", "do", "vr", "za"][d.getDay()];
     var lbl = dn + " " + d.getDate() + "-" + (d.getMonth() + 1) + "-" + d.getFullYear();
-    return '<div class="shiftbar"><div class="seg"><button data-opday="-1">' + svg("arrowLeft", "icon-sm") + "</button>" +
-      '<button class="active" style="cursor:default;text-transform:capitalize">' + svg("calendar", "icon-sm") + esc(lbl) + "</button>" +
-      '<button data-opday="1">' + svg("arrowRight", "icon-sm") + "</button></div></div>";
+    return '<div class="shiftbar"><div class="seg opdate-seg"><button data-opday="-1">' + svg("arrowLeft", "icon-sm") + "</button>" +
+      '<button class="active" data-opdate style="text-transform:capitalize" title="Kies een datum">' + svg("calendar", "icon-sm") + esc(lbl) + "</button>" +
+      '<button data-opday="1">' + svg("arrowRight", "icon-sm") + "</button>" +
+      '<div class="datepick-pop opdate-pop" hidden></div></div></div>';
   }
   function renderBuswassing() {
     var c = ctx(), u = c.u;
@@ -2569,7 +2587,6 @@
       "<thead><tr><th>Bus</th><th>Shift</th><th>Status</th></tr></thead><tbody>" + rows + "</tbody></table></div></div>",
       { noShift: true });
     bindModuleHeader(renderBuswassing);
-    bindShiftBar(renderBuswassing);
     document.querySelectorAll("[data-waszet]").forEach(function (ch) {
       ch.addEventListener("click", function () {
         var p = ch.getAttribute("data-waszet").split("|");
@@ -2620,12 +2637,89 @@
     }).join("");
     var table = '<div class="panel" style="padding:0"><div class="table-scroll"><table class="table"><thead><tr><th>Vak</th><th>Wat mag erin</th><th>Emballage</th></tr></thead><tbody>' + rows + "</tbody></table></div></div>";
 
-    // Trolleys tellen is uit Kwaliteit gehaald (v=102): alleen nog de vakken + emballage.
-    el("app").innerHTML = moduleShell("Kwaliteit", windowLockNote(u, "kwaliteit", c) + table);
+    // Tabs: Vakken (emballage) · Voedselbank (temperatuur retouren). Trolleys tellen is weg (v=102).
+    if (!state.kwTab || state.kwTab === "trolleys") state.kwTab = "vakken";
+    var seg = '<div class="seg" style="margin-bottom:16px">' +
+      '<button data-kwtab="vakken" class="' + (state.kwTab === "vakken" ? "active" : "") + '">Vakken</button>' +
+      '<button data-kwtab="voedselbank" class="' + (state.kwTab === "voedselbank" ? "active" : "") + '">Voedselbank</button></div>';
+    var canVb = !state.viewOnly && opWindowOK(u, "kwaliteit", c) && S.vbCanEdit(u, c.h, c.d, c.dd);
+    el("app").innerHTML = moduleShell("Kwaliteit", windowLockNote(u, "kwaliteit", c) + seg + (state.kwTab === "voedselbank" ? vbBody(c, canVb) : table));
     bindModuleHeader(renderKwaliteit);
+    document.querySelectorAll("[data-kwtab]").forEach(function (b) { b.addEventListener("click", function () { state.kwTab = b.getAttribute("data-kwtab"); state.vbAdding = false; renderKwaliteit(); }); });
     document.querySelectorAll("[data-vaksoort]").forEach(function (s) { s.addEventListener("change", function () { try { S.setVakSoort(c.h, c.d, c.dd, parseInt(s.getAttribute("data-vaksoort"), 10), s.value); renderKwaliteit(); } catch (e) { toast(e.message, "err"); } }); });
     document.querySelectorAll("[data-embopen]").forEach(function (b) { b.addEventListener("click", function () { openEmbVak(c, parseInt(b.getAttribute("data-embopen"), 10)); }); });
-    animateTab(el("app").querySelector("main"), "kwaliteit");
+    if (state.kwTab === "voedselbank") bindVb(c);
+    animateTab(el("app").querySelector("main"), "kwaliteit:" + state.kwTab);
+  }
+
+  /* ---------- Voedselbank: temperatuur retouren vóór koel/diepvries (formulier "Registratieformulier temperatuur Voedselbank") ---------- */
+  function vbBody(c, canEdit) {
+    var lijst = S.vbList(c.h, c.d, c.dd), u = c.u;
+    var intro = '<p class="cellsub" style="margin:0 0 12px">Controle van de temperatuur vóórdat retourproducten voor de Voedselbank in de koel- of diepvriesunit gaan.</p>';
+    function ro(label, val) { return '<div class="field"><label>' + label + '</label><div class="vb-ro">' + val + "</div></div>"; }
+    var type = state.vbType || "koel", groep = state.vbGroep || "koel";
+    var form = "";
+    if (canEdit && !state.vbAdding) {
+      form = '<div style="margin:0 0 14px"><button class="btn btn-primary" data-vbnew>' + svg("plus", "icon-sm") + "Meting toevoegen</button></div>";
+    } else if (canEdit) {
+      form = panel("thermo", "Nieuwe meting",
+        '<form id="vbForm" autocomplete="off">' +
+          '<div class="vb-grid">' +
+            ro("Datum", svg("calendar", "icon-sm") + esc(fmtDate(c.d))) +
+            ro("Shift", (c.dd === "PM" ? svg("moon", "icon-sm") : svg("sun", "icon-sm")) + esc(c.dd)) +
+            ro("Naam controleur", svg("user", "icon-sm") + fullName(u)) +
+          "</div>" +
+          '<div class="field"><label>Box</label><div class="seg vb-seg">' +
+            '<button type="button" data-vbtype="koel" class="' + (type === "koel" ? "active" : "") + '">' + svg("fridge", "icon-sm") + "Koelbox</button>" +
+            '<button type="button" data-vbtype="dv" class="' + (type === "dv" ? "active" : "") + '">' + svg("snow", "icon-sm") + "Vriesbox</button></div></div>" +
+          (type === "koel"
+            ? '<div class="field"><label>Productgroep</label><div class="seg vb-seg">' +
+                '<button type="button" data-vbgroep="koel" class="' + (groep !== "kip" ? "active" : "") + '">Overig gekoeld</button>' +
+                '<button type="button" data-vbgroep="kip" class="' + (groep === "kip" ? "active" : "") + '">Kip &amp; gevogelte</button></div>' +
+                '<div class="cellsub" style="margin-top:4px">' + esc(tempNormHint(S.tempGroep(groep === "kip" ? "kip" : "koel"))) + "</div></div>"
+            : '<div class="cellsub" style="margin:-4px 0 12px">' + esc(tempNormHint(S.tempGroep("dv"))) + "</div>") +
+          '<div class="field"><label>Temperatuur (°C)</label><div class="temp-wrap" id="vbTempWrap"><input class="lc-in" type="text" inputmode="decimal" name="temp" placeholder="bv. 2,5" autofocus><span class="temp-ico" aria-hidden="true"></span></div></div>' +
+          '<div class="field" id="vbActieWrap" hidden><label>Actie bij afwijking temperatuur / kwaliteit</label><textarea class="lc-in" name="actie" rows="2" placeholder="Verplicht bij een afwijking: waarschuw je leidinggevende, beschrijf de actie en wat er met de producten is gedaan."></textarea></div>' +
+          '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-primary" type="submit">' + svg("check", "icon-sm") + "Meting opslaan</button>" +
+          '<button class="btn btn-ghost" type="button" data-vbcancel>Annuleren</button></div>' +
+        "</form>");
+    }
+    var rows = lijst.length ? lijst.map(function (m) {
+      var o = S.vbOordeel(m), afw = S.vbAfwijking(m);
+      return '<tr class="' + (afw ? "vb-afw" : "") + '"><td><div class="cellname">' + (m.type === "dv" ? "Vriesbox" : "Koelbox") + "</div>" +
+        (m.type === "koel" ? '<div class="cellsub">' + esc(S.tempGroep(m.koelGroep).naam) + "</div>" : "") + "</td>" +
+        '<td data-th="Temperatuur"><b class="lv-' + o.level + '">' + esc(fmtTemp(m.temp)) + "</b></td>" +
+        '<td data-th="Oordeel">' + tempBadge(o) + "</td>" +
+        '<td data-th="Controleur">' + esc(m.doorNaam) + '<div class="cellsub">' + fmtClock(m.at) + "</div></td>" +
+        '<td data-th="Actie">' + (m.actie ? esc(m.actie) : '<span class="cellsub">—</span>') + "</td>" +
+        '<td style="text-align:right">' + (canEdit ? '<button class="pl-x" data-vbdel="' + m.id + '" title="Verwijderen">' + svg("trash", "icon-sm") + "</button>" : "") + "</td></tr>";
+    }).join("") : '<tr><td colspan="6"><div class="cellsub" style="padding:14px">Nog geen metingen voor deze shift.</div></td></tr>';
+    var tabel = '<div class="vb-tabel">' + panel("clipboard", "Metingen " + c.dd + " · " + esc(fmtDate(c.d)),
+      '<div class="table-scroll"><table class="table"><thead><tr><th>Box</th><th>Temperatuur</th><th>Oordeel</th><th>Controleur</th><th>Actie bij afwijking</th><th></th></tr></thead><tbody>' + rows + "</tbody></table></div>") + "</div>";
+    return intro + form + tabel + tempNormsBox();
+  }
+  function bindVb(c) {
+    var nb = el("app").querySelector("[data-vbnew]"); if (nb) nb.addEventListener("click", function () { state.vbAdding = true; renderKwaliteit(); });
+    var cb = el("app").querySelector("[data-vbcancel]"); if (cb) cb.addEventListener("click", function () { state.vbAdding = false; renderKwaliteit(); });
+    document.querySelectorAll("[data-vbtype]").forEach(function (b) { b.addEventListener("click", function () { state.vbType = b.getAttribute("data-vbtype"); renderKwaliteit(); }); });
+    document.querySelectorAll("[data-vbgroep]").forEach(function (b) { b.addEventListener("click", function () { state.vbGroep = b.getAttribute("data-vbgroep"); renderKwaliteit(); }); });
+    var f = el("vbForm");
+    if (f) {
+      // Live: veld kleurt mee met het oordeel; het actieveld verschijnt alleen bij oranje/rood.
+      var sync = function () {
+        var m = { type: state.vbType || "koel", koelGroep: state.vbGroep || "koel", temp: f.elements.temp.value };
+        var st = tempInputState(el("vbTempWrap"), S.vbOordeel(m).level);
+        el("vbActieWrap").hidden = !(st === "warn" || st === "err");
+      };
+      f.elements.temp.addEventListener("input", sync); sync();
+    }
+    if (f) f.addEventListener("submit", function (e) {
+      e.preventDefault();
+      var d = { type: state.vbType || "koel", koelGroep: state.vbGroep || "koel", temp: f.elements.temp.value, actie: f.elements.actie.value };
+      try { var m = S.vbAdd(c.h, c.d, c.dd, d); state.vbAdding = false; toast(S.vbAfwijking(m) ? "Meting opgeslagen — afwijking vastgelegd." : "Meting opgeslagen.", "ok"); renderKwaliteit(); }
+      catch (err) { toast(err.message, "err"); }
+    });
+    document.querySelectorAll("[data-vbdel]").forEach(function (b) { b.addEventListener("click", function () { try { S.vbRemove(c.h, c.d, c.dd, b.getAttribute("data-vbdel")); toast("Meting verwijderd.", "ok"); renderKwaliteit(); } catch (err) { toast(err.message, "err"); } }); });
   }
   function openEmbVak(c, vak, refresh) {
     refresh = refresh || renderKwaliteit;
@@ -2677,6 +2771,16 @@
   }
   function tempBadge(o) { return '<span class="badge tv-' + o.level + '">' + esc(o.label) + "</span>"; }
   // Korte omschrijving van de geldende grens, als hulp bij het invullen.
+  // Live-status op een temperatuurveld: groen + vinkje (ok), oranje + uitroepteken (procesverbetering),
+  // rood + kruisje (retour EFC). Geeft het niveau terug: "ok" | "warn" | "err" | "" (leeg).
+  function tempInputState(wrap, level) {
+    var st = level === "leeg" || !level ? "" : (level === "retour" ? "err" : level === "proces" ? "warn" : "ok");
+    wrap.classList.remove("temp-ok", "temp-warn", "temp-err");
+    if (st) wrap.classList.add("temp-" + st);
+    var ico = wrap.querySelector(".temp-ico");
+    if (ico) ico.innerHTML = st === "ok" ? svg("check", "icon-sm") : st === "warn" ? "!" : st === "err" ? svg("x", "icon-sm") : "";
+    return st;
+  }
   function tempNormHint(g) {
     return g.soort === "dv"
       ? "Streef " + fmtTemp(g.streefMax) + " · norm " + fmtTemp(g.norm) + " · " + fmtTemp(g.norm) + " tot " + fmtTemp(g.proces) + " vraagt procesverbetering · warmer dan " + fmtTemp(g.proces) + " retour EFC"
@@ -2747,7 +2851,7 @@
       "</div>";
     // Geen pendels, of wel pendels maar nergens een meting → niets te archiveren.
     var gemeten = rijen.some(function (r) { return r.metingen.some(function (x) { return !!x.meting; }); });
-    if (!gemeten) return kop + '<div class="cellsub" style="padding:14px">Geen temperatuurcontroles gevonden.</div>';
+    if (!gemeten) return kop + '<div class="cellsub" style="padding:14px">Geen temperatuurcontroles gevonden.</div>' + vbArchiefBody(c);
 
     var body = rijen.map(function (r) {
       var pendelCel = '<td rowspan="2" class="ar-nr"><b>Pendel ' + r.nr + "</b>" +
@@ -2781,14 +2885,27 @@
       '<div class="panel" style="padding:0"><div class="table-scroll"><table class="table table-grid ar-table">' +
       "<thead><tr><th>Pendel</th><th>Vak</th><th>Rtnr.</th><th>Boxnr.</th><th>Gemeten product</th><th>Temperatuur</th><th>Oordeel</th><th>Controleur</th><th>Actie bij afwijking</th></tr></thead>" +
       "<tbody>" + body + "</tbody></table></div></div>" +
-      '<p class="cellsub" style="margin:10px 2px 0">Alleen-lezen archief. Het oordeel volgt uit de wettelijke normtemperaturen; bij een afwijking is een actie verplicht vastgelegd (WI 01).</p>';
+      '<p class="cellsub" style="margin:10px 2px 0">Alleen-lezen archief. Het oordeel volgt uit de wettelijke normtemperaturen; bij een afwijking is een actie verplicht vastgelegd (WI 01).</p>' +
+      vbArchiefBody(c);
   }
-  // Eigen module onder "Beheer" (v=103, was een tab in Laadproces). Per dag (AM + PM samen), dus alleen een datumkiezer.
-  function renderTempArchief() {
-    var c = ctx();
-    el("app").innerHTML = moduleShell("Temperatuurarchief", dayBar() + tempArchiefBody(c), { noShift: true });
-    bindModuleHeader(renderTempArchief);
-    bindShiftBar(renderTempArchief);
+  // Tweede blok in het dagarchief: de Voedselbank-metingen (AM + PM) in de kolomvolgorde van het papieren formulier.
+  function vbArchiefBody(c) {
+    var items; try { items = S.vbArchief(c.h, c.d); } catch (e) { return ""; }
+    var kop = '<div class="ar-head" style="margin-top:22px"><div><span class="ar-lab">Registratieformulier temperatuur Voedselbank</span><b>' + esc(fmtDate(c.d)) + "</b></div></div>";
+    if (!items.length) return kop + '<div class="cellsub" style="padding:14px">Geen Voedselbank-metingen gevonden.</div>';
+    var leeg = '<span class="cellsub">—</span>';
+    var rows = items.map(function (x) {
+      var m = x.m, o = S.vbOordeel(m);
+      return '<tr><td class="ar-nr"><b>' + esc(x.dagdeel) + "</b></td>" +
+        "<td>" + (m.type === "dv" ? "Vriesbox" : "Koelbox") + (m.type === "koel" ? '<div class="cellsub">' + esc(S.tempGroep(m.koelGroep).kort) + "</div>" : "") + "</td>" +
+        '<td class="ar-temp lv-' + o.level + '">' + esc(fmtTemp(m.temp)) + "</td>" +
+        '<td class="ar-ok">' + (S.vbAfwijking(m) ? '<span class="badge tv-retour">NIET OK</span>' : '<span class="badge tv-streef">OK</span>') + '<div class="cellsub">' + esc(o.label) + "</div></td>" +
+        "<td>" + esc(m.doorNaam || "—") + '<div class="cellsub">' + fmtClock(m.at) + "</div></td>" +
+        '<td class="ar-actie">' + (m.actie ? esc(m.actie) : leeg) + "</td></tr>";
+    }).join("");
+    return kop + '<div class="panel" style="padding:0"><div class="table-scroll"><table class="table table-grid ar-table">' +
+      "<thead><tr><th>AM / PM</th><th>Box</th><th>Temperatuur</th><th>Oordeel</th><th>Controleur</th><th>Actie bij afwijking</th></tr></thead>" +
+      "<tbody>" + rows + "</tbody></table></div></div>";
   }
 
   /* ---------- Boxnummer scannen (QR én streepjescode) ----------
@@ -2903,7 +3020,7 @@
       icon: "thermo",
       body: '<form id="ptForm" autocomplete="off">' + groepVeld +
         '<div class="row2">' +
-          '<div class="field"><label>Temperatuur (°C)</label><input name="temp" inputmode="decimal" placeholder="bv. 4,2 of -18" value="' + esc(m.temp === "" ? "" : String(m.temp).replace(".", ",")) + '" required></div>' +
+          '<div class="field"><label>Temperatuur (°C)</label><div class="temp-wrap" id="ptTempWrap"><input name="temp" inputmode="decimal" placeholder="bv. 4,2 of -18" value="' + esc(m.temp === "" ? "" : String(m.temp).replace(".", ",")) + '" required><span class="temp-ico" aria-hidden="true"></span></div></div>' +
           '<div class="field"><label>Boxnummer</label><div class="box-scan">' +
             '<input name="box" placeholder="bv. 0687" value="' + esc(m.box || "") + '" required>' +
             (scanBeschikbaar() ? '<button type="button" class="btn btn-ghost scan-btn" id="ptScan" title="Code op de box scannen">' + svg("scan", "icon-sm") + "Scan</button>" : "") +
@@ -2935,6 +3052,9 @@
             '<div class="pt-verdict lv-' + o.level + '">' + svg(goed ? "checkCircle" : "alertTri", "icon-sm") +
             "<b>" + esc(fmtTemp(f.temp.value.replace(",", "."))) + "</b> — " + esc(o.label) + "</div>";
           ov.querySelector("#ptActieWrap").classList.toggle("req", afw);
+          // Veld kleurt mee; het actieveld alleen tonen bij oranje/rood (of THT niet OK).
+          var st = tempInputState(ov.querySelector("#ptTempWrap"), o.level);
+          ov.querySelector("#ptActieWrap").hidden = !(st === "warn" || st === "err" || !tht);
         }
         f.addEventListener("input", sync);
         f.addEventListener("change", sync);

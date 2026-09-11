@@ -86,6 +86,10 @@ public class Server {
       "CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, personeelsnummer TEXT, email TEXT, voornaam TEXT, achternaam TEXT, pass TEXT, otp TEXT, must_set_password BOOLEAN, rol TEXT, n2 BOOLEAN, jbt_trainer BOOLEAN, hub_id TEXT, taken JSONB, stats JSONB, hidden BOOLEAN, created_at TEXT)",
       // extra hubs voor een locatie-manager die meerdere hubs bestuurt (toegekend door manager thuisbezorging/beheerder)
       "ALTER TABLE users ADD COLUMN IF NOT EXISTS hub_ids JSONB",
+      // buswassing-dienst (v=101) werd niet opgeslagen: kolom toevoegen
+      "ALTER TABLE diensten ADD COLUMN IF NOT EXISTS buswassing JSONB",
+      // Voedselbank-temperatuurregistratie (retouren koel/diepvries) per shift, in Kwaliteit
+      "ALTER TABLE kwaliteit ADD COLUMN IF NOT EXISTS voedselbank JSONB",
       "CREATE TABLE IF NOT EXISTS shifts (id TEXT PRIMARY KEY, aanbieder_id TEXT, hub_id TEXT, datum TEXT, dagdeel TEXT, shifts_bekend BOOLEAN, starttijd TEXT, bus_type TEXT, taak TEXT, status TEXT, overnemer_id TEXT, besluit_door_id TEXT, besluit_op TEXT, reden TEXT, fifo_warning BOOLEAN, fifo_skipped_by TEXT, fifo_skipped_at TEXT, seq BIGINT, aanbied_reden TEXT, created_at TEXT)",
       "CREATE TABLE IF NOT EXISTS task_offers (id TEXT PRIMARY KEY, aanbieder_id TEXT, hub_id TEXT, datum TEXT, dagdeel TEXT, taak TEXT, starttijd TEXT, aanbied_reden TEXT, status TEXT, overnemer_id TEXT, besluit_door_id TEXT, besluit_op TEXT, reden TEXT, created_at TEXT)",
       "CREATE TABLE IF NOT EXISTS backups (id TEXT PRIMARY KEY, aanbieder_id TEXT, hub_id TEXT, datum TEXT, dagdeel TEXT, direction TEXT, toelichting TEXT, rit_omschrijving TEXT, rit_tijd TEXT, status TEXT, overnemer_id TEXT, besluit_door_id TEXT, besluit_op TEXT, reden TEXT, created_at TEXT)",
@@ -206,7 +210,7 @@ public class Server {
 
     // per-shift maps (key = hub|datum|dagdeel)
     root.add("schade", shiftMap(c, "schade", new String[]{"buses","steekproeven"}, new String[]{"[]","[]"}));
-    root.add("kwaliteit", shiftMap(c, "kwaliteit", new String[]{"emballage","soort"}, new String[]{"{}","{}"}));
+    root.add("kwaliteit", shiftMap(c, "kwaliteit", new String[]{"emballage","soort","voedselbank"}, new String[]{"{}","{}","null"}));
     JsonObject lc = new JsonObject();
     try (ResultSet r = c.createStatement().executeQuery("SELECT * FROM lc")) {
       while (r.next()) { JsonObject o = new JsonObject(); o.addProperty("aantal", r.getInt("aantal")); o.add("vakken", parse(r.getString("vakken"), "[]")); lc.add(key(r), o); }
@@ -224,7 +228,7 @@ public class Server {
     root.add("trolleyStock", trs);
     JsonObject di = new JsonObject();
     try (ResultSet r = c.createStatement().executeQuery("SELECT * FROM diensten")) {
-      while (r.next()) { JsonObject o = new JsonObject(); o.add("schadecontrole", parse(r.getString("schadecontrole"), "[]")); o.add("lc", parse(r.getString("lc"), "[]")); o.add("kwaliteit", parse(r.getString("kwaliteit"), "[]")); di.add(key(r), o); }
+      while (r.next()) { JsonObject o = new JsonObject(); o.add("schadecontrole", parse(r.getString("schadecontrole"), "[]")); o.add("lc", parse(r.getString("lc"), "[]")); o.add("kwaliteit", parse(r.getString("kwaliteit"), "[]")); o.add("buswassing", parse(r.getString("buswassing"), "[]")); di.add(key(r), o); }
     }
     root.add("diensten", di);
 
@@ -319,7 +323,7 @@ public class Server {
       for (Map.Entry<String,JsonElement> en : obj(root,"schade").entrySet()) { String[] k = en.getKey().split("\\|",3); JsonObject o = en.getValue().getAsJsonObject();
         exec(c, "INSERT INTO schade (hub_id,datum,dagdeel,buses,steekproeven) VALUES (?,?,?,?::jsonb,?::jsonb)", k[0],k[1],k[2],jraw(o,"buses","[]"),jraw(o,"steekproeven","[]")); }
       for (Map.Entry<String,JsonElement> en : obj(root,"kwaliteit").entrySet()) { String[] k = en.getKey().split("\\|",3); JsonObject o = en.getValue().getAsJsonObject();
-        exec(c, "INSERT INTO kwaliteit (hub_id,datum,dagdeel,emballage,soort) VALUES (?,?,?,?::jsonb,?::jsonb)", k[0],k[1],k[2],jraw(o,"emballage","{}"),jraw(o,"soort","{}")); }
+        exec(c, "INSERT INTO kwaliteit (hub_id,datum,dagdeel,emballage,soort,voedselbank) VALUES (?,?,?,?::jsonb,?::jsonb,?::jsonb)", k[0],k[1],k[2],jraw(o,"emballage","{}"),jraw(o,"soort","{}"),jraw(o,"voedselbank","null")); }
       for (Map.Entry<String,JsonElement> en : obj(root,"lc").entrySet()) { String[] k = en.getKey().split("\\|",3); JsonObject o = en.getValue().getAsJsonObject();
         exec(c, "INSERT INTO lc (hub_id,datum,dagdeel,aantal,vakken) VALUES (?,?,?,?,?::jsonb)", k[0],k[1],k[2],intOf(o,"aantal"),jraw(o,"vakken","[]")); }
       for (Map.Entry<String,JsonElement> en : obj(root,"trolley").entrySet()) { String[] k = en.getKey().split("\\|",3); JsonObject o = en.getValue().getAsJsonObject();
@@ -327,7 +331,7 @@ public class Server {
       for (Map.Entry<String,JsonElement> en : obj(root,"trolleyStock").entrySet()) { String[] k = en.getKey().split("\\|",2); JsonObject o = en.getValue().getAsJsonObject();
         exec(c, "INSERT INTO trolley_stock (hub_id,datum,stock4,stock5) VALUES (?,?,?,?)", k[0], k[1], intOf(o,"stock4"), intOf(o,"stock5")); }
       for (Map.Entry<String,JsonElement> en : obj(root,"diensten").entrySet()) { String[] k = en.getKey().split("\\|",3); JsonObject o = en.getValue().getAsJsonObject();
-        exec(c, "INSERT INTO diensten (hub_id,datum,dagdeel,schadecontrole,lc,kwaliteit) VALUES (?,?,?,?::jsonb,?::jsonb,?::jsonb)", k[0],k[1],k[2],jraw(o,"schadecontrole","[]"),jraw(o,"lc","[]"),jraw(o,"kwaliteit","[]")); }
+        exec(c, "INSERT INTO diensten (hub_id,datum,dagdeel,schadecontrole,lc,kwaliteit,buswassing) VALUES (?,?,?,?::jsonb,?::jsonb,?::jsonb,?::jsonb)", k[0],k[1],k[2],jraw(o,"schadecontrole","[]"),jraw(o,"lc","[]"),jraw(o,"kwaliteit","[]"),jraw(o,"buswassing","[]")); }
 
       // meta (_seq, appversion)
       if (root.has("_seq") && !root.get("_seq").isJsonNull()) setMeta(c, "_seq", root.get("_seq").getAsString());
