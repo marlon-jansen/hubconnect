@@ -80,6 +80,7 @@
     thermo: '<path d="M14 14.9V5a2 2 0 1 0-4 0v9.9a4 4 0 1 0 4 0z"/><path d="M12 9.5v5"/>',
     scan: '<path d="M3 8V5a2 2 0 0 1 2-2h3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M8 21H5a2 2 0 0 1-2-2v-3"/><path d="M3 12h18"/>',
     van: '<path d="M3 7h11v9H3z"/><path d="M14 10h4l3 3v3h-7z"/><circle cx="7" cy="18" r="1.6"/><circle cx="17" cy="18" r="1.6"/>',
+    truck: '<path d="M2 6h13v10H2z"/><path d="M15 9h3.5l3.5 3.5V16h-7z"/><circle cx="5" cy="18" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="18.5" cy="18" r="1.6"/>',
     vanFast: '<path d="M8 7h9v9H8z"/><path d="M17 10h2.5l2.5 3v3h-5z"/><circle cx="11.5" cy="18" r="1.6"/><circle cx="19" cy="18" r="1.6"/><path d="M2 9h4M1 12h5M2 15h4"/>',
     devices: '<rect x="2" y="4.5" width="13" height="9.5" rx="1.5"/><path d="M5 18h6M8 14v4"/><rect x="15.5" y="9" width="6.5" height="12" rx="1.5"/><path d="M17.8 18.5h1.9"/>',
     bolt: '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
@@ -2880,7 +2881,7 @@
       "</div>";
     // Geen pendels, of wel pendels maar nergens een meting → niets te archiveren.
     var gemeten = rijen.some(function (r) { return r.metingen.some(function (x) { return !!x.meting; }); });
-    if (!gemeten) return panel("van", "Temperatuurcontrole pendels (EFC)", kop + '<div class="cellsub" style="padding:14px">Geen temperatuurcontroles gevonden.</div>');
+    if (!gemeten) return panel("truck", "Temperatuurcontrole pendels (EFC)", kop + '<div class="cellsub" style="padding:14px">Geen temperatuurcontroles gevonden.</div>');
 
     var body = rijen.map(function (r) {
       var pendelCel = '<td rowspan="2" class="ar-nr"><b>Pendel ' + r.nr + "</b>" +
@@ -2910,7 +2911,7 @@
       }).join("");
     }).join("");
 
-    return panel("van", "Temperatuurcontrole pendels (EFC)", kop +
+    return panel("truck", "Temperatuurcontrole pendels (EFC)", kop +
       '<div class="table-scroll"><table class="table table-grid ar-table">' +
       "<thead><tr><th>Pendel</th><th>Vak</th><th>Rtnr.</th><th>Boxnr.</th><th>Gemeten product</th><th>Temperatuur</th><th>Oordeel</th><th>Controleur</th><th>Actie bij afwijking</th></tr></thead>" +
       "<tbody>" + body + "</tbody></table></div>" +
@@ -3230,7 +3231,7 @@
       var ritCell = canTemp
         ? '<input class="pen-rit" data-penrit="' + p.id + '" placeholder="ritnummer" value="' + esc(p.rit || "") + '">'
         : '<span class="' + (p.rit ? "cellname" : "cellsub") + '">' + (p.rit ? "rit " + esc(p.rit) : "geen ritnummer") + "</span>";
-      return '<div class="pen-card' + (afw ? " pen-afw" : "") + '"><div class="pen-head">' + svg("van", "icon-sm") + "<b>Pendel " + (i + 1) + "</b>" +
+      return '<div class="pen-card' + (afw ? " pen-afw" : "") + '"><div class="pen-head">' + svg("truck", "icon-sm") + "<b>Pendel " + (i + 1) + "</b>" +
         (p.tijd ? '<span class="pen-tijd">aankomst ' + esc(p.tijd) + "</span>" : "") + "</div>" +
         '<div class="pen-rit-row">' + ritCell +
           (p.trolleysVerwacht ? '<span class="cellsub">' + esc(p.trolleysVerwacht) + " trolleys</span>" : "") + "</div>" +
@@ -3268,7 +3269,7 @@
           (tSt.afwijkingen === 1 ? "1 meting wijkt af" : tSt.afwijkingen + " metingen wijken af") +
           " — waarschuw je leidinggevende en leg vast wat er met de producten is gedaan (WI 01).</div>" : "")
       : "";
-    var pcBody = stockBar + tempTop + '<div class="pc-col-h">' + svg("van", "icon-sm") + "Pendels — retour &amp; temperatuur</div><div class=\"pen-list\">" + pendelList + "</div>" +
+    var pcBody = stockBar + tempTop + '<div class="pc-col-h">' + svg("truck", "icon-sm") + "Pendels — retour &amp; temperatuur</div><div class=\"pen-list\">" + pendelList + "</div>" +
       (tr.pendels.length ? tempNormsBox() : "");
     var tellenBody = opProgress(pcSt.done, pcSt.total, "vakken gecontroleerd") +
       pcTable;
@@ -3399,7 +3400,7 @@
     var items = [
       { key: "laden", titel: "Laadproces", icon: "inbox", done: lcS.used > 0,
         sub: lcS.used > 0 ? lcS.used + " ritten in " + lcS.total + " vakken" : (lcS.total > 0 ? lcS.total + " vakken, nog geen ritten" : "Laadlijst nog niet klaargezet"), body: blocks.laden },
-      { key: "pendel", titel: "Pendels", icon: "van", done: tr.pendels.length > 0,
+      { key: "pendel", titel: "Pendels", icon: "truck", done: tr.pendels.length > 0,
         sub: tr.pendels.length > 0 ? tr.pendels.length + (tr.pendels.length === 1 ? " pendel" : " pendels") + " · tellijst " + (pc.total ? pc.total + " vakken" : "nog niet geïmporteerd") : "Nog geen pendels klaargezet", body: blocks.pendel },
       { key: "schade", titel: "Schadecontrole", icon: "shield", done: sc.total > 0, opt: c.dd !== "PM" && !dockShift(c),
         sub: sc.total > 0 ? sc.total + " bussen klaargezet" : "Schadecontrolelijst nog niet klaargezet", body: blocks.schade },
@@ -3489,7 +3490,7 @@
 
     // ----- Pendels -----
     var tr = S.getTrolley(c.h, c.d, c.dd), tSt = S.tempStats(c.h, c.d, c.dd);
-    var komendePendels = recentList(S.komendePendels(c.h, c.d, c.dd).map(function (p) { return recentItem("van", "Pendel " + (p.tijd || "?"), p.tijd || null); }), "Geen aankomende pendels");
+    var komendePendels = recentList(S.komendePendels(c.h, c.d, c.dd).map(function (p) { return recentItem("truck", "Pendel " + (p.tijd || "?"), p.tijd || null); }), "Geen aankomende pendels");
     // Geweest = de geplande aankomsttijd is verstreken (alleen op de dag zelf; eerdere dagen: alles, latere: niets).
     var nowMin = new Date().getHours() * 60 + new Date().getMinutes(), vandaag = ymd(new Date());
     var pGeweest = tr.pendels.filter(function (p) {
@@ -3525,7 +3526,7 @@
     var grid = '<div class="dash-grid">' +
       tile("Laden", "inbox", "orange", "lc", ladenInner, "lc") +
       tile("Schadecontrole", "shield", "green", "schadecontrole", schadeInner, "schadecontrole") +
-      tile("Pendels", "van", "blue", "lc", pendelInner, null) +
+      tile("Pendels", "truck", "blue", "lc", pendelInner, null) +
       tile("Kwaliteit", "award", "purple", "kwaliteit", kwalInner, "kwaliteit") +
       "</div>";
 
@@ -3649,14 +3650,14 @@
       if (p.trolleysVerwacht) meta.push(esc(p.trolleysVerwacht) + " trolleys");
       if (p.afwijking) meta.push('<span class="pen-afw ' + (String(p.afwijking).charAt(0) === "-" ? "vroeg" : "laat") + '">' + esc(p.afwijking) + " min</span>");
       var sub = meta.length ? '<div class="kz-pendel-sub">' + meta.join(" · ") + "</div>" : "";
-      return '<div class="kz-pendel-row"><div><span>' + svg("van", "icon-sm") + "Pendel " + (i + 1) + (p.tijd ? " · aankomst " + esc(p.tijd) : "") + "</span>" + sub + "</div>" +
+      return '<div class="kz-pendel-row"><div><span>' + svg("truck", "icon-sm") + "Pendel " + (i + 1) + (p.tijd ? " · aankomst " + esc(p.tijd) : "") + "</span>" + sub + "</div>" +
         '<button class="pl-x" data-pendeldel="' + p.id + '" title="Verwijderen">' + svg("trash", "icon-sm") + "</button></div>";
     }).join("") : '<div class="cellsub" style="padding:8px 0">Er zijn nog geen pendels klaargezet.</div>';
     var pendelImportBlock = '<div class="kz-section"><div class="kz-h">' + svg("download", "icon-sm") + "Aankomsttijden importeren</div>" +
       '<p class="cellsub" style="margin:0 0 8px">Plak de pendellijst (blokken per pendel: aankomsttijd, aantallen, venstertijd, ritnr, herkomst). Pendels vóór 13:00 komen in AM, vanaf 13:00 in PM. <b>Vervangt de pendelplanning van deze dag.</b></p>' +
       '<textarea id="kzPendelImport" rows="5" class="kz-sheet" placeholder="05:15&#10;31&#10;29&#10;Venstertijd: 05:15 - 06:19&#10;A1003455643&#10;EFC Bleiswijk&#10;+30&#10;…"></textarea>' +
       '<div style="margin-top:8px"><button class="btn btn-primary btn-sm" id="kzImportPendel">' + svg("check", "icon-sm") + "Pendels importeren</button></div></div>";
-    var pendelPlanBlock = pendelImportBlock + '<div class="kz-section"><div class="kz-h">' + svg("van", "icon-sm") + "Pendels klaarzetten (" + (c.dd === "PM" ? "PM" : "AM") + ")</div>" +
+    var pendelPlanBlock = pendelImportBlock + '<div class="kz-section"><div class="kz-h">' + svg("truck", "icon-sm") + "Pendels klaarzetten (" + (c.dd === "PM" ? "PM" : "AM") + ")</div>" +
       '<div class="add-inline"><input id="penTijd" type="time" class="lc-in" style="max-width:140px"><button class="btn btn-dark btn-sm" id="penAdd">' + svg("plus", "icon-sm") + "Pendel toevoegen</button></div>" +
       '<div style="margin-top:10px">' + pendelRows + "</div></div>";
     var ladenBlock = ladenImport + '<div class="kz-section"><div class="kz-h">' + svg("inbox", "icon-sm") + "Laden klaarzetten</div>" +
