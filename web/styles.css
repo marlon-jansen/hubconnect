@@ -1084,6 +1084,27 @@ main { max-width: 1100px; margin: 0 auto; padding: 22px 18px 80px; }
 .dash-ring span { position: relative; font-weight: 900; font-size: 15px; }
 .dash-orange .dash-ring, .dash-card.dash-orange .dash-ring { background: conic-gradient(var(--orange) calc(var(--p) * 1%), var(--surface-2) 0); }
 .dash-blue .dash-ring, .dash-card.dash-blue .dash-ring { background: conic-gradient(var(--blue) calc(var(--p) * 1%), var(--surface-2) 0); }
+/* Voorbereiding: uitklapbare checklist */
+details.prep { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); margin-bottom: 10px; overflow: hidden; }
+details.prep > summary { list-style: none; display: flex; align-items: center; gap: 12px; padding: 14px 16px; cursor: pointer; }
+details.prep > summary::-webkit-details-marker { display: none; }
+details.prep > summary:hover { background: var(--surface-2); }
+.prep-st { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; flex: 0 0 auto; font-weight: 900; font-size: 16px; color: #fff; }
+.prep-st svg { width: 16px; height: 16px; stroke-width: 3; color: #fff; }
+.prep-done .prep-st { background: var(--green-bright); }
+.prep-open .prep-st { background: var(--orange); }
+.prep-opt .prep-st { background: var(--surface-2); color: var(--muted); }
+.prep-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.prep-title { display: inline-flex; align-items: center; gap: 7px; font-weight: 900; font-size: 15px; }
+.prep-title .icon { color: var(--ink-soft); }
+.prep-sub { font-size: 12.5px; font-weight: 700; color: var(--ink-soft); }
+.prep-open .prep-sub { color: var(--orange); }
+.prep-done .prep-sub { color: var(--green-bright); }
+.prep-chev { flex: 0 0 auto; color: var(--muted); transition: transform .2s var(--ease); }
+details.prep[open] > summary .prep-chev { transform: rotate(180deg); }
+details.prep[open] > summary { border-bottom: 1px solid var(--line); }
+.prep-body { padding: 12px 16px 16px; }
+.prep-body .kz-section:last-child { margin-bottom: 0; }
 /* Trolleyvoorraad-tab */
 .troll-body { padding: 14px 18px; }
 .troll-nums { display: flex; gap: 30px; margin-top: 8px; }
