@@ -1108,6 +1108,11 @@ details.prep[open] > summary { border-bottom: 1px solid var(--line); }
 .prep-body .kz-section:last-child { margin-bottom: 0; }
 /* Diensten: keuzelijst met zoekveld per proces */
 .dienst-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+.dienst-person { display: flex; align-items: center; gap: 8px; padding: 7px 10px; margin-bottom: 6px; border-radius: 10px; background: var(--surface-2); font-weight: 700; font-size: 14px; }
+.dienst-person > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.dienst-person .icon { color: var(--jumbo-yellow-dark); flex: 0 0 auto; }
+.dienst-person .pick-clear { width: 28px; height: 28px; border: 0; background: transparent; }
+.dienst-count { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: var(--jumbo-yellow); color: var(--ink-fixed); font-size: 12px; font-weight: 900; margin-left: 6px; vertical-align: middle; }
 .pick { position: relative; display: flex; align-items: center; gap: 6px; }
 .pick-btn { flex: 1; display: inline-flex; align-items: center; gap: 8px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); font-family: inherit; font-size: 14px; font-weight: 700; color: var(--muted); cursor: pointer; text-align: left; min-width: 0; }
 .pick-btn.has { color: var(--ink); border-color: var(--jumbo-yellow); }

@@ -3430,7 +3430,7 @@
     });
     var hb = el("app").querySelector("[data-heropen]"); if (hb) hb.addEventListener("click", function () { try { S.shiftAfronden(c.h, c.d, c.dd, true); toast("Shift heropend.", "ok"); renderDashboard(); } catch (e) { toast(e.message, "err"); } });
     bindModuleHeader(renderDashboard);
-    document.querySelectorAll("[data-dashtab]").forEach(function (b) { b.addEventListener("click", function () { state.dashTab = b.getAttribute("data-dashtab"); renderDashboard(); }); });
+    document.querySelectorAll("[data-dashtab]").forEach(function (b) { b.addEventListener("click", function () { state.dashTab = b.getAttribute("data-dashtab"); if (state.dashTab === "voorbereiding") state.prepOpen = {}; renderDashboard(); }); });
     if (state.dashTab === "trolley") bindDashTrolley(c);
     else if (state.dashTab === "voorbereiding") {
       bindDashKlaarzetten(c); bindDashDiensten(c); bindSpControle(c);
@@ -3501,7 +3501,7 @@
     var kop = opProgress(klaar, items.length, "onderdelen klaar");
     return kop + items.map(function (it) {
       var st = it.done ? "done" : (it.opt ? "opt" : "open");
-      var open = state.prepOpen[it.key] === true || (state.prepOpen[it.key] == null && st === "open" && it.key === (items.filter(function (x) { return !x.done && !x.opt; })[0] || {}).key);
+      var open = state.prepOpen[it.key] === true; // standaard alles dichtgeklapt
       return '<details class="prep prep-' + st + '" data-prep="' + it.key + '"' + (open ? " open" : "") + ">" +
         '<summary><span class="prep-st">' + (st === "done" ? svg("check", "icon-sm") : st === "opt" ? "–" : "!") + "</span>" +
           '<span class="prep-txt"><span class="prep-title">' + svg(it.icon, "icon-sm") + esc(it.titel) + "</span>" +
@@ -3808,21 +3808,23 @@
     var d = S.getDiensten(c.h, c.d, c.dd);
     var users = S.usersForHub(c.h).slice().sort(function (a, b) { return (a.voornaam + a.achternaam).localeCompare(b.voornaam + b.achternaam); });
     if (!state.dienstOpen) state.dienstOpen = null;
-    // Per proces een keuzelijst met zoekveld (één persoon per proces).
+    // Per proces: de toegewezen personen (met ×) en daaronder een keuzelijst met zoekveld om iemand toe te voegen.
     function block(key, label, taskName) {
-      var kandidaten = users.filter(function (us) { return us.taken.indexOf(taskName) !== -1 || S.level(us) >= 3; });
-      var gekozenId = (d[key] || [])[0], gekozen = gekozenId ? S.userById(gekozenId) : null;
+      var gekozenIds = d[key] || [];
+      var kandidaten = users.filter(function (us) { return gekozenIds.indexOf(us.id) === -1 && (us.taken.indexOf(taskName) !== -1 || S.level(us) >= 3); });
       var open = state.dienstOpen === key;
       var q = open ? (state.dienstQ || "") : "";
       var lijst = kandidaten.filter(function (us) { return !q || (us.voornaam + " " + us.achternaam).toLowerCase().indexOf(q.toLowerCase()) !== -1; });
+      var gekozen = gekozenIds.map(function (id) { return S.userById(id); }).filter(Boolean).map(function (us) {
+        return '<div class="dienst-person">' + svg("user", "icon-sm") + "<span>" + fullName(us) + '</span><button type="button" class="pick-clear" data-dienstdel="' + key + "|" + us.id + '" title="Weghalen">' + svg("x", "icon-sm") + "</button></div>";
+      }).join("");
       var items = lijst.length ? lijst.map(function (us) {
-        return '<button type="button" class="pick-item' + (us.id === gekozenId ? " on" : "") + '" data-dienstpick="' + key + "|" + us.id + '">' + (us.id === gekozenId ? svg("check", "icon-sm") : '<span class="pick-dot"></span>') + fullName(us) + "</button>";
-      }).join("") : '<div class="cellsub" style="padding:8px 10px">' + (kandidaten.length ? "Geen medewerker gevonden." : "Geen geschikte medewerkers.") + "</div>";
-      return '<div class="dienst-block"><div class="dienst-h">' + esc(label) + "</div>" +
+        return '<button type="button" class="pick-item" data-dienstpick="' + key + "|" + us.id + '"><span class="pick-dot"></span>' + fullName(us) + "</button>";
+      }).join("") : '<div class="cellsub" style="padding:8px 10px">' + (kandidaten.length ? "Geen medewerker gevonden." : "Geen medewerkers meer beschikbaar.") + "</div>";
+      return '<div class="dienst-block"><div class="dienst-h">' + esc(label) + (gekozenIds.length ? ' <span class="dienst-count">' + gekozenIds.length + "</span>" : "") + "</div>" +
+        (gekozen || '<div class="cellsub" style="margin-bottom:6px">Niemand toegewezen</div>') +
         '<div class="pick' + (open ? " open" : "") + '" data-pick="' + key + '">' +
-          '<button type="button" class="pick-btn' + (gekozen ? " has" : "") + '" data-dienstopen="' + key + '">' + svg("user", "icon-sm") +
-            "<span>" + (gekozen ? fullName(gekozen) : "Kies medewerker…") + "</span>" + svg("chevronDown", "icon-sm pick-chev") + "</button>" +
-          (gekozen ? '<button type="button" class="pick-clear" data-dienstclear="' + key + '" title="Toewijzing weghalen">' + svg("x", "icon-sm") + "</button>" : "") +
+          '<button type="button" class="pick-btn" data-dienstopen="' + key + '">' + svg("plus", "icon-sm") + "<span>Persoon toevoegen</span>" + svg("chevronDown", "icon-sm pick-chev") + "</button>" +
           '<div class="pick-menu"><div class="pick-search">' + svg("search", "icon-sm") + '<input type="search" data-dienstq="' + key + '" placeholder="Zoek op naam…" value="' + esc(q) + '" autocomplete="off"></div>' +
           '<div class="pick-list">' + items + "</div></div>" +
         "</div></div>";
@@ -3834,6 +3836,7 @@
       renderDashboard();
       if (focusKey) { var inp = document.querySelector('[data-dienstq="' + focusKey + '"]'); if (inp) { inp.focus(); var v = inp.value; inp.value = ""; inp.value = v; } }
     }
+    function setList(key, ids) { try { S.setDienst(c.h, c.d, c.dd, key, ids); } catch (e) { toast(e.message, "err"); } }
     document.querySelectorAll("[data-dienstopen]").forEach(function (b) {
       b.addEventListener("click", function (ev) { ev.stopPropagation(); var k = b.getAttribute("data-dienstopen"); state.dienstOpen = state.dienstOpen === k ? null : k; state.dienstQ = ""; rerender(state.dienstOpen); });
     });
@@ -3844,12 +3847,17 @@
     document.querySelectorAll(".pick-menu").forEach(function (m) { m.addEventListener("click", function (ev) { ev.stopPropagation(); }); });
     document.querySelectorAll("[data-dienstpick]").forEach(function (b) {
       b.addEventListener("click", function () {
-        var p = b.getAttribute("data-dienstpick").split("|");
-        try { S.setDienst(c.h, c.d, c.dd, p[0], [p[1]]); state.dienstOpen = null; state.dienstQ = ""; renderDashboard(); } catch (e) { toast(e.message, "err"); }
+        var p = b.getAttribute("data-dienstpick").split("|"), cur = (S.getDiensten(c.h, c.d, c.dd)[p[0]] || []).slice();
+        if (cur.indexOf(p[1]) === -1) cur.push(p[1]);
+        setList(p[0], cur); state.dienstOpen = null; state.dienstQ = ""; renderDashboard();
       });
     });
-    document.querySelectorAll("[data-dienstclear]").forEach(function (b) {
-      b.addEventListener("click", function (ev) { ev.stopPropagation(); try { S.setDienst(c.h, c.d, c.dd, b.getAttribute("data-dienstclear"), []); renderDashboard(); } catch (e) { toast(e.message, "err"); } });
+    document.querySelectorAll("[data-dienstdel]").forEach(function (b) {
+      b.addEventListener("click", function (ev) {
+        ev.stopPropagation();
+        var p = b.getAttribute("data-dienstdel").split("|"), cur = (S.getDiensten(c.h, c.d, c.dd)[p[0]] || []).filter(function (id) { return id !== p[1]; });
+        setList(p[0], cur); renderDashboard();
+      });
     });
     if (state.dienstOpen) document.addEventListener("click", function closePick() { document.removeEventListener("click", closePick); if (state.dienstOpen) { state.dienstOpen = null; state.dienstQ = ""; renderDashboard(); } });
   }
