@@ -3512,7 +3512,7 @@
     var embTot = 0, embGevuld = 0;
     var vakTotals = embVakken.map(function (i) { var n = S.emballageVakTotal(c.h, c.d, c.dd, i); embTot += n; if (n) embGevuld++; return '<div class="emb-vaktot"><span>Vak ' + i + ":</span> <b>" + n + "</b></div>"; }).join("");
     var spK = S.spTrolleyGet(c.h, c.d, c.dd);
-    var spTxt = !spK ? "Nee" : spK.status === "open" ? "Loopt" : spK.status === "ingediend" ? "Ingediend" : "Afgerond";
+    var spTxt = !spK ? "Geen" : spK.status === "open" ? "Lopende" : spK.status === "ingediend" ? "Ingediend" : "Voltooid";
     var spCls = !spK ? "" : spK.status === "open" ? "info" : spK.status === "ingediend" ? "warn" : "ok";
     var kwalInner = facts([
         { lab: "Kratten emballage totaal", val: embTot, go: "kwaliteit|" },
