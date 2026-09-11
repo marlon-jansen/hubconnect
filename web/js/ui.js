@@ -114,6 +114,7 @@
     arrowLeft: '<path d="M19 12H5M11 6l-6 6 6 6"/>',
     arrowUp: '<path d="M12 19V5M6 11l6-6 6 6"/>',
     arrowDown: '<path d="M12 5v14M6 13l6 6 6-6"/>',
+    chevronDown: '<path d="M6 9l6 6 6-6"/>',
     refresh: '<path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/>',
     logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/>',
     cap: '<path d="M22 9 12 4 2 9l10 5 10-5z"/><path d="M6 11v5c0 1 3 3 6 3s6-2 6-3v-5"/>',
@@ -537,7 +538,7 @@
       '<div class="auth-wrap"><div class="auth-col"><div class="auth-card">' +
         '<div class="auth-head">' +
           '<button class="auth-back" data-back>' + svg("arrowLeft", "icon-sm") + " Terug</button>" +
-          logo(38) + '<div class="auth-title"><h1>Account registreren</h1><p>Vul de code in die je van je teamleider hebt gekregen.</p></div></div>' +
+          logo(38) + '<div class="auth-title"><h1>Account registreren</h1><p>Vraag een uitnodigingscode aan bij je leidinggevende en vul die hier in.</p></div></div>' +
         '<div class="auth-body">' +
           authModeSeg("register") +
           '<div class="auth-pane">' +
@@ -1655,6 +1656,8 @@
   }
 
   // Personeelsbeheer als los menu-item (onder "Planning"). Hergebruikt de beheer-view.
+  // Functies die deze gebruiker mag toekennen: nooit boven het eigen niveau (beheerder: alles).
+  function assignableRoles(u) { return S.ROLES.filter(function (r) { return S.isAdmin(u) || r.level <= S.level(u); }); }
   function renderPersoneelsbeheer() {
     reRender = renderPersoneelsbeheer;
     el("app").innerHTML = moduleShell("Personeelsbeheer", viewBeheer(true), { noShift: true });
@@ -1665,14 +1668,14 @@
 
   function beheerTeam() {
     var u = S.currentUser();
-    var canEdit = S.can.editTeam(u), canRoles = S.can.editRoles(u), showHub = S.isAdmin(u);
+    var canEdit = S.can.editTeam(u), canRoles = S.can.editRoles(u), showHub = false; // personeel is altijd per hub (hub-kolom niet nodig)
     var users = S.manageableUsers(u).slice().filter(function (x) {
       if (!state.teamQ) return true;
       var hub = S.hubById(x.hubId);
       return (x.voornaam + " " + x.achternaam + " " + x.email + " " + (hub ? hub.naam : "")).toLowerCase().indexOf(state.teamQ.toLowerCase()) !== -1;
     }).sort(function (a, b) { return S.level(b) - S.level(a) || a.voornaam.localeCompare(b.voornaam); });
 
-    function roleOpts(sel) { return S.ROLES.map(function (r) { return '<option value="' + r.id + '"' + (sel === r.id ? " selected" : "") + ">" + esc(r.label) + "</option>"; }).join(""); }
+    function roleOpts(sel) { return assignableRoles(u).map(function (r) { return '<option value="' + r.id + '"' + (sel === r.id ? " selected" : "") + ">" + esc(r.label) + "</option>"; }).join(""); }
 
     var rows = users.map(function (x) {
       var hub = S.hubById(x.hubId);
@@ -1696,6 +1699,21 @@
       }).join("");
       // Teamleider/locatiemanager hebben geen bus/JBT/taken-opties nodig.
       if (S.level(x) >= 4) { n2Cell = '<span class="cellsub">—</span>'; jbtCell = '<span class="cellsub">—</span>'; taskChips = ""; }
+      // Locatie-manager: manager thuisbezorging/beheerder koppelt hier extra hubs (de eigen hub staat vast).
+      if (S.level(x) === 5 && S.overHubs(u)) {
+        // Dropdown met vinkjes: eigen hub staat vast aangevinkt, de rest is aan/uit te zetten.
+        var extra = x.hubIds || [], hubsAll = S.db.hubs.slice().sort(function (a, b) { return a.naam.localeCompare(b.naam); });
+        var nSel = 1 + extra.filter(function (id) { return id !== x.hubId && S.hubById(id); }).length;
+        var open = state.hubDropOpen === x.id;
+        taskChips = '<div class="hubdrop' + (open ? " open" : "") + '" data-hubdrop="' + x.id + '">' +
+          '<button type="button" class="btn btn-sm hubdrop-btn" data-hubdroptoggle="' + x.id + '">' + svg("building", "icon-sm") + "Hubs (" + nSel + ")" + svg("chevronDown", "icon-sm") + "</button>" +
+          '<div class="hubdrop-menu">' + hubsAll.map(function (h) {
+            var own = h.id === x.hubId, on = own || extra.indexOf(h.id) !== -1;
+            return '<label class="hubdrop-item' + (own ? " own" : "") + '"><input type="checkbox"' + (on ? " checked" : "") + (own ? " disabled" : "") + ' data-uhubs="' + x.id + "|" + h.id + '"> ' + esc(h.naam) + (own ? ' <span class="cellsub">(eigen hub)</span>' : "") + "</label>";
+          }).join("") + "</div></div>";
+      } else if (S.level(x) >= 6) {
+        taskChips = '<span class="cellsub">Alle hubs</span>';
+      }
       var acct = "";
       if (x.mustSetPassword && x.otp) {
         acct = '<div class="otp-line">' + svg("key", "icon-sm") + "Eenmalige code: <code>" + esc(x.otp) + "</code>" +
@@ -1799,6 +1817,19 @@
     document.querySelectorAll("button[data-n2]").forEach(function (b) { b.addEventListener("click", function () { act(function () { S.setUserN2(b.getAttribute("data-n2"), b.getAttribute("data-n2v") !== "1"); }, "N2-bevoegdheid bijgewerkt."); }); });
     document.querySelectorAll("[data-tasktype]").forEach(function (b) { b.addEventListener("click", function () { var p = b.getAttribute("data-tasktype").split("|"); act(function () { S.setTaskType(p[0], p[1]); }, "Taaktype bijgewerkt."); }); });
     document.querySelectorAll("[data-jbt]").forEach(function (c) { c.addEventListener("click", function () { var id = c.getAttribute("data-jbt"); var t = S.userById(id); act(function () { S.setUserJbt(id, !t.jbtTrainer); }, "JBT-trainer bijgewerkt."); }); });
+    document.querySelectorAll("[data-hubdroptoggle]").forEach(function (b) {
+      b.addEventListener("click", function (ev) { ev.stopPropagation(); var id = b.getAttribute("data-hubdroptoggle"); state.hubDropOpen = state.hubDropOpen === id ? null : id; reRender(); });
+    });
+    document.querySelectorAll(".hubdrop-menu").forEach(function (m) { m.addEventListener("click", function (ev) { ev.stopPropagation(); }); });
+    if (state.hubDropOpen) document.addEventListener("click", function closeHubDrop() { document.removeEventListener("click", closeHubDrop); if (state.hubDropOpen) { state.hubDropOpen = null; reRender(); } });
+    document.querySelectorAll("[data-uhubs]").forEach(function (c) {
+      c.addEventListener("change", function () {
+        var p = c.getAttribute("data-uhubs").split("|"), t = S.userById(p[0]); if (!t) return;
+        var cur = (t.hubIds || []).slice(), i = cur.indexOf(p[1]);
+        if (c.checked && i === -1) cur.push(p[1]); else if (!c.checked && i !== -1) cur.splice(i, 1);
+        try { S.setUserHubs(p[0], cur); reRender(); } catch (e) { toast(e.message, "err"); }
+      });
+    });
     document.querySelectorAll("[data-utask]").forEach(function (c) { c.addEventListener("click", function () { var p = c.getAttribute("data-utask").split("|"); act(function () { S.toggleUserTask(p[0], p[1]); }, "Taken bijgewerkt."); }); });
     document.querySelectorAll("[data-regen]").forEach(function (b) { b.addEventListener("click", function () { var id = b.getAttribute("data-regen"); S.regenerateOtp(id).then(function (otp) { showOtpModal(S.userById(id), otp); (reRender || renderApp)(); }).catch(function (e) { toast(e.message, "err"); }); }); });
     document.querySelectorAll("[data-review]").forEach(function (b) { b.addEventListener("click", function () { act(function () { S.markUserReviewed(b.getAttribute("data-review")); }, "Account gecontroleerd."); }); });
@@ -1949,7 +1980,7 @@
       if (canTeam) {
         edit += '<div class="prof-divider">Beheer</div>';
         edit += '<div class="ud-row"><span>Functie</span>' + (canRoles
-          ? '<select class="pill-select" data-udrole>' + S.ROLES.map(function (r) { return '<option value="' + r.id + '"' + (t.rol === r.id ? " selected" : "") + ">" + esc(r.label) + "</option>"; }).join("") + "</select>"
+          ? '<select class="pill-select" data-udrole>' + assignableRoles(S.currentUser()).map(function (r) { return '<option value="' + r.id + '"' + (t.rol === r.id ? " selected" : "") + ">" + esc(r.label) + "</option>"; }).join("") + "</select>"
           : '<span class="badge role">' + esc(S.roleMeta(t.rol).label) + "</span>") + "</div>";
         edit += '<div class="ud-row"><span>N2-bevoegdheid</span><label class="toggle"><input type="checkbox" data-udn2 ' + (t.n2 ? "checked" : "") + '><span class="track"></span></label></div>';
         edit += '<div class="ud-row"><span>JBT-trainer</span><label class="toggle"><input type="checkbox" data-udjbt ' + (t.jbtTrainer ? "checked" : "") + '><span class="track"></span></label></div>';
@@ -2095,8 +2126,7 @@
     function tileHTML(m) {
       return '<button class="tile tile-' + m.color + '" data-module="' + m.id + '">' +
         '<span class="tile-ico">' + svg(m.icon, "icon-lg") + "</span>" +
-        '<span class="tile-name">' + esc(m.name) + "</span>" +
-        '<span class="tile-desc">' + esc(m.desc) + "</span></button>";
+        '<span class="tile-name">' + esc(m.name) + "</span></button>"; // geen uitlegregel onder de naam (op verzoek)
     }
     var sections = ["Planning", "Proces", "Beheer"].map(function (g) {
       var gm = mods.filter(function (m) { return (m.group || "Proces") === g; });
@@ -2111,9 +2141,17 @@
           " via een uitnodigingscode geregistreerd — controleer of de gegevens kloppen.</div>" +
           '<button class="btn btn-dark btn-sm" data-goto-beheer>' + svg("userCog", "icon-sm") + "Bekijken</button></div>"
       : "";
+    // Manager Thuisbezorging (en beheerder) kiest hier de hub die de app toont; onthouden per gebruiker.
+    var hubPicker = "";
+    if (S.canSwitchHub(u)) {
+      var hubs = S.hubsFor(S.userById(u.id)); // manager/beheerder: alle hubs; locatie-manager: eigen + gekoppelde hubs
+      hubPicker = '<div class="portal-hubpick"><label for="portalHub">' + svg("building", "icon-sm") + "Hub</label>" +
+        '<select id="portalHub" class="lc-in">' + hubs.map(function (h) { return '<option value="' + h.id + '"' + (h.id === u.hubId ? " selected" : "") + ">" + esc(h.naam) + "</option>"; }).join("") + "</select></div>";
+    }
     el("app").innerHTML = portalHeader(u) +
       '<main class="portal-main">' +
         '<div class="portal-welcome"><h2>Hallo ' + esc(u.voornaam) + ",</h2><p>Waar wil je mee aan de slag?</p></div>" +
+        hubPicker +
         pendingBanner +
         sections +
       "</main>";
@@ -2121,6 +2159,7 @@
     el("app").querySelector("[data-profile]").addEventListener("click", openProfile);
     var hm = el("app").querySelector("[data-home]"); if (hm) hm.addEventListener("click", gotoLanding);
     var gb = el("app").querySelector("[data-goto-beheer]"); if (gb) gb.addEventListener("click", function () { state.module = "personeelsbeheer"; render(); });
+    var hp = el("portalHub"); if (hp) hp.addEventListener("change", function () { try { S.setViewHub(hp.value); render(); } catch (e) { toast(e.message, "err"); } });
     document.querySelectorAll("[data-module]").forEach(function (b) {
       b.addEventListener("click", function () { state.module = b.getAttribute("data-module"); state.view = "shifts"; state.viewOnly = false; render(); });
     });
@@ -2323,11 +2362,14 @@
     var badge = vo
       ? '<span class="live-badge vo-badge">' + svg("shield", "icon-sm") + (S.isSetup(S.currentUser()) ? "Binnendienst" : "Alleen bekijken") + "</span>"
       : liveBadge();
-    var voBar = vo ? '<div class="vo-bar"><button class="btn btn-ghost btn-sm" data-voback>' + svg("arrowLeft", "icon-sm") + "Terug naar dashboard</button></div>" : "";
+    // 'Terug naar dashboard' staat bovenaan de pagina als losse gele knop (geen balk).
+    var voBack = vo ? '<button class="btn btn-sm vo-back" data-voback>' + svg("arrowLeft", "icon-sm") + "Terug naar dashboard</button>" : "";
+    // Vanuit 'Bekijk voortgang' op het dashboard heet de pagina "Voortgang <module>".
+    var heading = vo ? "Voortgang " + title.charAt(0).toLowerCase() + title.slice(1) : title;
     return portalHeader(S.currentUser(), true) +
-      '<main><div class="page-head" style="margin-top:6px"><div><h2>' + esc(title) + "</h2></div>" +
+      "<main>" + voBack + '<div class="page-head" style="margin-top:6px"><div><h2>' + esc(heading) + "</h2></div>" +
       '<div class="grow"></div>' + badge + "</div>" +
-      (opts.noShift ? "" : shiftBar()) + voBar + content + "</main>";
+      (opts.noShift ? "" : shiftBar()) + content + "</main>";
   }
   function bindModuleHeader(rerender) {
     el("app").querySelector("[data-logout]").addEventListener("click", function () { S.logout().then(function () { resetNav(); authScreen = "landing"; render(); }); });
@@ -3284,8 +3326,9 @@
 
     // ---- Laadproces ----
     var ladenImport = '<div class="kz-section"><div class="kz-h">' + svg("download", "icon-sm") + "Laadproces importeren</div>" +
-      '<p class="cellsub" style="margin:0 0 8px">Plak de planning-sheet (mét kopregel). Vult de laadvakken en herkent N2/ZE.</p>' +
+      '<p class="cellsub" style="margin:0 0 8px">Plak de hele planning-sheet (selecteer alles in het tabblad en kopieer). Vult de laadvakken per volgnummer en herkent N2/ZE/JBT.</p>' +
       '<textarea id="kzSheetLaden" rows="5" class="kz-sheet" placeholder="Plak hier de sheet…"></textarea>' +
+      '<label class="chk" style="margin-top:8px"><input type="checkbox" id="kzLadenOokSchade" checked> Ook de schadecontrolelijst uit deze sheet vullen</label>' +
       '<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"><button class="btn btn-primary btn-sm" id="kzImportLaden">' + svg("check", "icon-sm") + "Importeren</button>" +
       '<button class="btn btn-ghost btn-sm" id="kzResetLaden">' + svg("trash", "icon-sm") + "Laden leegmaken</button></div></div>";
     var lcRows = lc.vakken.length ? lc.vakken.map(function (v) {
@@ -3324,7 +3367,7 @@
 
     // ---- Schadecontrole (Voorbereiding AM) ----
     var schadeImport = '<div class="kz-section"><div class="kz-h">' + svg("download", "icon-sm") + "Schadecontrole importeren</div>" +
-      '<p class="cellsub" style="margin:0 0 8px">Plak de planning-sheet. Vult de bussen voor de schadecontrole.</p>' +
+      '<p class="cellsub" style="margin:0 0 8px">Plak de hele planning-sheet. Vult de bussen (busnummer, kenteken, bezorger) voor de schadecontrole; bussen die er al in staan worden overgeslagen.</p>' +
       '<textarea id="kzSheetSchade" rows="5" class="kz-sheet" placeholder="Plak hier de sheet…"></textarea>' +
       '<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"><button class="btn btn-primary btn-sm" id="kzImportSchade">' + svg("check", "icon-sm") + "Importeren</button>" +
       '<button class="btn btn-ghost btn-sm" id="kzResetSchade">' + svg("trash", "icon-sm") + "Schade leegmaken</button></div></div>";
@@ -3345,7 +3388,13 @@
   }
   function bindDashKlaarzetten(c) {
     document.querySelectorAll("[data-kztab]").forEach(function (b) { b.addEventListener("click", function () { state.kzTab = b.getAttribute("data-kztab"); renderDashboard(); }); });
-    var il = el("kzImportLaden"); if (il) il.addEventListener("click", function () { try { var n = S.importSheet(c.h, c.d, c.dd, el("kzSheetLaden").value, "laden"); toast(n + " ritten geïmporteerd.", "ok"); renderDashboard(); } catch (e) { toast(e.message, "err"); } });
+    var il = el("kzImportLaden"); if (il) il.addEventListener("click", function () {
+      try {
+        var ook = el("kzLadenOokSchade") && el("kzLadenOokSchade").checked;
+        var n = S.importSheet(c.h, c.d, c.dd, el("kzSheetLaden").value, ook ? "beide" : "laden");
+        toast(n + " ritten geïmporteerd" + (ook ? " (laadlijst + schadecontrole)." : "."), "ok"); renderDashboard();
+      } catch (e) { toast(e.message, "err"); }
+    });
     var rl = el("kzResetLaden"); if (rl) rl.addEventListener("click", function () { try { S.lcReset(c.h, c.d, c.dd); toast("Laadproces gereset.", "ok"); renderDashboard(); } catch (e) { toast(e.message, "err"); } });
     var isc = el("kzImportSchade"); if (isc) isc.addEventListener("click", function () { try { var n = S.importSheet(c.h, c.d, c.dd, el("kzSheetSchade").value, "schade"); toast(n + " bussen geïmporteerd.", "ok"); renderDashboard(); } catch (e) { toast(e.message, "err"); } });
     var rsc = el("kzResetSchade"); if (rsc) rsc.addEventListener("click", function () { try { S.schadeReset(c.h, c.d, c.dd); toast("Schadecontrole gereset.", "ok"); renderDashboard(); } catch (e) { toast(e.message, "err"); } });

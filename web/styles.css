@@ -200,6 +200,8 @@ svg { display: block; }
 
 /* Logo */
 .logo-mark { height: 34px; width: auto; display: block; }
+/* Logo op de gele auth-kop: op een wit plaatje (zelfde als de header-badge), anders valt geel-op-geel weg */
+.auth-head .logo-mark { box-sizing: border-box; height: 46px !important; padding: 7px 13px; background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.14); }
 
 /* Nav */
 .app-nav { background: var(--card); border-bottom: 1px solid var(--line); position: sticky; top: 55px; z-index: 20; }
@@ -1160,7 +1162,10 @@ main { max-width: 1100px; margin: 0 auto; padding: 22px 18px 80px; }
 .live-dot { position: relative; width: 9px; height: 9px; border-radius: 50%; background: var(--green-bright); flex: 0 0 auto; }
 .live-dot::after { content: ""; position: absolute; inset: 0; border-radius: 50%; background: var(--green-bright); animation: livePulse 1.6s ease-out infinite; }
 @keyframes livePulse { 0% { transform: scale(1); opacity: .6; } 100% { transform: scale(2.8); opacity: 0; } }
-.vo-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; background: #eef1f8; border: 1px solid #d5daec; border-radius: 12px; padding: 8px 12px; margin: 0 0 14px; }
+/* Terug-knop in de dashboard-weergave: bovenaan, geel met vaste donkere letters (in beide thema's) */
+.vo-back { background: var(--jumbo-yellow); color: var(--ink-fixed); border: 0; font-weight: 800; margin-bottom: 12px; }
+.vo-back:hover { background: var(--jumbo-yellow-dark, #e0a800); }
+.vo-back svg { color: var(--ink-fixed); }
 .dash-view { margin-top: auto; width: 100%; justify-content: center; background: var(--jumbo-yellow); color: var(--ink-fixed); border: 0; font-weight: 800; padding-top: 10px; padding-bottom: 10px; }
 .dash-view:hover { background: var(--jumbo-yellow-dark, #e0a800); }
 .dash-view svg { color: var(--ink-fixed); }
@@ -1232,26 +1237,53 @@ main { max-width: 1100px; margin: 0 auto; padding: 22px 18px 80px; }
 .portal-btn { background: rgba(255,255,255,.5); margin-right: 2px; }
 .portal-btn:hover { background: var(--card); }
 .back-portal { margin-bottom: 4px; }
-.portal-main { max-width: 1000px; margin: 0 auto; padding: 30px 18px 80px; }
+.portal-main { max-width: 1000px; margin: 0 auto; padding: 28px 18px 80px; }
+/* Menupagina: zakelijke kop (hub · Modules · datum/naam) en rustige, horizontale tegels */
 .portal-welcome { margin-bottom: 24px; }
 .portal-welcome h2 { margin: 0 0 4px; font-size: 26px; font-weight: 900; }
 .portal-welcome p { margin: 0; color: var(--muted); font-weight: 600; font-size: 15px; }
-.portal-group { margin-bottom: 30px; }
-.portal-group-title { margin: 0 0 12px; font-size: 13px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
-.tile-grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+/* hub-kiezer op de menupagina (Manager Thuisbezorging / beheerder) */
+.portal-hubpick { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: -10px 0 22px; }
+.portal-hubpick label { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.portal-hubpick select { max-width: 280px; font-weight: 700; }
+/* hubs-dropdown met vinkjes (locatie-manager op meerdere hubs) */
+.hubdrop { position: relative; display: inline-block; }
+.hubdrop-btn { gap: 6px; }
+.hubdrop-menu { display: none; position: absolute; z-index: 30; top: calc(100% + 6px); left: 0; min-width: 220px; max-height: 280px; overflow-y: auto; background: var(--card); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow-lg); padding: 6px; }
+.hubdrop.open .hubdrop-menu { display: block; }
+.hubdrop-item { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 7px; font-size: 13.5px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+.hubdrop-item:hover { background: var(--surface-2); }
+.hubdrop-item.own { cursor: default; }
+.hubdrop-item input { accent-color: var(--jumbo-yellow-dark); width: 16px; height: 16px; margin: 0; }
+.portal-group { margin-bottom: 26px; }
+.portal-group-title { margin: 0 0 10px; font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.tile-grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
 .tile {
-  text-align: left; border: 1px solid var(--line); background: var(--card); border-radius: 16px; padding: 22px;
-  cursor: pointer; display: flex; flex-direction: column; gap: 6px; box-shadow: var(--shadow);
-  transition: transform .18s var(--ease), box-shadow .18s var(--ease);
+  text-align: left; border: 1px solid var(--line); background: var(--card); border-radius: 10px; padding: 14px 16px;
+  cursor: pointer; display: flex; flex-direction: row; align-items: center; gap: 14px; box-shadow: none;
+  transition: border-color .15s var(--ease), background-color .15s var(--ease);
   position: relative; overflow: hidden;
 }
-.tile:hover { transform: translateY(-4px); box-shadow: var(--shadow-lg); }
-/* side-stripe verwijderd — categoriekleur zit al in het gekleurde .tile-ico
-   (de .tile-<kleur>::before-regels hieronder zijn daardoor inert, bewust gelaten
-   zodat terugdraaien = alleen deze regel herstellen) */
+.tile:hover { border-color: var(--ink-soft); background: var(--surface-2); transform: none; box-shadow: none; }
+.tile:focus-visible { outline: 2px solid var(--jumbo-yellow); outline-offset: 2px; }
 .tile::before { content: none; }
-.tile-ico { width: 52px; height: 52px; border-radius: 14px; display: grid; place-items: center; margin-bottom: 8px; background: var(--jumbo-yellow-soft); color: var(--jumbo-yellow-dark); }
-.tile-name { font-weight: 900; font-size: 18px; }
+.tile-ico { width: 40px; height: 40px; flex: 0 0 auto; border-radius: 9px; display: grid; place-items: center; margin: 0; background: var(--jumbo-yellow-soft); color: var(--jumbo-yellow-dark); }
+.tile-ico svg { width: 20px; height: 20px; }
+.tile-name { font-weight: 800; font-size: 15.5px; letter-spacing: -.01em; }
+/* Licht thema: solide diepdonkere tegels (geen transparantie) — hoog contrast, rustig.
+   Iconen houden hun zachte kleurvlak (zoals in dark). In dark blijven de tegels kaartkleurig. */
+:root:not([data-theme="dark"]) .tile { background: #1f2024; border: 1.5px solid var(--jumbo-yellow); color: #fff; }
+:root:not([data-theme="dark"]) .tile:hover { background: #2a2b31; border-color: var(--jumbo-yellow-dark); }
+/* iconen op de donkere tegel: dezelfde zachte kleurvlakken + heldere iconen als in dark */
+:root:not([data-theme="dark"]) .tile-yellow .tile-ico { background: rgba(253,197,0,.2); color: var(--jumbo-yellow); }
+:root:not([data-theme="dark"]) .tile-blue .tile-ico { background: rgba(122,181,255,.2); color: #7ab5ff; }
+:root:not([data-theme="dark"]) .tile-green .tile-ico { background: rgba(74,222,128,.2); color: #4ade80; }
+:root:not([data-theme="dark"]) .tile-purple .tile-ico { background: rgba(139,92,205,.28); color: #cbacf7; }
+:root:not([data-theme="dark"]) .tile-orange .tile-ico { background: rgba(251,191,36,.2); color: #fbbf24; }
+:root:not([data-theme="dark"]) .tile-teal .tile-ico { background: rgba(13,148,136,.26); color: #5eead4; }
+:root:not([data-theme="dark"]) .tile-red .tile-ico { background: rgba(248,113,113,.22); color: #f87171; }
+:root:not([data-theme="dark"]) .tile-gray .tile-ico { background: rgba(255,255,255,.14); color: #c3c8d2; }
+:root:not([data-theme="dark"]) .tile-dark .tile-ico { background: var(--ink-fixed); color: var(--jumbo-yellow); }
 .tile-desc { font-size: 13.5px; color: var(--ink-soft); font-weight: 600; }
 .tile-yellow::before { background: var(--jumbo-yellow); } .tile-yellow .tile-ico { background: var(--jumbo-yellow-soft); color: var(--jumbo-yellow-dark); }
 .tile-blue::before { background: var(--blue); } .tile-blue .tile-ico { background: var(--blue-soft); color: var(--blue); }
@@ -1607,7 +1639,6 @@ html { background: var(--bg); transition: background-color .25s var(--ease); }
 /* Leesbaarheid in dark: vaste lichte/donkere kleuren die anders wegvallen */
 [data-theme="dark"] .live-badge { background: rgba(52,211,153,.2); color: #4ade80; }   /* live-boxje duidelijk groen */
 [data-theme="dark"] .live-badge.vo-badge { background: rgba(122,181,255,.18); color: #a9caff; }
-[data-theme="dark"] .vo-bar { background: var(--surface-2); border-color: var(--line); }  /* 'Terug naar dashboard' weer zichtbaar */
 [data-theme="dark"] .todo-banner { color: #f4c98a; }                                     /* was #92500c (donkerbruin) → onleesbaar */
 [data-theme="dark"] .todo-banner.afw-banner { color: #f8a29a; }
 [data-theme="dark"] .seg button.am-btn.active { background: rgba(251,191,36,.24); color: #ffce55; }  /* AM duidelijk leesbaar */

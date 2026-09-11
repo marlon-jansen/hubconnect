@@ -84,6 +84,8 @@ public class Server {
       "CREATE TABLE IF NOT EXISTS hubs (id TEXT PRIMARY KEY, naam TEXT)",
       "CREATE TABLE IF NOT EXISTS task_catalog (naam TEXT PRIMARY KEY, type TEXT, ord INT)",
       "CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, personeelsnummer TEXT, email TEXT, voornaam TEXT, achternaam TEXT, pass TEXT, otp TEXT, must_set_password BOOLEAN, rol TEXT, n2 BOOLEAN, jbt_trainer BOOLEAN, hub_id TEXT, taken JSONB, stats JSONB, hidden BOOLEAN, created_at TEXT)",
+      // extra hubs voor een locatie-manager die meerdere hubs bestuurt (toegekend door manager thuisbezorging/beheerder)
+      "ALTER TABLE users ADD COLUMN IF NOT EXISTS hub_ids JSONB",
       "CREATE TABLE IF NOT EXISTS shifts (id TEXT PRIMARY KEY, aanbieder_id TEXT, hub_id TEXT, datum TEXT, dagdeel TEXT, shifts_bekend BOOLEAN, starttijd TEXT, bus_type TEXT, taak TEXT, status TEXT, overnemer_id TEXT, besluit_door_id TEXT, besluit_op TEXT, reden TEXT, fifo_warning BOOLEAN, fifo_skipped_by TEXT, fifo_skipped_at TEXT, seq BIGINT, aanbied_reden TEXT, created_at TEXT)",
       "CREATE TABLE IF NOT EXISTS task_offers (id TEXT PRIMARY KEY, aanbieder_id TEXT, hub_id TEXT, datum TEXT, dagdeel TEXT, taak TEXT, starttijd TEXT, aanbied_reden TEXT, status TEXT, overnemer_id TEXT, besluit_door_id TEXT, besluit_op TEXT, reden TEXT, created_at TEXT)",
       "CREATE TABLE IF NOT EXISTS backups (id TEXT PRIMARY KEY, aanbieder_id TEXT, hub_id TEXT, datum TEXT, dagdeel TEXT, direction TEXT, toelichting TEXT, rit_omschrijving TEXT, rit_tijd TEXT, status TEXT, overnemer_id TEXT, besluit_door_id TEXT, besluit_op TEXT, reden TEXT, created_at TEXT)",
@@ -143,6 +145,7 @@ public class Server {
         o.addProperty("n2", r.getBoolean("n2"));
         o.addProperty("jbtTrainer", r.getBoolean("jbt_trainer"));
         o.addProperty("hubId", r.getString("hub_id"));
+        o.add("hubIds", parse(r.getString("hub_ids"), "[]"));
         o.add("taken", parse(r.getString("taken"), "[]"));
         o.add("stats", parse(r.getString("stats"), "{}"));
         if (r.getBoolean("hidden")) o.addProperty("hidden", true);
@@ -286,8 +289,8 @@ public class Server {
       for (int i = 0; i < cat.size(); i++) { String naam = cat.get(i).getAsString(); String type = types.has(naam) ? types.get(naam).getAsString() : "bezorger"; exec(c, "INSERT INTO task_catalog (naam,type,ord) VALUES (?,?,?)", naam, type, i); }
       // users — server-side geautoriseerd samengevoegd (credentials blijven altijd behouden)
       for (JsonObject o : reconcileUsers(arr(root, "users"), existingUsers, actor)) {
-        exec(c, "INSERT INTO users (id,personeelsnummer,email,voornaam,achternaam,pass,otp,must_set_password,rol,n2,jbt_trainer,hub_id,taken,stats,hidden,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?::jsonb,?::jsonb,?,?)",
-          str(o,"id"),str(o,"personeelsnummer"),str(o,"email"),str(o,"voornaam"),str(o,"achternaam"),str(o,"pass"),str(o,"otp"),bool(o,"mustSetPassword"),str(o,"rol"),bool(o,"n2"),bool(o,"jbtTrainer"),str(o,"hubId"),jraw(o,"taken","[]"),jraw(o,"stats","{}"),bool(o,"hidden"),str(o,"createdAt")); }
+        exec(c, "INSERT INTO users (id,personeelsnummer,email,voornaam,achternaam,pass,otp,must_set_password,rol,n2,jbt_trainer,hub_id,hub_ids,taken,stats,hidden,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?::jsonb,?::jsonb,?::jsonb,?,?)",
+          str(o,"id"),str(o,"personeelsnummer"),str(o,"email"),str(o,"voornaam"),str(o,"achternaam"),str(o,"pass"),str(o,"otp"),bool(o,"mustSetPassword"),str(o,"rol"),bool(o,"n2"),bool(o,"jbtTrainer"),str(o,"hubId"),jraw(o,"hubIds","[]"),jraw(o,"taken","[]"),jraw(o,"stats","{}"),bool(o,"hidden"),str(o,"createdAt")); }
       // shifts
       for (JsonElement e : arr(root, "shifts")) { JsonObject o = e.getAsJsonObject();
         exec(c, "INSERT INTO shifts (id,aanbieder_id,hub_id,datum,dagdeel,shifts_bekend,starttijd,bus_type,taak,status,overnemer_id,besluit_door_id,besluit_op,reden,fifo_warning,fifo_skipped_by,fifo_skipped_at,seq,aanbied_reden,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
@@ -576,8 +579,19 @@ public class Server {
   }
 
   /* ===================== Auth: gebruikers-DB-helpers ===================== */
+  // Hub waarvoor deze gebruiker werkt: eigen hub, tenzij een rol boven de hubs een andere hub kiest.
+  static String scopedHub(JsonObject me, String wanted) {
+    if (wanted == null || wanted.isEmpty()) return str(me, "hubId");
+    boolean overHubs = "admin".equals(str(me, "rol")) || roleLevel(str(me, "rol")) >= 6;
+    if (overHubs) return wanted;
+    // locatie-manager met meerdere hubs: alleen een hub uit de eigen lijst
+    if (me.has("hubIds") && me.get("hubIds").isJsonArray())
+      for (JsonElement e : me.getAsJsonArray("hubIds")) if (wanted.equals(e.getAsString())) return wanted;
+    return str(me, "hubId");
+  }
   static int roleLevel(String rol) {
     if ("admin".equals(rol)) return 99;
+    if ("manager-thuisbezorging".equals(rol)) return 6;
     if ("locatie-manager".equals(rol)) return 5;
     if ("teamleider".equals(rol)) return 4;
     if ("senior".equals(rol)) return 3;
@@ -602,6 +616,7 @@ public class Server {
         o.addProperty("n2", r.getBoolean("n2"));
         o.addProperty("jbtTrainer", r.getBoolean("jbt_trainer"));
         addNullable(o, "hubId", r.getString("hub_id"));
+        o.add("hubIds", parse(r.getString("hub_ids"), "[]"));
         o.add("taken", parse(r.getString("taken"), "[]"));
         o.add("stats", parse(r.getString("stats"), "{}"));
         o.addProperty("hidden", r.getBoolean("hidden"));
@@ -632,6 +647,7 @@ public class Server {
         o.addProperty("n2", r.getBoolean("n2"));
         o.addProperty("jbtTrainer", r.getBoolean("jbt_trainer"));
         addNullable(o, "hubId", r.getString("hub_id"));
+        o.add("hubIds", parse(r.getString("hub_ids"), "[]"));
         o.add("taken", parse(r.getString("taken"), "[]"));
         o.add("stats", parse(r.getString("stats"), "{}"));
         o.addProperty("hidden", r.getBoolean("hidden"));
@@ -682,13 +698,14 @@ public class Server {
         JsonObject u = new JsonObject();
         for (String k : new String[]{"id","personeelsnummer","email","voornaam","achternaam","rol","hubId","createdAt"}) if (in.has(k)) u.add(k, in.get(k));
         u.add("taken", in.has("taken") ? in.get("taken") : parse("[]", "[]"));
+        u.add("hubIds", (isAdmin || lvl >= 6) && in.has("hubIds") ? in.get("hubIds") : parse("[]", "[]"));
         u.add("stats", in.has("stats") ? in.get("stats") : parse("{}", "{}"));
         u.addProperty("n2", bool(in, "n2")); u.addProperty("jbtTrainer", bool(in, "jbtTrainer"));
         u.add("pass", JsonNull.INSTANCE); u.add("otp", JsonNull.INSTANCE); u.addProperty("mustSetPassword", true);
         u.addProperty("hidden", false);
         out.put(id, u);
       } else {
-        out.put(id, mergeUser(ex, in, actorId, canTeam, canRoles, isAdmin));
+        out.put(id, mergeUser(ex, in, actorId, canTeam, canRoles, isAdmin, lvl));
       }
     }
     // Bestaande gebruikers die ontbreken in de PUT = verwijderpoging: alleen teamleider+ mag verwijderen,
@@ -701,7 +718,7 @@ public class Server {
     }
     return new ArrayList<>(out.values());
   }
-  static JsonObject mergeUser(JsonObject ex, JsonObject in, String actorId, boolean canTeam, boolean canRoles, boolean isAdmin) {
+  static JsonObject mergeUser(JsonObject ex, JsonObject in, String actorId, boolean canTeam, boolean canRoles, boolean isAdmin, int actorLevel) {
     JsonObject u = new JsonObject();
     u.addProperty("id", str(ex, "id"));
     // credentials: altijd uit de DB
@@ -716,9 +733,13 @@ public class Server {
     u.addProperty("email", (self || canTeam) ? str(in, "email") : str(ex, "email"));
     // HR-nummer: alleen de beheerder
     u.addProperty("personeelsnummer", isAdmin ? str(in, "personeelsnummer") : str(ex, "personeelsnummer"));
-    // functie + hub: locatie-manager+
-    u.addProperty("rol", canRoles ? str(in, "rol") : str(ex, "rol"));
+    // functie + hub: locatie-manager+; nooit een functie boven je eigen niveau toekennen (behalve de beheerder)
+    boolean rolOk = canRoles && (isAdmin || roleLevel(str(in, "rol")) <= actorLevel);
+    u.addProperty("rol", rolOk ? str(in, "rol") : str(ex, "rol"));
     u.addProperty("hubId", canRoles ? str(in, "hubId") : str(ex, "hubId"));
+    // extra hubs van een locatie-manager: alleen rollen boven de hubs (manager thuisbezorging, beheerder)
+    boolean overHubs = isAdmin || actorLevel >= 6;
+    u.add("hubIds", overHubs && in.has("hubIds") ? in.get("hubIds") : (ex.has("hubIds") ? ex.get("hubIds") : parse("[]", "[]")));
     // bus/JBT/taken: teamleider+
     u.addProperty("n2", canTeam ? bool(in, "n2") : bool(ex, "n2"));
     u.addProperty("jbtTrainer", canTeam ? bool(in, "jbtTrainer") : bool(ex, "jbtTrainer"));
@@ -868,12 +889,14 @@ public class Server {
       synchronized (DBLOCK) {
         JsonObject me = loadUsers(db()).get(id);
         if (me == null || roleLevel(str(me, "rol")) < 4) { sendJson(ex, 403, "{\"error\":\"forbidden\"}"); return; }
+        // Rollen boven de hubs (manager thuisbezorging, beheerder) mogen een code voor een gekozen hub maken.
+        String hub = scopedHub(me, query(ex, "hubId"));
         String code = genCode();
         String created = java.time.Instant.now().toString();
         String exp = java.time.Instant.now().plusSeconds(7 * 24 * 3600).toString();
         exec(db(), "INSERT INTO invite_codes (code,hub_id,created_by,created_at,expires_at,used,used_by_user_id) VALUES (?,?,?,?,?,false,NULL)",
-          code, str(me, "hubId"), id, created, exp);
-        out = "{\"code\":\"" + esc(code) + "\",\"hubId\":\"" + esc(str(me, "hubId")) + "\",\"expiresAt\":\"" + esc(exp) + "\"}";
+          code, hub, id, created, exp);
+        out = "{\"code\":\"" + esc(code) + "\",\"hubId\":\"" + esc(hub) + "\",\"expiresAt\":\"" + esc(exp) + "\"}";
       }
       sendJson(ex, 200, out);
     } catch (Exception e) { try { sendJson(ex, 500, "{\"error\":\"server\"}"); } catch (IOException ig) {} }
@@ -892,18 +915,18 @@ public class Server {
         }
         sendJson(ex, 200, "{\"ok\":true}"); return;
       }
-      // GET: openstaande codes voor de eigen hub (admin: alle)
+      // GET: openstaande codes voor één hub — de eigen hub, of (manager/beheerder) de gekozen hub via ?hubId=
       JsonArray arr = new JsonArray();
       synchronized (DBLOCK) {
         JsonObject me = loadUsers(db()).get(id);
         if (me == null || roleLevel(str(me, "rol")) < 4) { sendJson(ex, 403, "{\"error\":\"forbidden\"}"); return; }
-        boolean isAdmin = "admin".equals(str(me, "rol"));
+        String hub = scopedHub(me, query(ex, "hubId"));
         String now = java.time.Instant.now().toString();
         try (ResultSet r = db().createStatement().executeQuery("SELECT code,hub_id,expires_at FROM invite_codes WHERE used=false")) {
           while (r.next()) {
             String exp = r.getString("expires_at");
             if (exp != null && exp.compareTo(now) <= 0) continue;
-            if (!isAdmin && !java.util.Objects.equals(r.getString("hub_id"), str(me, "hubId"))) continue;
+            if (!java.util.Objects.equals(r.getString("hub_id"), hub)) continue;
             JsonObject o = new JsonObject(); o.addProperty("code", r.getString("code")); o.addProperty("hubId", r.getString("hub_id")); o.addProperty("expiresAt", exp); arr.add(o);
           }
         }
