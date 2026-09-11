@@ -1606,6 +1606,21 @@
     return { c4: sp.c4, c5: sp.c5, s4: t.stock4 || 0, s5: t.stock5 || 0, d4: sp.c4 - (t.stock4 || 0), d5: sp.c5 - (t.stock5 || 0) };
   }
 
+  /* ----- Modulestatus (beheerder): "onderhoud" = zichtbaar maar dicht, "verborgen" = voor iedereen weg ----- */
+  var MODULES = [
+    { id: "ruilhub", naam: "RuilHub" }, { id: "dashboard", naam: "Senior Dashboard" }, { id: "lc", naam: "Laadproces" },
+    { id: "schadecontrole", naam: "Schadecontrole" }, { id: "kwaliteit", naam: "Kwaliteit" }, { id: "buswassing", naam: "Buswassing" },
+    { id: "personeelsbeheer", naam: "Personeelsbeheer" }, { id: "bussenbeheer", naam: "Bussenbeheer" }, { id: "temparchief", naam: "Temperatuurarchief" }
+  ];
+  function moduleStatus(id) { return (db.moduleStatus && db.moduleStatus[id]) || "actief"; }
+  function setModuleStatus(id, status) {
+    if (!isAdmin(currentUser())) throw new Error("Alleen de beheerder kan modules aan- of uitzetten.");
+    if (id === "personeelsbeheer" && status !== "actief") throw new Error("Personeelsbeheer kan niet uit — daar zet je 'm weer aan.");
+    if (!db.moduleStatus) db.moduleStatus = {};
+    if (status === "actief") delete db.moduleStatus[id]; else db.moduleStatus[id] = status === "verborgen" ? "verborgen" : "onderhoud";
+    save();
+  }
+
   /* ----- LC (laden) ----- */
   function getLC(hubId, datum, dagdeel) { if (!db.lc) db.lc = {}; var k = opKey(hubId, datum, dagdeel); if (!db.lc[k]) db.lc[k] = { vakken: [], aantal: 0 }; return db.lc[k]; }
   function newVak(nr) { return { nr: nr, vertrek: "", bus: "", rit: "", ze: false, type: "diesel", jbt: false, geladen: false }; }
@@ -1804,6 +1819,7 @@
     setPendelRit: setPendelRit, tempStats: tempStats, tempArchief: tempArchief,
     shiftsForHub: shiftsForHub, taskOffersForHub: taskOffersForHub, backupsForHub: backupsForHub, calloutsForHub: calloutsForHub,
     logsForHub: logsForHub, usersForHub: usersForHub, manageableUsers: manageableUsers,
+    MODULES: MODULES, moduleStatus: moduleStatus, setModuleStatus: setModuleStatus,
     canSwitchHub: canSwitchHub, setViewHub: setViewHub, hubsFor: hubsFor, overHubs: overHubs, setUserHubs: setUserHubs,
     pendingForApprover: pendingForApprover, pendingCount: pendingCount
   };

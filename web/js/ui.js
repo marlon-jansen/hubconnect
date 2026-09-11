@@ -105,6 +105,7 @@
     search: '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>',
     eye: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>',
     inbox: '<path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5 5h14l3 7v6a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-6z"/>',
+    wrench: '<path d="M14.7 6.3a4 4 0 0 0 5 5l-9.4 9.4a2.1 2.1 0 0 1-3-3l9.4-9.4z"/><path d="M14.7 6.3 17 4a4 4 0 0 1 3 3l-2.3 2.3"/>',
     lock: '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
     key: '<circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.5 12.5 21 2M16 7l3 3M14 9l2 2"/>',
     pencil: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
@@ -1647,6 +1648,7 @@
   function viewBeheer(embedded) {
     var u = S.currentUser();
     var tabs = [{ id: "team", label: "Medewerkers" }, { id: "hubs", label: "Hubs" }, { id: "tasks", label: "Taken" }];
+    if (S.isAdmin(u)) tabs.push({ id: "modules", label: "Modules" });
     if (S.can.resetData(u)) tabs.push({ id: "data", label: "Gegevens" });
     if (!tabs.some(function (t) { return t.id === state.beheerTab; })) state.beheerTab = "team";
 
@@ -1654,7 +1656,7 @@
       return '<button data-btab="' + t.id + '" class="' + (state.beheerTab === t.id ? "active" : "") + '">' + t.label + "</button>";
     }).join("") + "</div>";
 
-    var body = state.beheerTab === "team" ? beheerTeam() : (state.beheerTab === "hubs" ? beheerHubs() : (state.beheerTab === "tasks" ? beheerTasks() : beheerData()));
+    var body = state.beheerTab === "team" ? beheerTeam() : (state.beheerTab === "hubs" ? beheerHubs() : (state.beheerTab === "tasks" ? beheerTasks() : state.beheerTab === "modules" ? beheerModules() : beheerData()));
     var head = embedded ? "" : '<div class="page-head"><div><h2>Beheren</h2><p>Medewerkers, functies, taken en hubs.</p></div></div>';
     return head + seg + body;
   }
@@ -1806,7 +1808,22 @@
   }
 
   var lastCodesJson = null; // voorkomt een hertekende-lus bij het ophalen van open codes
+  // Modules aan/uit (beheerder): actief · onderhoud (zichtbaar, dicht voor niet-beheerders) · verborgen (voor iedereen weg).
+  function beheerModules() {
+    var rows = S.MODULES.map(function (m) {
+      var st = S.moduleStatus(m.id), vast = m.id === "personeelsbeheer";
+      function opt(v, l) { return '<option value="' + v + '"' + (st === v ? " selected" : "") + ">" + l + "</option>"; }
+      var badge = st === "actief" ? '<span class="badge st-goedgekeurd">Actief</span>' : st === "onderhoud" ? '<span class="badge st-afwachting">Onderhoud</span>' : '<span class="badge st-afgekeurd">Verborgen</span>';
+      return '<tr><td class="cellname">' + esc(m.naam) + "</td><td data-th=\"Status\">" + badge + "</td>" +
+        '<td data-th="Instellen">' + (vast ? '<span class="cellsub">Altijd aan</span>' : '<select class="pill-select" data-modstatus="' + m.id + '">' + opt("actief", "Actief") + opt("onderhoud", "Onderhoud") + opt("verborgen", "Verborgen") + "</select>") + "</td></tr>";
+    }).join("");
+    return panel("grid", "Modules", '<p class="cellsub" style="margin:0 12px 10px">Onderhoud: de tegel blijft staan maar alleen de beheerder kan erin. Verborgen: de module is voor iedereen weg.</p>' +
+      tableScroll("<thead><tr><th>Module</th><th>Status</th><th>Instellen</th></tr></thead><tbody>" + rows + "</tbody>"));
+  }
   function bindBeheer() {
+    document.querySelectorAll("[data-modstatus]").forEach(function (sl) {
+      sl.addEventListener("change", function () { try { S.setModuleStatus(sl.getAttribute("data-modstatus"), sl.value); toast("Module bijgewerkt.", "ok"); reRender(); } catch (e) { toast(e.message, "err"); reRender(); } });
+    });
     // Open uitnodigingscodes komen van de server (niet uit de gedeelde staat); haal ze op en herteken één keer.
     if (state.beheerTab === "team" && S.can.editTeam(S.currentUser())) {
       S.fetchInviteCodes().then(function (list) {
@@ -2099,7 +2116,7 @@
     if (S.can.seeBussenbeheer(u)) m.push({ id: "bussenbeheer", name: "Bussenbeheer", icon: "van", color: "gray", group: "Beheer", desc: "Bussen per shift, met focus op probleembussen." });
     if (S.tempCanArchive(u)) m.push({ id: "temparchief", name: "Temperatuurarchief", icon: "thermo", color: "red", group: "Beheer", desc: "Dagoverzicht van alle temperatuurcontroles (RF 11 HUB)." });
     // Proces-volgorde: Senior Dashboard, Laadproces, Schadecontrole, Kwaliteit.
-    if (senior) m.push({ id: "dashboard", name: "Senior Dashboard", icon: "chart", color: "dark", group: "Proces", desc: "Realtime overzicht van de shift." });
+    if (senior) m.push({ id: "dashboard", name: "Senior Dashboard", icon: "chart", color: "dark", group: "Leidinggevende", desc: "Realtime overzicht van de shift." });
     // Bezorgers zien een procesmodule zodra ze de bijbehorende taak toegewezen krijgen (personeelsbeheer).
     if (senior || hasTask("LC") || hasTask("Laden")) m.push({ id: "lc", name: "Laadproces", icon: "inbox", color: "orange", group: "Proces", desc: "Ritten koppelen aan bussen & trolleys." });
     if (senior || hasTask("Schadecontrole")) m.push({ id: "schadecontrole", name: "Schadecontrole", icon: "shield", color: "green", group: "Proces", desc: "Bussen controleren & afvinken." });
@@ -2128,11 +2145,15 @@
     var u = S.currentUser();
     var mods = portalModules(u);
     function tileHTML(m) {
-      return '<button class="tile tile-' + m.color + '" data-module="' + m.id + '">' +
+      var st = S.moduleStatus(m.id);
+      var badge = st === "onderhoud" ? '<span class="tile-state onderhoud">' + svg("wrench", "icon-sm") + "Onderhoud</span>" : st === "verborgen" ? '<span class="tile-state verborgen">Verborgen</span>' : "";
+      return '<button class="tile tile-' + m.color + (st !== "actief" ? " tile-off" : "") + '" data-module="' + m.id + '">' +
         '<span class="tile-ico">' + svg(m.icon, "icon-lg") + "</span>" +
-        '<span class="tile-name">' + esc(m.name) + "</span></button>"; // geen uitlegregel onder de naam (op verzoek)
+        '<span class="tile-name">' + esc(m.name) + "</span>" + badge + "</button>"; // geen uitlegregel onder de naam (op verzoek)
     }
-    var sections = ["Planning", "Proces", "Beheer"].map(function (g) {
+    // Verborgen modules: voor iedereen weg (de beheerder ziet ze grijs, zodat hij weet dat ze uit staan).
+    mods = mods.filter(function (m) { return S.moduleStatus(m.id) !== "verborgen" || S.isAdmin(u); });
+    var sections = ["Planning", "Leidinggevende", "Proces", "Beheer"].map(function (g) {
       var gm = mods.filter(function (m) { return (m.group || "Proces") === g; });
       if (!gm.length) return "";
       return '<section class="portal-group"><h3 class="portal-group-title">' + esc(g) + "</h3>" +
@@ -2174,10 +2195,23 @@
   function gotoPortal() { state.module = null; state.viewOnly = false; state.dashBack = false; state.showLanding = false; render(); }
   function gotoLanding() { state.showLanding = true; render(); } // logo-klik: naar de voorpagina (blijft ingelogd)
 
+  function renderModuleOnderhoud(st) {
+    var m = S.MODULES.filter(function (x) { return x.id === state.module; })[0];
+    el("app").innerHTML = portalHeader(S.currentUser(), true) +
+      '<main><div class="onderhoud">' + svg(st === "verborgen" ? "lock" : "wrench", "icon-lg") +
+        "<h2>" + esc(m ? m.naam : "Module") + (st === "verborgen" ? " is niet beschikbaar" : " is in onderhoud") + "</h2>" +
+        "<p>" + (st === "verborgen" ? "Deze module is door de beheerder uitgezet." : "Er wordt aan deze module gewerkt. Probeer het later opnieuw.") + "</p>" +
+        '<button class="btn btn-primary" data-portal>' + svg("arrowLeft", "icon-sm") + "Terug naar het menu</button></div></main>";
+    bindModuleHeader();
+    el("app").querySelectorAll("[data-portal]").forEach(function (b) { b.addEventListener("click", gotoPortal); });
+  }
   /* ===================================================================
      MODULE-PAGINA (operationeel — in aanbouw)
      =================================================================== */
   function renderModulePage() {
+    // Module in onderhoud of verborgen: alleen de beheerder komt erin, de rest ziet een nette melding.
+    var mst = S.moduleStatus(state.module);
+    if (mst !== "actief" && !S.isAdmin(S.currentUser())) return renderModuleOnderhoud(mst);
     if (state.module === "takenplanning") return renderPlanning();
     if (state.module === "personeelsbeheer") return renderPersoneelsbeheer();
     if (state.module === "dashboard") return renderDashboard();
