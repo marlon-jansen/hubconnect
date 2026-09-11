@@ -803,7 +803,9 @@ main { max-width: 1100px; margin: 0 auto; padding: 22px 18px 80px; }
 .datepick-pop .dp-grid { gap: 1px; }
 .dp-cell:hover:not(.empty) { background: var(--jumbo-yellow-soft); }
 .dp-cell.empty { cursor: default; }
-.dp-cell.today { box-shadow: inset 0 0 0 1.5px var(--jumbo-yellow-dark); }
+.dp-cell.today { position: relative; }
+.dp-cell.today::after { content: ""; position: absolute; left: 50%; bottom: 3px; width: 5px; height: 5px; margin-left: -2.5px; border-radius: 50%; background: var(--jumbo-yellow-dark); }
+.dp-cell.today.sel::after { background: var(--ink-fixed); }
 .dp-cell.sel { background: var(--jumbo-yellow); color: var(--ink-fixed); font-weight: 900; }
 
 /* back-up richting keuze */
@@ -972,7 +974,7 @@ main { max-width: 1100px; margin: 0 auto; padding: 22px 18px 80px; }
 .scan-msg.err { color: var(--red); }
 
 /* Dagarchief: leest als het papieren formulier, dus een echte tabel die scrollt. */
-.ar-head { display: flex; flex-wrap: wrap; gap: 10px 26px; padding: 12px 14px; margin-bottom: 12px; background: var(--jumbo-yellow-soft); border-radius: 12px; }
+.ar-head { display: flex; flex-wrap: wrap; gap: 10px 26px; padding: 12px 14px; margin: 8px 12px 12px; background: var(--jumbo-yellow-soft); border-radius: 12px; }
 .ar-head .ar-lab { display: block; font-size: 11px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; }
 .ar-head b { font-size: 14px; }
 .ar-table td, .ar-table th { vertical-align: top; }
@@ -1439,9 +1441,12 @@ button.n2-bolt:hover { background: var(--surface-2); }
   /* shiftbar + segmenten netjes onder elkaar */
   .shiftbar { gap: 8px; }
   .shiftbar .seg, .toolbar .seg { width: 100%; }
-  .shiftbar .seg:first-child button:nth-child(2) { flex: 1; } /* datumlabel groeit */
   .shiftbar .seg:last-child button { flex: 1; }               /* AM en PM even breed */
+  /* datumbalk: pijltjes vast, datumknop groeit en breekt nooit af (ook als de seg de enige is, bv. Buswassing/Temperatuurarchief) */
+  .shiftbar .seg.opdate-seg button[data-opday] { flex: 0 0 auto; }
+  .shiftbar .seg.opdate-seg button[data-opdate] { flex: 1; justify-content: center; white-space: nowrap; }
   .seg { flex-wrap: wrap; }
+  .shiftbar .opdate-seg { flex-wrap: nowrap; }
 
   /* dashboard 1 kolom, ringen wat kleiner */
   .dash-grid { grid-template-columns: 1fr; }
