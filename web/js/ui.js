@@ -3822,7 +3822,7 @@
         return '<button type="button" class="pick-item" data-dienstpick="' + key + "|" + us.id + '"><span class="pick-dot"></span>' + fullName(us) + "</button>";
       }).join("") : '<div class="cellsub" style="padding:8px 10px">' + (kandidaten.length ? "Geen medewerker gevonden." : "Geen medewerkers meer beschikbaar.") + "</div>";
       return '<div class="dienst-block"><div class="dienst-h">' + esc(label) + "</div>" +
-        (gekozen || '<div class="cellsub" style="margin-bottom:6px">Niemand toegewezen</div>') +
+        gekozen +
         '<div class="pick' + (open ? " open" : "") + '" data-pick="' + key + '">' +
           '<button type="button" class="pick-btn" data-dienstopen="' + key + '">' + svg("plus", "icon-sm") + "<span>Persoon toewijzen</span>" + svg("chevronDown", "icon-sm pick-chev") + "</button>" +
           '<div class="pick-menu"><div class="pick-search">' + svg("search", "icon-sm") + '<input type="search" data-dienstq="' + key + '" placeholder="Zoek op naam…" value="' + esc(q) + '" autocomplete="off"></div>' +
