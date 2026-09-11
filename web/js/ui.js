@@ -3596,25 +3596,51 @@
   function dienstenBlocks(c) {
     var d = S.getDiensten(c.h, c.d, c.dd);
     var users = S.usersForHub(c.h).slice().sort(function (a, b) { return (a.voornaam + a.achternaam).localeCompare(b.voornaam + b.achternaam); });
+    if (!state.dienstOpen) state.dienstOpen = null;
+    // Per proces een keuzelijst met zoekveld (één persoon per proces).
     function block(key, label, taskName) {
-      var chips = users.filter(function (us) { return us.taken.indexOf(taskName) !== -1 || S.level(us) >= 3; }).map(function (us) {
-        var on = (d[key] || []).indexOf(us.id) !== -1;
-        return '<span class="chip ' + (on ? "on" : "") + '" data-dienst="' + key + "|" + us.id + '">' + (on ? svg("check", "icon-sm") : "") + fullName(us) + "</span>";
-      }).join("");
-      var who = (d[key] && d[key].length) ? fullName(S.userById(d[key][0])) : '<span class="cellsub">niemand</span>';
-      return '<div class="dienst-block"><div class="dienst-h">' + esc(label) + ' <span class="dienst-who">' + who + "</span></div><div class=\"chips\">" + (chips || '<span class="cellsub">Geen geschikte medewerkers.</span>') + "</div></div>";
+      var kandidaten = users.filter(function (us) { return us.taken.indexOf(taskName) !== -1 || S.level(us) >= 3; });
+      var gekozenId = (d[key] || [])[0], gekozen = gekozenId ? S.userById(gekozenId) : null;
+      var open = state.dienstOpen === key;
+      var q = open ? (state.dienstQ || "") : "";
+      var lijst = kandidaten.filter(function (us) { return !q || (us.voornaam + " " + us.achternaam).toLowerCase().indexOf(q.toLowerCase()) !== -1; });
+      var items = lijst.length ? lijst.map(function (us) {
+        return '<button type="button" class="pick-item' + (us.id === gekozenId ? " on" : "") + '" data-dienstpick="' + key + "|" + us.id + '">' + (us.id === gekozenId ? svg("check", "icon-sm") : '<span class="pick-dot"></span>') + fullName(us) + "</button>";
+      }).join("") : '<div class="cellsub" style="padding:8px 10px">' + (kandidaten.length ? "Geen medewerker gevonden." : "Geen geschikte medewerkers.") + "</div>";
+      return '<div class="dienst-block"><div class="dienst-h">' + esc(label) + "</div>" +
+        '<div class="pick' + (open ? " open" : "") + '" data-pick="' + key + '">' +
+          '<button type="button" class="pick-btn' + (gekozen ? " has" : "") + '" data-dienstopen="' + key + '">' + svg("user", "icon-sm") +
+            "<span>" + (gekozen ? fullName(gekozen) : "Kies medewerker…") + "</span>" + svg("chevronDown", "icon-sm pick-chev") + "</button>" +
+          (gekozen ? '<button type="button" class="pick-clear" data-dienstclear="' + key + '" title="Toewijzing weghalen">' + svg("x", "icon-sm") + "</button>" : "") +
+          '<div class="pick-menu"><div class="pick-search">' + svg("search", "icon-sm") + '<input type="search" data-dienstq="' + key + '" placeholder="Zoek op naam…" value="' + esc(q) + '" autocomplete="off"></div>' +
+          '<div class="pick-list">' + items + "</div></div>" +
+        "</div></div>";
     }
-    return '<div class="kz-section">' + block("schadecontrole", "Schadecontrole", "Schadecontrole") + block("lc", "Laadproces", "LC") + block("kwaliteit", "Kwaliteit", "Kwaliteit") + block("buswassing", "Buswassing", "Buswassing") + "</div>";
+    return '<div class="kz-section dienst-grid">' + block("schadecontrole", "Schadecontrole", "Schadecontrole") + block("lc", "Laadproces", "LC") + block("kwaliteit", "Kwaliteit", "Kwaliteit") + block("buswassing", "Buswassing", "Buswassing") + "</div>";
   }
   function bindDashDiensten(c) {
-    document.querySelectorAll("[data-dienst]").forEach(function (ch) {
-      ch.addEventListener("click", function () {
-        var p = ch.getAttribute("data-dienst").split("|"); var key = p[0], uid = p[1];
-        var cur = (S.getDiensten(c.h, c.d, c.dd)[key] || []);
-        var next = (cur.length === 1 && cur[0] === uid) ? [] : [uid]; // één persoon per taak
-        try { S.setDienst(c.h, c.d, c.dd, key, next); renderDashboard(); } catch (e) { toast(e.message, "err"); }
+    function rerender(focusKey) {
+      renderDashboard();
+      if (focusKey) { var inp = document.querySelector('[data-dienstq="' + focusKey + '"]'); if (inp) { inp.focus(); var v = inp.value; inp.value = ""; inp.value = v; } }
+    }
+    document.querySelectorAll("[data-dienstopen]").forEach(function (b) {
+      b.addEventListener("click", function (ev) { ev.stopPropagation(); var k = b.getAttribute("data-dienstopen"); state.dienstOpen = state.dienstOpen === k ? null : k; state.dienstQ = ""; rerender(state.dienstOpen); });
+    });
+    document.querySelectorAll("[data-dienstq]").forEach(function (inp) {
+      inp.addEventListener("input", function () { state.dienstQ = inp.value; rerender(inp.getAttribute("data-dienstq")); });
+      inp.addEventListener("click", function (ev) { ev.stopPropagation(); });
+    });
+    document.querySelectorAll(".pick-menu").forEach(function (m) { m.addEventListener("click", function (ev) { ev.stopPropagation(); }); });
+    document.querySelectorAll("[data-dienstpick]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var p = b.getAttribute("data-dienstpick").split("|");
+        try { S.setDienst(c.h, c.d, c.dd, p[0], [p[1]]); state.dienstOpen = null; state.dienstQ = ""; renderDashboard(); } catch (e) { toast(e.message, "err"); }
       });
     });
+    document.querySelectorAll("[data-dienstclear]").forEach(function (b) {
+      b.addEventListener("click", function (ev) { ev.stopPropagation(); try { S.setDienst(c.h, c.d, c.dd, b.getAttribute("data-dienstclear"), []); renderDashboard(); } catch (e) { toast(e.message, "err"); } });
+    });
+    if (state.dienstOpen) document.addEventListener("click", function closePick() { document.removeEventListener("click", closePick); if (state.dienstOpen) { state.dienstOpen = null; state.dienstQ = ""; renderDashboard(); } });
   }
   /* ---------- realtime via polling (werkt op Java-server én Netlify-functions) ---------- */
   var pollTimer = null;
