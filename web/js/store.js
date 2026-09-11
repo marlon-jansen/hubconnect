@@ -1589,7 +1589,7 @@
   function lcToggleGeladen(hubId, datum, dagdeel, nr) {
     if (!canOpShift(currentUser(), hubId, datum, dagdeel, "lc", "LC")) throw new Error("Je bent deze shift niet aangewezen als LC.");
     var vk = getLC(hubId, datum, dagdeel).vakken.filter(function (x) { return x.nr === nr; })[0]; if (!vk) return;
-    if (vk.jbt || vk.type === "N2") return; // JBT/N2 hoeven niet geladen te worden
+    if (vk.jbt || vk.type === "N2" || vk.tweedeRit) return; // JBT/N2/2e rit hoeven niet geladen te worden
     vk.geladen = !vk.geladen;
     vk.geladenAt = vk.geladen ? now() : null;
     save();
@@ -1632,6 +1632,7 @@
     var iBus = col(function (h) { return h === "bus"; });
     var iKent = col(function (h) { return h.indexOf("kenteken") !== -1; });
     var iTrip = col(function (h) { return h.indexOf("trip") !== -1; });
+    var iRit = col(function (h) { return h === "rit"; });          // 1 = eerste rit, 2 = tweede rit van dezelfde bus
     var iVolg = col(function (h) { return h.indexOf("volg") !== -1; });
     var iVertrek = col(function (h) { return h.indexOf("vertrek") !== -1; });
     var iMoeil = col(function (h) { return h.indexOf("moeil") !== -1; });
@@ -1650,6 +1651,7 @@
       var type = iType > -1 ? c[iType] : "";
       var rit = iTrip > -1 ? c[iTrip] : "";
       var vertrek = iVertrek > -1 ? c[iVertrek] : "";
+      var tweedeRit = iRit > -1 && parseInt(c[iRit], 10) >= 2;   // 2e rit: hoeft niet geladen te worden
       // Alleen echte ritregels hebben een volgnummer. Regels eronder (binnendienst, JBT-hulp, de
       // bussen/kentekens-tabel rechts, reservebussen, "N/b") hebben er geen en slaan we over.
       var volg = iVolg > -1 ? parseInt(c[iVolg], 10) : 0;
@@ -1664,12 +1666,16 @@
       var jbt = tokHas(opmText, "jbt"); // "JBT" in de opmerking(en) → hoeft niet geladen te worden
       if (!bus && !rit) continue; // lege regel
       // schade alleen voor regels met een echte bus; een bus met twee ritten staat er één keer in
-      if (bus && doSchade && !seen[bus]) { schade.buses.push(applyGebreken(hubId, newBus(naam, bus, kent))); seen[bus] = true; }
+      if (bus && doSchade) {
+        if (!seen[bus]) { schade.buses.push(applyGebreken(hubId, newBus(naam, bus, kent))); seen[bus] = true; }
+        // bus rijdt een 2e rit: markeren op de (ene) busregel in de schadecontrole
+        if (tweedeRit) schade.buses.forEach(function (b) { if (b.bus === bus) b.tweedeRit = true; });
+      }
       // lc-vak — ritnummer is altijd aan het vaknummer gekoppeld, ook zonder bus
       if (doLaden) {
         while (lc.vakken.length < volg) lc.vakken.push(newVak(lc.vakken.length + 1));
         var vk = lc.vakken[volg - 1];
-        if (vk) { vk.bus = bus; vk.rit = rit; vk.vertrek = vertrek; vk.type = n2 ? "N2" : "diesel"; vk.ze = ze; vk.jbt = jbt; }
+        if (vk) { vk.bus = bus; vk.rit = rit; vk.vertrek = vertrek; vk.type = n2 ? "N2" : "diesel"; vk.ze = ze; vk.jbt = jbt; vk.tweedeRit = tweedeRit; }
       }
       n++;
     }
@@ -1679,7 +1685,7 @@
   }
   function lcStats(hubId, datum, dagdeel) {
     // JBT- en N2-vakken hoeven niet geladen te worden → niet meetellen in de voortgang
-    var v = getLC(hubId, datum, dagdeel).vakken.filter(function (x) { return (x.bus || x.rit) && !(x.jbt || x.type === "N2"); });
+    var v = getLC(hubId, datum, dagdeel).vakken.filter(function (x) { return (x.bus || x.rit) && !(x.jbt || x.type === "N2" || x.tweedeRit); });
     var done = v.filter(function (x) { return x.geladen; }).length;
     return { used: v.length, done: done, total: getLC(hubId, datum, dagdeel).vakken.length, pct: v.length ? Math.round(done / v.length * 100) : 0 };
   }

@@ -2489,7 +2489,8 @@
       var dockCell = b.dock ? '<span class="badge dock">' + svg("building", "icon-sm") + "Dock " + esc(b.dock) + "</span>" : '<span class="cellsub">—</span>';
       var opmNote = b.opmerking ? '<div class="bus-opm">' + svg("alertTri", "icon-sm") + esc(b.opmerking) + "</div>" : "";
       var wasNote = b.wassen ? '<span class="badge was">' + svg("droplet", "icon-sm") + (b.wasStatus === "gewassen" ? "Gewassen" : b.wasStatus === "niet" ? "Niet gewassen" : "Naar wasstraat") + "</span>" : "";
-      return "<tr class=\"" + (b.gecontroleerd ? "sc-done" : "") + "\"><td><div class=\"cellname\">Bus " + esc(b.bus || "?") + "</div><div class=\"cellsub\">" + esc(b.naam || "") + (b.kenteken ? " · " + esc(b.kenteken) : "") + "</div>" + wasNote + opmNote + "</td>" +
+      var rit2Note = b.tweedeRit ? '<span class="badge rit2">' + svg("refresh", "icon-sm") + "2e rit</span>" : "";
+      return "<tr class=\"" + (b.gecontroleerd ? "sc-done" : "") + "\"><td><div class=\"cellname\">Bus " + esc(b.bus || "?") + "</div><div class=\"cellsub\">" + esc(b.naam || "") + (b.kenteken ? " · " + esc(b.kenteken) : "") + "</div>" + rit2Note + wasNote + opmNote + "</td>" +
         chkCell(b) + mistCell(b) + spCell(b) + (showDock ? '<td data-th="Dock">' + dockCell + "</td>" : "") + "</tr>";
     }).join("") : '<tr><td colspan="' + (showDock ? 5 : 4) + '"><div class="cellsub" style="padding:14px">Er is nog geen schadecontrolelijst klaargezet.</div></td></tr>';
     var table = '<div class="panel" style="padding:0"><div class="table-scroll"><table class="table sc-table">' +
@@ -3148,13 +3149,13 @@
 
     // ----- LADEN -----
     // Filter "Alleen nog te laden": bussen met rit/bus die nog niet geladen zijn (JBT/N2 hoeven niet).
-    var lcVakken = state.lcOnlyOpen ? lc.vakken.filter(function (v) { return !(v.jbt || v.type === "N2") && !v.geladen && (v.bus || v.rit); }) : lc.vakken;
+    var lcVakken = state.lcOnlyOpen ? lc.vakken.filter(function (v) { return !(v.jbt || v.type === "N2" || v.tweedeRit) && !v.geladen && (v.bus || v.rit); }) : lc.vakken;
     var rows = lcVakken.length ? lcVakken.map(function (v) {
-      var noLoad = v.jbt || v.type === "N2"; // JBT en N2 hoeven niet geladen te worden
+      var noLoad = v.jbt || v.type === "N2" || v.tweedeRit; // JBT, N2 en 2e ritten hoeven niet geladen te worden
       var busEditable = canLoad && isPM && v.type !== "N2"; // op PM mag de LC alleen diesel-bussen aanpassen
       var busCell = busEditable ? '<input class="lc-in" data-lcbus="' + v.nr + '" placeholder="busnr" value="' + esc(v.bus) + '">' : '<span class="' + (v.bus ? "cellname" : "cellsub") + '">' + (v.bus ? esc(v.bus) : "—") + "</span>";
       var typeBadge = v.type === "N2" ? '<span class="badge n2">' + svg("bolt", "icon-sm") + "N2</span>" : '<span class="badge diesel">' + svg("droplet", "icon-sm") + "Diesel</span>";
-      var typeCell = (v.jbt ? '<span class="badge jbt">' + svg("cap", "icon-sm") + "JBT</span> " : "") + typeBadge;
+      var typeCell = (v.tweedeRit ? '<span class="badge rit2">' + svg("refresh", "icon-sm") + "2e rit</span> " : "") + (v.jbt ? '<span class="badge jbt">' + svg("cap", "icon-sm") + "JBT</span> " : "") + typeBadge;
       // JBT/N2: afvinkvakje grijs & aangevinkt (niet aanklikbaar); overige vakken normaal
       var chkCell = noLoad
         ? '<label class="chk-box grey ro" title="Hoeft niet geladen te worden"><input type="checkbox" checked disabled>' + svg("check", "icon-sm") + "</label>"
@@ -3383,13 +3384,13 @@
 
     // ----- Laden -----
     var lcVakken = S.getLC(c.h, c.d, c.dd).vakken;
-    var lcN2 = lcVakken.filter(function (v) { return (v.bus || v.rit) && (v.jbt || v.type === "N2"); }).length;
+    var lcN2 = lcVakken.filter(function (v) { return (v.bus || v.rit) && (v.jbt || v.type === "N2" || v.tweedeRit); }).length;
     var lcLeeg = lcVakken.filter(function (v) { return !(v.bus || v.rit); }).length;
     var recentGeladen = recentList(S.recentGeladenBussen(c.h, c.d, c.dd).map(function (v) { return recentItem("check", "Bus " + (v.bus || "vak " + v.nr), fmtClock(v.geladenAt)); }), "Nog geen bussen geladen");
     var ladenInner = '<div class="dash-row">' + ring(lcS.pct, "o") + '<div><div class="dash-big">' + lcS.done + " / " + lcS.used + '</div><div class="cellsub">vakken geladen</div></div></div>' +
       facts([
         { lab: "nog te laden", val: lcS.used - lcS.done, cls: lcS.used - lcS.done ? "warn" : "ok" },
-        { lab: "N2 / JBT", val: lcN2 },
+        { lab: "N2 / JBT / 2e rit", val: lcN2 },
         { lab: "vakken klaargezet", val: lcS.total },
         { lab: "leeg", val: lcLeeg }
       ]) +
@@ -3515,7 +3516,7 @@
       '<button class="btn btn-ghost btn-sm" id="kzResetLaden">' + svg("trash", "icon-sm") + "Laden leegmaken</button></div></div>";
     var lcRows = lc.vakken.length ? lc.vakken.map(function (v) {
       var inp = function (f, ph, val) { return '<input class="lc-in" data-lcset="' + v.nr + "|" + f + '" placeholder="' + ph + '" value="' + esc(val) + '">'; };
-      return "<tr><td class=\"lc-nr cellname\">Vak " + v.nr + '</td><td data-th="Vertrek">' + inp("vertrek", "tijd", v.vertrek || "") + '</td><td data-th="Bus">' + inp("bus", "busnr", v.bus) + '</td><td data-th="Rit">' + inp("rit", "rit", v.rit) + "</td>" +
+      return "<tr><td class=\"lc-nr cellname\">Vak " + v.nr + (v.tweedeRit ? ' <span class="badge rit2">2e rit</span>' : "") + '</td><td data-th="Vertrek">' + inp("vertrek", "tijd", v.vertrek || "") + '</td><td data-th="Bus">' + inp("bus", "busnr", v.bus) + '</td><td data-th="Rit">' + inp("rit", "rit", v.rit) + "</td>" +
         '<td data-th="Type"><select class="lc-in" data-lcset="' + v.nr + '|type"><option value="diesel"' + (v.type !== "N2" ? " selected" : "") + ">Diesel</option><option value=\"N2\"" + (v.type === "N2" ? " selected" : "") + ">N2</option></select></td>" +
         '<td data-th="ZE" style="text-align:center"><input type="checkbox" data-lcze="' + v.nr + '"' + (v.ze ? " checked" : "") + "></td></tr>";
     }).join("") : '<tr><td colspan="6"><div class="cellsub" style="padding:12px">Importeer de planning of stel het aantal vakken in.</div></td></tr>';

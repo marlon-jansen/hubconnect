@@ -997,6 +997,7 @@ main { max-width: 1100px; margin: 0 auto; padding: 22px 18px 80px; }
 .pt-edit:hover { color: var(--ink); }
 
 /* oordeel per meting — dezelfde kleurcodes als het papieren formulier */
+.badge.rit2 { background: var(--blue-soft); color: var(--blue); }
 .badge.tv-streef, .badge.tv-norm { background: var(--green-soft); color: var(--green); }
 .badge.tv-koud { background: var(--blue-soft); color: var(--blue); }
 .badge.tv-proces { background: var(--orange-soft); color: var(--orange); }
