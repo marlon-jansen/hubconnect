@@ -3471,7 +3471,7 @@
     var n = 0;
     if (!(lcS.used > 0)) n++;
     if (!(tr.pendels.length > 0)) n++;
-    if (!(sc.total > 0) && !(c.dd !== "PM" && !dockShift(c))) n++;
+    if (!(sc.total > 0)) n++;
     if (["lc", "schadecontrole", "kwaliteit"].some(function (k) { return !(d[k] || []).length; })) n++;
     if (!(scc.total === 0 || scc.done >= scc.total)) n++;
     return n;
@@ -3490,7 +3490,7 @@
         sub: lcS.used > 0 ? lcS.used + " ritten in " + lcS.total + " vakken" : (lcS.total > 0 ? lcS.total + " vakken, nog geen ritten" : "Laadlijst nog niet klaargezet"), body: blocks.laden },
       { key: "pendel", titel: "Pendels", icon: "truck", done: tr.pendels.length > 0,
         sub: tr.pendels.length > 0 ? tr.pendels.length + (tr.pendels.length === 1 ? " pendel" : " pendels") + " · tellijst " + (pc.total ? pc.total + " vakken" : "nog niet geïmporteerd") : "Nog geen pendels klaargezet", body: blocks.pendel },
-      { key: "schade", titel: "Schadecontrole", icon: "shield", done: sc.total > 0, opt: c.dd !== "PM" && !dockShift(c),
+      { key: "schade", titel: "Schadecontrole", icon: "shield", done: sc.total > 0,
         sub: sc.total > 0 ? sc.total + " bussen klaargezet" : "Schadecontrolelijst nog niet klaargezet", body: blocks.schade },
       { key: "diensten", titel: "Diensten", icon: "users", done: !dienstOpen.length,
         sub: dienstOpen.length ? "Nog toewijzen: " + dienstOpen.map(function (k) { return k === "lc" ? "Laadproces" : k.charAt(0).toUpperCase() + k.slice(1); }).join(", ") : "Alle diensten toegewezen", body: dienstenBlocks(c) },
@@ -3821,10 +3821,10 @@
       var items = lijst.length ? lijst.map(function (us) {
         return '<button type="button" class="pick-item" data-dienstpick="' + key + "|" + us.id + '"><span class="pick-dot"></span>' + fullName(us) + "</button>";
       }).join("") : '<div class="cellsub" style="padding:8px 10px">' + (kandidaten.length ? "Geen medewerker gevonden." : "Geen medewerkers meer beschikbaar.") + "</div>";
-      return '<div class="dienst-block"><div class="dienst-h">' + esc(label) + (gekozenIds.length ? ' <span class="dienst-count">' + gekozenIds.length + "</span>" : "") + "</div>" +
+      return '<div class="dienst-block"><div class="dienst-h">' + esc(label) + "</div>" +
         (gekozen || '<div class="cellsub" style="margin-bottom:6px">Niemand toegewezen</div>') +
         '<div class="pick' + (open ? " open" : "") + '" data-pick="' + key + '">' +
-          '<button type="button" class="pick-btn" data-dienstopen="' + key + '">' + svg("plus", "icon-sm") + "<span>Persoon toevoegen</span>" + svg("chevronDown", "icon-sm pick-chev") + "</button>" +
+          '<button type="button" class="pick-btn" data-dienstopen="' + key + '">' + svg("plus", "icon-sm") + "<span>Persoon toewijzen</span>" + svg("chevronDown", "icon-sm pick-chev") + "</button>" +
           '<div class="pick-menu"><div class="pick-search">' + svg("search", "icon-sm") + '<input type="search" data-dienstq="' + key + '" placeholder="Zoek op naam…" value="' + esc(q) + '" autocomplete="off"></div>' +
           '<div class="pick-list">' + items + "</div></div>" +
         "</div></div>";
