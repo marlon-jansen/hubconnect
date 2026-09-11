@@ -3332,7 +3332,7 @@
     else if (spT && spT.status === "ingediend") tabState.trolley = "warn";
     var seg = '<div class="seg dash-tabs" style="margin:14px 0 16px;flex-wrap:wrap">' + tabs.map(function (t) {
       var st = tabState[t[0]] || "";
-      return '<button data-dashtab="' + t[0] + '" class="' + (state.dashTab === t[0] ? "active" : "") + (st ? " tab-" + st : "") + '">' + t[1] + (st === "warn" ? '<span class="tab-bang">!</span>' : "") + "</button>";
+      return '<button data-dashtab="' + t[0] + '" class="' + (state.dashTab === t[0] ? "active" : "") + (st ? " tab-" + st : "") + '">' + t[1] + (st === "warn" ? '<span class="tab-bang">!</span>' : st === "info" ? svg("clock", "icon-sm tab-clock") : "") + "</button>";
     }).join("") + "</div>";
     var body = state.dashTab === "voorbereiding" ? dashVoorbereiding(c)
       : state.dashTab === "trolley" ? dashTrolley(c)
@@ -3529,16 +3529,16 @@
       return '<div class="troll-nums"><div class="troll-num"><span class="dash-big">' + (v4 || 0) + '</span><span class="cellsub">4-laags</span></div>' +
         '<div class="troll-num"><span class="dash-big">' + (v5 || 0) + '</span><span class="cellsub">5-laags</span></div></div>';
     }
-    var sys = panel("inbox", "Trolley-voorraad (systeem)", '<div class="troll-body"><div class="cellsub">Huidige voorraad volgens het systeem</div>' + nums(tr.stock4, tr.stock5) + "</div>");
+    var sys = panel("inbox", "Trolley-voorraad", '<div class="troll-body">' + nums(tr.stock4, tr.stock5) + "</div>");
     var mag = S.spTrolleyMogelijk(c.d, c.dd) && !S.isFutureDay(c.d);
     var spBody;
     if (!sp || sp.status === "gecontroleerd") {
       spBody = (sp ? '<div class="troll-status ok">' + svg("check", "icon-sm") + "Steekproef gecontroleerd om " + fmtClock(sp.gecontroleerdAt) + " (" + (sp.uitkomst === "aangepast" ? "voorraad aangepast" : "voorraad klopte") + ")</div>" : "") +
         (mag ? '<div style="margin-top:' + (sp ? "12px" : "0") + '"><button class="btn btn-primary" data-spstart>' + svg("clipboard", "icon-sm") + "Steekproef instellen</button>" +
-               '<div class="cellsub" style="margin-top:8px">Kwaliteit telt dan alle trolleys blind en dient de telling in.</div></div>'
+               "</div>"
              : '<div class="cellsub">Een steekproef kan alleen in de PM-shift (op zondag in de AM).</div>');
     } else if (sp.status === "open") {
-      spBody = '<div class="troll-status" style="color:var(--blue)">' + svg("clock", "icon-sm") + "Steekproef loopt — Kwaliteit telt de trolleys</div>" +
+      spBody = '<div class="troll-status" style="color:var(--blue)">' + svg("clock", "icon-sm") + "Steekproef loopt</div>" +
         '<div style="margin-top:12px"><button class="btn btn-ghost btn-sm" data-spannuleer>' + svg("x", "icon-sm") + "Steekproef annuleren</button></div>";
     } else { // ingediend
       var v = S.spTrolleyVerschil(c.h, c.d, c.dd);
@@ -3571,7 +3571,7 @@
       spItems.map(function (b) {
         return "<tr><td class=\"cellname\">Bus " + esc(b.bus || "?") + '</td><td data-th="Naam">' + esc(b.steekproef.naam) + '</td><td data-th="hr-nummer">' + esc(b.steekproef.hr) + '</td><td data-th="Rit">' + esc(b.steekproef.rit || "-") + '</td><td data-th="Kratten">' + esc(b.steekproef.kratten) + "</td></tr>";
       }).join("") + "</tbody></table>" : '<div class="cellsub" style="padding:12px">Nog geen steekproeven ingevuld.</div>';
-    return panel("clipboard", "Steekproeven schadecontrole (deze shift)", spList);
+    return panel("clipboard", "Steekproeven schadecontrole", spList);
   }
   // Steekproeven van de vorige shift controleren tegen het Jumbo-systeem (checklist-item in Voorbereiding).
   function spControlePanel(c) {
