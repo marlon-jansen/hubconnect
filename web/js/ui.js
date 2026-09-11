@@ -2678,7 +2678,7 @@
                 '<button type="button" data-vbgroep="kip" class="' + (groep === "kip" ? "active" : "") + '">Kip &amp; gevogelte</button></div>' +
                 '<div class="cellsub" style="margin-top:4px">' + esc(tempNormHint(S.tempGroep(groep === "kip" ? "kip" : "koel"))) + "</div></div>"
             : '<div class="cellsub" style="margin:-4px 0 12px">' + esc(tempNormHint(S.tempGroep("dv"))) + "</div>") +
-          '<div class="field"><label>Temperatuur (°C)</label><div class="temp-wrap" id="vbTempWrap"><input class="lc-in" type="text" inputmode="decimal" name="temp" placeholder="bv. 2,5" autofocus><span class="temp-ico" aria-hidden="true"></span></div></div>' +
+          '<div class="field"><label>Temperatuur (°C)</label><div class="temp-wrap" id="vbTempWrap"><input class="lc-in" type="text" inputmode="decimal" name="temp" autofocus><span class="temp-ico" aria-hidden="true"></span></div></div>' +
           '<div class="field" id="vbActieWrap" hidden><label>Actie bij afwijking temperatuur / kwaliteit</label><textarea class="lc-in" name="actie" rows="2" placeholder="Verplicht bij een afwijking: waarschuw je leidinggevende, beschrijf de actie en wat er met de producten is gedaan."></textarea></div>' +
           '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-primary" type="submit">' + svg("check", "icon-sm") + "Meting opslaan</button>" +
           '<button class="btn btn-ghost" type="button" data-vbcancel>Annuleren</button></div>' +
@@ -2908,6 +2908,13 @@
       "<tbody>" + rows + "</tbody></table></div></div>";
   }
 
+  // Eigen module onder "Beheer" (v=103, was een tab in Laadproces). Per dag (AM + PM samen), dus alleen een datumkiezer.
+  function renderTempArchief() {
+    var c = ctx();
+    el("app").innerHTML = moduleShell("Temperatuurarchief", dayBar() + tempArchiefBody(c), { noShift: true });
+    bindModuleHeader(renderTempArchief);
+  }
+
   /* ---------- Boxnummer scannen (QR én streepjescode) ----------
      Twee routes, want de hub gebruikt Android én iPhone:
        1. BarcodeDetector — zit ingebouwd in Chrome/Android, kost niets extra.
@@ -2959,7 +2966,8 @@
         // De camera moet ook stoppen als de gebruiker via de achtergrond of het kruisje sluit.
         bewaker = setInterval(function () { if (!document.body.contains(ov)) stop(); }, 400);
 
-        navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } }, audio: false })
+        // Hoge resolutie + doorlopende autofocus: streepjescodes (Code 39) zijn anders te onscherp/klein om te lezen.
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 }, advanced: [{ focusMode: "continuous" }] }, audio: false })
           .then(function (s) {
             if (gestopt) { s.getTracks().forEach(function (t) { t.stop(); }); return; }
             stream = s; video.srcObject = s;
@@ -2974,24 +2982,36 @@
                           : "Camera niet beschikbaar — typ het nummer.", true);
           });
 
+        // Formaten die op de boxen voorkomen: QR (koelbox) en Code 39 (vriesbox), plus de gangbare rest.
+        var WIL = ["qr_code", "code_39", "code_128", "ean_13", "ean_8", "itf", "data_matrix", "upc_a", "upc_e"];
         function startNatief(vid, gevonden, zeggen) {
           return window.BarcodeDetector.getSupportedFormats().then(function (fmts) {
-            var det = new window.BarcodeDetector({ formats: fmts });
+            var gebruik = (fmts || []).filter(function (f) { return WIL.indexOf(f) !== -1; });
+            // Sommige Androids melden de API wel maar kunnen niets (geen Play Services): dan meteen ZXing.
+            if (!gebruik.length) return startZXing(stream, vid, gevonden, zeggen);
+            var det = new window.BarcodeDetector({ formats: gebruik });
+            var start = Date.now(), fouten = 0;
             (function lus() {
               if (gestopt) return;
+              // Levert de ingebouwde detector na 6 s niets op (of blijft hij fouten geven), dan alsnog ZXing erbij.
+              if (Date.now() - start > 6000 || fouten > 5) return startZXing(stream, vid, gevonden, zeggen);
               det.detect(vid).then(function (codes) {
                 if (codes && codes.length) return gevonden(codes[0].rawValue);
-                setTimeout(lus, 120);
-              }).catch(function () { setTimeout(lus, 300); });
+                setTimeout(lus, 100);
+              }).catch(function () { fouten++; setTimeout(lus, 250); });
             })();
           }).catch(function () { return startZXing(stream, vid, gevonden, zeggen); });
         }
         function startZXing(s, vid, gevonden, zeggen) {
+          if (reader) return; // al actief
           zeggen("Scanner laden…");
           return loadZXing().then(function (Z) {
             if (gestopt) return;
-            zeggen("Richt de camera op de code op de box.");
-            reader = new Z.BrowserMultiFormatReader();
+            zeggen("Richt de camera op de code op de box en houd stil.");
+            var hints = new Map();
+            hints.set(Z.DecodeHintType.TRY_HARDER, true);
+            hints.set(Z.DecodeHintType.POSSIBLE_FORMATS, [Z.BarcodeFormat.QR_CODE, Z.BarcodeFormat.CODE_39, Z.BarcodeFormat.CODE_128, Z.BarcodeFormat.EAN_13, Z.BarcodeFormat.EAN_8, Z.BarcodeFormat.ITF, Z.BarcodeFormat.DATA_MATRIX]);
+            reader = new Z.BrowserMultiFormatReader(hints, 200);
             reader.decodeFromStream(s, vid, function (result) { if (result) gevonden(result.getText()); });
           }).catch(function (e) { zeggen(e.message + " Typ het nummer.", true); });
         }
@@ -3018,15 +3038,19 @@
     openModal({
       title: esc(slot.naam) + " — pendel " + nr,
       icon: "thermo",
-      body: '<form id="ptForm" autocomplete="off">' + groepVeld +
-        '<div class="row2">' +
-          '<div class="field"><label>Temperatuur (°C)</label><div class="temp-wrap" id="ptTempWrap"><input name="temp" inputmode="decimal" placeholder="bv. 4,2 of -18" value="' + esc(m.temp === "" ? "" : String(m.temp).replace(".", ",")) + '" required><span class="temp-ico" aria-hidden="true"></span></div></div>' +
-          '<div class="field"><label>Boxnummer</label><div class="box-scan">' +
-            '<input name="box" placeholder="bv. 0687" value="' + esc(m.box || "") + '" required>' +
-            (scanBeschikbaar() ? '<button type="button" class="btn btn-ghost scan-btn" id="ptScan" title="Code op de box scannen">' + svg("scan", "icon-sm") + "Scan</button>" : "") +
-          "</div></div>" +
+      // Volgorde zoals het papieren formulier: datum/shift/naam (vast) · boxnummer · product · productgroep · temperatuur · THT.
+      body: '<form id="ptForm" autocomplete="off">' +
+        '<div class="vb-grid" style="margin-bottom:12px">' +
+          '<div class="field"><label>Datum</label><div class="vb-ro">' + svg("calendar", "icon-sm") + esc(fmtDate(c.d)) + "</div></div>" +
+          '<div class="field"><label>Naam controleur</label><div class="vb-ro">' + svg("user", "icon-sm") + fullName(c.u) + "</div></div>" +
         "</div>" +
-        '<div class="field"><label>Gemeten product</label><input name="product" placeholder="bv. salade, pizza, yoghurt" value="' + esc(m.product || "") + '" required></div>' +
+        '<div class="field"><label>Boxnummer</label><div class="box-scan">' +
+          '<input name="box" value="' + esc(m.box || "") + '" required>' +
+          (scanBeschikbaar() ? '<button type="button" class="btn btn-ghost scan-btn" id="ptScan" title="Code op de box scannen">' + svg("scan", "icon-sm") + "Scan</button>" : "") +
+        "</div></div>" +
+        '<div class="field"><label>Gemeten product</label><input name="product" value="' + esc(m.product || "") + '" required></div>' +
+        groepVeld +
+        '<div class="field"><label>Temperatuur (°C)</label><div class="temp-wrap" id="ptTempWrap"><input name="temp" inputmode="decimal" value="' + esc(m.temp === "" ? "" : String(m.temp).replace(".", ",")) + '" required><span class="temp-ico" aria-hidden="true"></span></div></div>' +
         '<div class="field"><label>THT (houdbaarheidsdatum)</label><div class="seg pt-seg">' +
           '<button type="button" data-ptht="ok" class="' + (tht ? "active" : "") + '">OK</button>' +
           '<button type="button" data-ptht="niet" class="' + (tht ? "" : "active") + '">NIET OK</button></div></div>' +
