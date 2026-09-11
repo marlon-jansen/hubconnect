@@ -16,6 +16,7 @@
 
   /* ---------- Constanten ---------- */
   var ROLES = [
+    { id: "manager-thuisbezorging", label: "Manager Thuisbezorging", level: 6 }, // boven de hubs: ziet alle hubs, kiest een hub op de menupagina
     { id: "locatie-manager", label: "Locatie-manager", level: 5 },
     { id: "teamleider",      label: "Teamleider",       level: 4 },
     { id: "senior",          label: "Senior bezorger",  level: 3 },
@@ -192,7 +193,44 @@
     return ROLES.filter(function (r) { return r.id === id; })[0] || ROLES[ROLES.length - 1];
   }
   function level(user) { return user ? roleMeta(user.rol).level : 0; }
-  function currentUser() { return db.session.userId ? userById(db.session.userId) : null; }
+  /* ---- Hub-keuze ----
+     Manager Thuisbezorging en beheerder hebben geen eigen hub: zij kiezen op de menupagina een hub.
+     Een locatie-manager kan door hen aan meerdere hubs gekoppeld zijn (`hubIds`) en kiest dan ook.
+     De keuze wordt lokaal onthouden en als `hubId` aan de sessiegebruiker gehangen, zodat alle
+     hub-gescopede schermen gewoon voor die hub werken. */
+  function overHubs(u) { return !!u && (isAdmin(u) || level(u) >= 6); }
+  function hubsFor(rawUser) {
+    if (!rawUser) return [];
+    var all = db.hubs.slice().sort(function (a, b) { return a.naam.localeCompare(b.naam); });
+    if (overHubs(rawUser)) return all;
+    var ids = [rawUser.hubId].concat(rawUser.hubIds || []);
+    return all.filter(function (h) { return ids.indexOf(h.id) !== -1; });
+  }
+  function canSwitchHub(u) { return hubsFor(u).length > 1 || overHubs(u); }
+  function viewHubKey(id) { return "hc-viewhub:" + id; }
+  function viewHubId(rawUser) {
+    if (!rawUser || !canSwitchHub(rawUser)) return null;
+    var v = null; try { v = localStorage.getItem(viewHubKey(rawUser.id)); } catch (e) {}
+    var ok = hubsFor(rawUser).some(function (h) { return h.id === v; });
+    if (ok) return v;
+    if (!overHubs(rawUser)) return null;                 // locatie-manager: terug naar eigen hub
+    var first = hubsFor(rawUser)[0]; return first ? first.id : null;   // manager/beheerder: eerste hub
+  }
+  function setViewHub(hubId) {
+    var u = db.session.userId ? userById(db.session.userId) : null;
+    if (!canSwitchHub(u)) throw new Error("Je kunt niet van hub wisselen.");
+    if (!hubsFor(u).some(function (h) { return h.id === hubId; })) throw new Error("Deze hub is niet aan jou gekoppeld.");
+    try { localStorage.setItem(viewHubKey(u.id), hubId); } catch (e) {}
+  }
+  function currentUser() {
+    var u = db.session.userId ? userById(db.session.userId) : null;
+    if (!u) return null;
+    var vh = viewHubId(u);
+    if (!vh || vh === u.hubId) return u;
+    var view = {}; for (var k in u) view[k] = u[k];
+    view.hubId = vh;
+    return view;
+  }
   function visibleUsers() { return db.users.filter(function (u) { return !u.hidden; }); }
 
   /* ---------- Taken: mogen & zien ---------- */
@@ -301,7 +339,8 @@
   var inviteCodesCache = []; // laatst opgehaalde open codes (voor de UI); server is leidend
   // Teamleider+ maakt een code aan (server autoriseert). Promise<{code,hubId,expiresAt}>.
   function createInviteCode() {
-    return postJson("/api/invite", {}).then(function (res) {
+    // hubId mee: voor rollen boven de hubs is dat de gekozen hub (server negeert 'm voor anderen)
+    return postJson("/api/invite?hubId=" + encodeURIComponent(currentUser().hubId), {}).then(function (res) {
       if (!res.ok) throw new Error(res.status === 403 ? "Alleen teamleider of hoger mag een uitnodigingscode maken." : "Kon geen code aanmaken.");
       return res.body;
     });
@@ -313,7 +352,8 @@
   }
   // Open codes ophalen van de server (teamleider+; server scoped op hub). Promise<array>.
   function fetchInviteCodes() {
-    return fetch("/api/invite-codes").then(function (r) { return r.ok ? r.json() : []; })
+    var u = currentUser();
+    return fetch("/api/invite-codes" + (u ? "?hubId=" + encodeURIComponent(u.hubId) : "")).then(function (r) { return r.ok ? r.json() : []; })
       .then(function (list) { inviteCodesCache = Array.isArray(list) ? list : []; return inviteCodesCache; })
       .catch(function () { return []; });
   }
@@ -670,6 +710,7 @@
   /* ---------- Beheer ---------- */
   function setUserRole(targetId, rol) {
     if (!can.editRoles(currentUser())) throw new Error("Alleen een locatie-manager mag functies toewijzen.");
+    if (!isAdmin(currentUser()) && roleMeta(rol).level > level(currentUser())) throw new Error("Je kunt geen functie toekennen boven je eigen niveau.");
     var t = userById(targetId); if (!t) throw new Error("Gebruiker niet gevonden.");
     t.rol = rol; save();
   }
@@ -680,6 +721,12 @@
   function setUserJbt(targetId, val) {
     if (!can.editTeam(currentUser())) throw new Error("Alleen teamleider of hoger mag dit aanpassen.");
     var t = userById(targetId); if (!t) return; t.jbtTrainer = !!val; save();
+  }
+  // Extra hubs voor een locatie-manager (alleen manager thuisbezorging/beheerder).
+  function setUserHubs(targetId, hubIds) {
+    if (!overHubs(currentUser())) throw new Error("Alleen een Manager Thuisbezorging mag meerdere hubs koppelen.");
+    var t = userById(targetId); if (!t) return;
+    t.hubIds = (hubIds || []).filter(function (id) { return id !== t.hubId && hubById(id); }); save();
   }
   function setUserHub(targetId, hubId) {
     if (!can.editRoles(currentUser())) throw new Error("Alleen een locatie-manager mag de hub wijzigen.");
@@ -1532,7 +1579,15 @@
     var lines = (text || "").split(/\r?\n/).filter(function (l) { return l.trim(); });
     if (lines.length < 2) throw new Error("Plak de hele sheet inclusief de kopregel.");
     function cells(l) { return l.indexOf("\t") !== -1 ? l.split("\t") : l.split(/ {2,}|;|,/); }
-    var head = cells(lines[0]).map(function (h) { return h.trim().toLowerCase(); });
+    // De kopregel ("Volg Nr · Bezorger · … · Bus · Kenteken") hoeft niet de eerste regel te zijn:
+    // boven de tabel staan in de planning-sheet nog regels met hub, datum, ritbegeleiding enz.
+    var headIdx = -1;
+    for (var li = 0; li < lines.length; li++) {
+      var hc = cells(lines[li]).map(function (h) { return h.trim().toLowerCase(); });
+      if (hc.indexOf("bezorger") !== -1 && hc.indexOf("bus") !== -1) { headIdx = li; break; }
+    }
+    if (headIdx === -1) throw new Error("Kopregel niet gevonden — plak de hele sheet, inclusief de regel met 'Bezorger' en 'Bus'.");
+    var head = cells(lines[headIdx]).map(function (h) { return h.trim().toLowerCase(); });
     function col(test) { for (var i = 0; i < head.length; i++) if (test(head[i])) return i; return -1; }
     var iBez = col(function (h) { return h === "bezorger"; });
     var iType = col(function (h) { return h.indexOf("bustype") !== -1; });
@@ -1547,8 +1602,9 @@
 
     var schade = getSchade(hubId, datum, dagdeel);
     var lc = getLC(hubId, datum, dagdeel);
-    var n = 0;
-    for (var r = 1; r < lines.length; r++) {
+    var n = 0, seen = {};
+    schade.buses.forEach(function (b) { if (b.bus) seen[b.bus] = true; }); // nooit dubbel in de schadecontrole
+    for (var r = headIdx + 1; r < lines.length; r++) {
       var c = cells(lines[r]).map(function (x) { return (x || "").trim(); });
       var bus = iBus > -1 ? (c[iBus] || "") : "";
       var kent = iKent > -1 ? c[iKent] : "";
@@ -1556,7 +1612,12 @@
       var type = iType > -1 ? c[iType] : "";
       var rit = iTrip > -1 ? c[iTrip] : "";
       var vertrek = iVertrek > -1 ? c[iVertrek] : "";
-      var volg = iVolg > -1 ? parseInt(c[iVolg], 10) : 0; if (!volg) volg = r;
+      // Alleen echte ritregels hebben een volgnummer. Regels eronder (binnendienst, JBT-hulp, de
+      // bussen/kentekens-tabel rechts, reservebussen, "N/b") hebben er geen en slaan we over.
+      var volg = iVolg > -1 ? parseInt(c[iVolg], 10) : 0;
+      if (iVolg > -1 && !volg) continue;
+      if (!volg) volg = r - headIdx;
+      if (bus && !/^[a-z0-9-]+$/i.test(bus)) continue; // geen busnummer (bv. "N/b")
       // N2/ZE uit bustype (codes als VAN_VOLKSWAGEN_ZE / E_VAN_RENAULT_N2) + opmerking(en) + moeilijkheid (los woord)
       var opmText = ""; iOpm.forEach(function (j) { opmText += " " + (c[j] || ""); }); if (iMoeil > -1) opmText += " " + (c[iMoeil] || "");
       function tokHas(str, w) { return new RegExp("(^|[^a-z0-9])" + w + "([^a-z0-9]|$)", "i").test(str); }
@@ -1564,8 +1625,8 @@
       var ze = /ze/i.test(type) || tokHas(opmText, "ze");
       var jbt = tokHas(opmText, "jbt"); // "JBT" in de opmerking(en) → hoeft niet geladen te worden
       if (!bus && !rit) continue; // lege regel
-      // schade alleen voor regels met een echte bus
-      if (bus && doSchade) schade.buses.push(applyGebreken(hubId, newBus(naam, bus, kent)));
+      // schade alleen voor regels met een echte bus; een bus met twee ritten staat er één keer in
+      if (bus && doSchade && !seen[bus]) { schade.buses.push(applyGebreken(hubId, newBus(naam, bus, kent))); seen[bus] = true; }
       // lc-vak — ritnummer is altijd aan het vaknummer gekoppeld, ook zonder bus
       if (doLaden) {
         while (lc.vakken.length < volg) lc.vakken.push(newVak(lc.vakken.length + 1));
@@ -1593,12 +1654,9 @@
   function logsForHub(hubId) { return db.logs.filter(function (l) { return l.hubId === hubId; }); }
   function usersForHub(hubId) { return db.users.filter(function (u) { return !u.hidden && u.hubId === hubId; }); }
   // Medewerkers die deze gebruiker mag beheren/zien in beheer.
-  // Alleen de verborgen superadmin ziet alle hubs; iedereen anders (t/m locatie-manager)
-  // ziet uitsluitend het personeel van de eigen hub.
-  function manageableUsers(u) {
-    if (isAdmin(u)) return visibleUsers();             // superadmin: alle hubs
-    return usersForHub(u.hubId);                        // locatie-manager en lager: eigen hub
-  }
+  // Iedereen ziet uitsluitend het personeel van de hub waarvoor hij werkt — hubs delen geen
+  // informatie. Rollen boven de hubs (manager thuisbezorging, beheerder) kiezen die hub op de menupagina.
+  function manageableUsers(u) { return usersForHub(u.hubId); }
 
   function pendingForApprover(u) {
     var shifts = db.shifts.filter(function (s) { return s.hubId === u.hubId && s.status === "in-afwachting" && can.approveShift(u, s); });
@@ -1648,6 +1706,7 @@
     setPendelRit: setPendelRit, tempStats: tempStats, tempArchief: tempArchief,
     shiftsForHub: shiftsForHub, taskOffersForHub: taskOffersForHub, backupsForHub: backupsForHub, calloutsForHub: calloutsForHub,
     logsForHub: logsForHub, usersForHub: usersForHub, manageableUsers: manageableUsers,
+    canSwitchHub: canSwitchHub, setViewHub: setViewHub, hubsFor: hubsFor, overHubs: overHubs, setUserHubs: setUserHubs,
     pendingForApprover: pendingForApprover, pendingCount: pendingCount
   };
 })();
