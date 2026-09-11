@@ -2164,13 +2164,13 @@
     var gb = el("app").querySelector("[data-goto-beheer]"); if (gb) gb.addEventListener("click", function () { state.module = "personeelsbeheer"; render(); });
     var hp = el("portalHub"); if (hp) hp.addEventListener("change", function () { try { S.setViewHub(hp.value); render(); } catch (e) { toast(e.message, "err"); } });
     document.querySelectorAll("[data-module]").forEach(function (b) {
-      b.addEventListener("click", function () { state.module = b.getAttribute("data-module"); state.view = "shifts"; state.viewOnly = false; render(); });
+      b.addEventListener("click", function () { state.module = b.getAttribute("data-module"); state.view = "shifts"; state.viewOnly = false; state.dashBack = false; render(); });
     });
   }
 
   // Navigatiestatus terug naar het menu (bij in-/uitloggen zodat niemand op een vorige pagina belandt).
-  function resetNav() { state.module = null; state.showLanding = false; state.viewOnly = false; state.view = "shifts"; }
-  function gotoPortal() { state.module = null; state.viewOnly = false; state.showLanding = false; render(); }
+  function resetNav() { state.module = null; state.showLanding = false; state.viewOnly = false; state.dashBack = false; state.view = "shifts"; }
+  function gotoPortal() { state.module = null; state.viewOnly = false; state.dashBack = false; state.showLanding = false; render(); }
   function gotoLanding() { state.showLanding = true; render(); } // logo-klik: naar de voorpagina (blijft ingelogd)
 
   /* ===================================================================
@@ -2366,7 +2366,7 @@
       ? '<span class="live-badge vo-badge">' + svg("shield", "icon-sm") + (S.isSetup(S.currentUser()) ? "Binnendienst" : "Alleen bekijken") + "</span>"
       : liveBadge();
     // 'Terug naar dashboard' staat bovenaan de pagina als losse gele knop (geen balk).
-    var voBack = vo ? '<button class="btn btn-sm vo-back" data-voback>' + svg("arrowLeft", "icon-sm") + "Terug naar dashboard</button>" : "";
+    var voBack = (vo || state.dashBack) ? '<button class="btn btn-sm vo-back" data-voback>' + svg("arrowLeft", "icon-sm") + "Terug naar dashboard</button>" : "";
     // Vanuit 'Bekijk voortgang' op het dashboard heet de pagina "Voortgang <module>".
     var heading = vo ? "Voortgang " + title.charAt(0).toLowerCase() + title.slice(1) : title;
     return portalHeader(S.currentUser(), true) +
@@ -2379,7 +2379,7 @@
     el("app").querySelector("[data-profile]").addEventListener("click", openProfile);
     el("app").querySelector("[data-portal]").addEventListener("click", gotoPortal);
     var hm = el("app").querySelector("[data-home]"); if (hm) hm.addEventListener("click", gotoLanding);
-    var vb = el("app").querySelector("[data-voback]"); if (vb) vb.addEventListener("click", function () { state.viewOnly = false; state.module = "dashboard"; render(); });
+    var vb = el("app").querySelector("[data-voback]"); if (vb) vb.addEventListener("click", function () { state.viewOnly = false; state.dashBack = false; state.module = "dashboard"; render(); });
     if (rerender) bindShiftBar(rerender);
   }
   function ensureShiftState() {
@@ -3358,7 +3358,7 @@
             else state.dashTab = tab;
             renderDashboard(); return;
           }
-          if (mod === "bussenbeheer") { state.module = "bussenbeheer"; state.viewOnly = false; render(); return; }
+          if (mod === "bussenbeheer") { state.module = "bussenbeheer"; state.viewOnly = false; state.dashBack = true; render(); return; }
           state.module = mod; state.viewOnly = true;
           if (mod === "lc" && tab) state.lcTab = tab;
           render();
@@ -3511,10 +3511,12 @@
     var embVakken = S.VAK_NUMMERS.filter(function (i) { return S.vakSoort(c.h, c.d, c.dd, i) === "emb5"; });
     var embTot = 0, embGevuld = 0;
     var vakTotals = embVakken.map(function (i) { var n = S.emballageVakTotal(c.h, c.d, c.dd, i); embTot += n; if (n) embGevuld++; return '<div class="emb-vaktot"><span>Vak ' + i + ":</span> <b>" + n + "</b></div>"; }).join("");
-    var kwalInner = '<div class="dash-row"><div><div class="dash-big">' + embTot + '</div><div class="cellsub">Kratjes emballage</div></div></div>' +
-      facts([
-        { lab: "Statiegeldvakken", val: embVakken.length, go: "kwaliteit|" },
-        { lab: "Vakken met emballage", val: embGevuld, cls: embGevuld ? "warn" : "ok", go: "kwaliteit|" }
+    var spK = S.spTrolleyGet(c.h, c.d, c.dd);
+    var spTxt = !spK ? "Nee" : spK.status === "open" ? "Loopt" : spK.status === "ingediend" ? "Ingediend" : "Afgerond";
+    var spCls = !spK ? "" : spK.status === "open" ? "info" : spK.status === "ingediend" ? "warn" : "ok";
+    var kwalInner = facts([
+        { lab: "Kratten emballage totaal", val: embTot, go: "kwaliteit|" },
+        { lab: "Trolley-steekproef", val: spTxt, cls: spCls, go: "dash|trolley" }
       ]) +
       '<div class="dash-recent-title">Emballage per vak</div>' +
       (vakTotals ? '<div class="emb-vaktots">' + vakTotals + "</div>" : '<div class="cellsub dash-recent-empty">Geen statiegeldvakken ingesteld</div>');
