@@ -2036,6 +2036,7 @@
      =================================================================== */
   function render() {
     var u = S.currentUser();
+    el("app").classList.remove("dash-page"); // renderDashboard zet 'm zelf weer aan op het overzicht
     if (u) {
       if (u.mustSetPassword) { applyUserTheme(u); renderForcePassword(u); }
       else if (state.showLanding) { document.documentElement.setAttribute("data-theme", "dark"); renderLanding(); }   // voorpagina: altijd donker
@@ -3093,13 +3094,14 @@
     var c = ctx(), u = c.u;
     if (!state.dashTab) state.dashTab = "overzicht";
     var tabs = [["overzicht", "Overzicht"], ["trolley", "Trolleyvoorraad"], ["klaarzetten", "Klaarzetten"], ["diensten", "Diensten"], ["steekproeven", "Steekproeven"]];
-    var seg = '<div class="seg" style="margin:14px 0 16px;flex-wrap:wrap">' + tabs.map(function (t) { return '<button data-dashtab="' + t[0] + '" class="' + (state.dashTab === t[0] ? "active" : "") + '">' + t[1] + "</button>"; }).join("") + "</div>";
+    var seg = '<div class="seg dash-tabs" style="margin:14px 0 16px;flex-wrap:wrap">' + tabs.map(function (t) { return '<button data-dashtab="' + t[0] + '" class="' + (state.dashTab === t[0] ? "active" : "") + '">' + t[1] + "</button>"; }).join("") + "</div>";
     var body = state.dashTab === "klaarzetten" ? dashKlaarzetten(c)
       : state.dashTab === "diensten" ? dashDiensten(c)
       : state.dashTab === "trolley" ? dashTrolley(c)
       : state.dashTab === "steekproeven" ? dashSteekproeven(c)
       : dashOverzicht(c);
     el("app").innerHTML = moduleShell("Senior Dashboard", seg + body);
+    el("app").classList.toggle("dash-page", state.dashTab === "overzicht"); // compacte kop op het overzicht (alles in beeld)
     bindModuleHeader(renderDashboard);
     document.querySelectorAll("[data-dashtab]").forEach(function (b) { b.addEventListener("click", function () { state.dashTab = b.getAttribute("data-dashtab"); renderDashboard(); }); });
     if (state.dashTab === "klaarzetten") bindDashKlaarzetten(c);
@@ -3131,28 +3133,104 @@
     if (scc.total > 0 && scc.done < scc.total) todo.push("Steekproeven van de vorige shift controleren (" + (scc.total - scc.done) + " open)");
     var todoBanner = todo.length ? '<div class="todo-banner">' + svg("alertTri", "icon-sm") + "<div><b>Nog te doen:</b> " + todo.map(esc).join(" · ") + "</div></div>" : "";
 
-    function tile(title, icon, color, inner, mod) {
+    // Wie heeft deze shift de dienst? (namen onder de kop van elke kaart)
+    function dienstNamen(key) {
+      var ids = diensten[key] || [];
+      var namen = ids.map(function (id) { return S.userById(id); }).filter(Boolean).map(function (us) { return esc(us.voornaam); });
+      return '<div class="dash-dienst">' + svg("user", "icon-sm") + (namen.length ? namen.join(", ") : '<span class="dash-dienst-none">niemand toegewezen</span>') + "</div>";
+    }
+    function tile(title, icon, color, dienstKey, inner, mod) {
       var view = mod ? '<button class="btn btn-sm dash-view" data-viewmod="' + mod + '">' + svg("arrowRight", "icon-sm") + "Bekijk voortgang</button>" : "";
-      return '<div class="dash-card dash-' + color + '"><div class="dash-h">' + svg(icon, "icon-sm") + esc(title) + "</div>" + inner + view + "</div>";
+      return '<div class="dash-card dash-' + color + '"><div class="dash-h">' + svg(icon, "icon-sm") + esc(title) + "</div>" + (dienstKey ? dienstNamen(dienstKey) : "") + inner + view + "</div>";
     }
     var ring = function (pct, cls) { return '<div class="dash-ring ' + cls + '" style="--p:' + pct + '"><span>' + pct + "%</span></div>"; };
-    var embVakken = S.VAK_NUMMERS.filter(function (i) { return S.vakSoort(c.h, c.d, c.dd, i) === "emb5"; });
-    var vakTotals = embVakken.map(function (i) { return '<div class="emb-vaktot"><span>Vak ' + i + ":</span> <b>" + S.emballageVakTotal(c.h, c.d, c.dd, i) + "</b></div>"; }).join("");
+    // Kleine kerngetallen onder de ring: label + waarde, optioneel gekleurd (ok/warn/err)
+    function facts(items) {
+      return '<div class="dash-facts">' + items.map(function (f) {
+        return '<div class="dash-fact' + (f.cls ? " " + f.cls : "") + '"><b>' + f.val + "</b><span>" + esc(f.lab) + "</span></div>";
+      }).join("") + "</div>";
+    }
     function recentList(items, leeg) { return items.length ? '<ul class="dash-recent">' + items.join("") + "</ul>" : '<div class="cellsub dash-recent-empty">' + esc(leeg || "Nog niets.") + "</div>"; }
     function recentItem(icon, label, time) { return '<li class="dash-recent-item">' + svg(icon, "icon-sm") + '<span class="drn">' + esc(label) + "</span>" + (time ? '<span class="drt">' + esc(time) + "</span>" : "") + "</li>"; }
+
+    // ----- Laden -----
+    var lcVakken = S.getLC(c.h, c.d, c.dd).vakken;
+    var lcN2 = lcVakken.filter(function (v) { return (v.bus || v.rit) && (v.jbt || v.type === "N2"); }).length;
+    var lcLeeg = lcVakken.filter(function (v) { return !(v.bus || v.rit); }).length;
     var recentGeladen = recentList(S.recentGeladenBussen(c.h, c.d, c.dd).map(function (v) { return recentItem("check", "Bus " + (v.bus || "vak " + v.nr), fmtClock(v.geladenAt)); }), "Nog geen bussen geladen");
+    var ladenInner = '<div class="dash-row">' + ring(lcS.pct, "o") + '<div><div class="dash-big">' + lcS.done + " / " + lcS.used + '</div><div class="cellsub">vakken geladen</div></div></div>' +
+      facts([
+        { lab: "nog te laden", val: lcS.used - lcS.done, cls: lcS.used - lcS.done ? "warn" : "ok" },
+        { lab: "N2 / JBT", val: lcN2 },
+        { lab: "vakken klaargezet", val: lcS.total },
+        { lab: "leeg", val: lcLeeg }
+      ]) +
+      '<div class="dash-recent-title">Recent geladen</div>' + recentGeladen;
+
+    // ----- Schadecontrole -----
+    var scBuses = S.getSchade(c.h, c.d, c.dd).buses;
+    var scProbleem = scBuses.filter(S.busHeeftProbleem).length;
+    var spSt = S.steekproefStats(c.h, c.d, c.dd);
     var recentSchade = recentList(S.recentGecontroleerdeBussen(c.h, c.d, c.dd).map(function (b) { return recentItem("check", "Bus " + (b.bus || "?"), fmtClock(b.gecontroleerdAt)); }), "Nog geen bussen gecontroleerd");
+    var schadeInner = '<div class="dash-row">' + ring(sc.pct, "g") + '<div><div class="dash-big">' + sc.done + " / " + sc.total + '</div><div class="cellsub">bussen gecontroleerd</div></div></div>' +
+      facts([
+        { lab: "nog te doen", val: sc.total - sc.done, cls: sc.total - sc.done ? "warn" : "ok" },
+        { lab: "met afwijking", val: scProbleem, cls: scProbleem ? "err" : "" },
+        { lab: "steekproeven", val: spSt.done + " / " + spSt.total, cls: spSt.done >= spSt.total ? "ok" : "" },
+        { lab: "vorige shift te checken", val: scc.total - scc.done, cls: scc.total - scc.done ? "warn" : "ok" }
+      ]) +
+      '<div class="dash-recent-title">Recent gecontroleerd</div>' + recentSchade;
+
+    // ----- Pendels -----
+    var tr = S.getTrolley(c.h, c.d, c.dd), tSt = S.tempStats(c.h, c.d, c.dd);
     var komendePendels = recentList(S.komendePendels(c.h, c.d, c.dd).map(function (p) { return recentItem("van", "Pendel " + (p.tijd || "?"), p.tijd || null); }), "Geen aankomende pendels");
+    var pendelInner = '<div class="dash-row">' + ring(pc.pct, "b") + '<div><div class="dash-big">' + pc.done + " / " + pc.total + '</div><div class="cellsub">tellijst-vakken geteld</div></div></div>' +
+      facts([
+        { lab: "pendels klaargezet", val: tr.pendels.length },
+        { lab: "temperatuur klaar", val: tSt.klaar + " / " + tSt.total, cls: tSt.total && tSt.klaar >= tSt.total ? "ok" : "" },
+        { lab: "afwijkingen", val: tSt.afwijkingen, cls: tSt.afwijkingen ? "err" : "" },
+        { lab: "trolleys op de hub", val: (tr.stock4 || 0) + (tr.stock5 || 0) }
+      ]) +
+      '<div class="dash-recent-title">Volgende pendels</div>' + komendePendels +
+      '<button class="btn btn-sm dash-view" data-viewpc>' + svg("arrowRight", "icon-sm") + "Bekijk Pendelcontrol</button>";
+
+    // ----- Kwaliteit -----
+    var embVakken = S.VAK_NUMMERS.filter(function (i) { return S.vakSoort(c.h, c.d, c.dd, i) === "emb5"; });
+    var embTot = 0, embGevuld = 0;
+    var vakTotals = embVakken.map(function (i) { var n = S.emballageVakTotal(c.h, c.d, c.dd, i); embTot += n; if (n) embGevuld++; return '<div class="emb-vaktot"><span>Vak ' + i + ":</span> <b>" + n + "</b></div>"; }).join("");
+    var kwalInner = '<div class="dash-row"><div><div class="dash-big">' + embTot + '</div><div class="cellsub">kratjes emballage</div></div></div>' +
+      facts([
+        { lab: "statiegeldvakken", val: embVakken.length },
+        { lab: "vakken met emballage", val: embGevuld, cls: embGevuld ? "warn" : "ok" }
+      ]) +
+      '<div class="dash-recent-title">Emballage per vak</div>' +
+      (vakTotals ? '<div class="emb-vaktots">' + vakTotals + "</div>" : '<div class="cellsub dash-recent-empty">Geen statiegeldvakken ingesteld</div>');
+
     // Laden vóór schadecontrole
     var grid = '<div class="dash-grid">' +
-      tile("Laden", "inbox", "orange", '<div class="dash-row">' + ring(lcS.pct, "o") + '<div><div class="dash-big">' + lcS.done + " / " + lcS.used + '</div><div class="cellsub">vakken geladen</div></div></div>' + '<div class="dash-recent-title">Recent geladen</div>' + recentGeladen, "lc") +
-      tile("Schadecontrole", "shield", "green", '<div class="dash-row">' + ring(sc.pct, "g") + '<div><div class="dash-big">' + sc.done + " / " + sc.total + '</div><div class="cellsub">bussen gecontroleerd</div></div></div>' + '<div class="dash-recent-title">Recent gecontroleerd</div>' + recentSchade, "schadecontrole") +
-      tile("Pendels", "van", "blue", '<div class="dash-row">' + ring(pc.pct, "b") + '<div><div class="dash-big">' + pc.done + " / " + pc.total + '</div><div class="cellsub">pendels gecontroleerd</div></div></div>' + '<div class="dash-recent-title">Volgende pendels</div>' + komendePendels + '<button class="btn btn-sm dash-view" data-viewpc>' + svg("arrowRight", "icon-sm") + "Bekijk Pendelcontrol</button>", null) +
-      tile("Kwaliteit", "award", "purple",
-        '<div class="dash-recent-title">Emballage per vak</div>' +
-        (vakTotals ? '<div class="emb-vaktots">' + vakTotals + "</div>" : '<div class="cellsub">Nog niets geteld</div>'), "kwaliteit") +
+      tile("Laden", "inbox", "orange", "lc", ladenInner, "lc") +
+      tile("Schadecontrole", "shield", "green", "schadecontrole", schadeInner, "schadecontrole") +
+      tile("Pendels", "van", "blue", "lc", pendelInner, null) +
+      tile("Kwaliteit", "award", "purple", "kwaliteit", kwalInner, "kwaliteit") +
       "</div>";
-    return todoBanner + grid;
+
+    // ----- Buswassing: brede balk onderaan, alleen op dagen waarop bussen zijn aangewezen -----
+    var ws = S.wasStats(c.h, c.d), wasBar = "";
+    if (ws.total) {
+      wasBar = '<div class="dash-wasbar">' +
+        '<div class="dash-wasbar-h">' + svg("droplet", "icon-sm") + "<b>Buswassing</b>" + dienstNamen("buswassing") +
+          '<span class="dash-wasbar-n">' + ws.gewassen + " / " + ws.total + " gewassen</span></div>" +
+        '<div class="dash-wasbar-track">' +
+          '<span class="ok" style="width:' + ws.pct + '%"></span>' +
+          '<span class="niet" style="width:' + (ws.total ? Math.round(ws.niet / ws.total * 100) : 0) + '%"></span></div>' +
+        '<div class="dash-wasbar-legend">' +
+          '<span class="ok">' + svg("check", "icon-sm") + ws.gewassen + " gewassen</span>" +
+          '<span class="niet">' + svg("x", "icon-sm") + ws.niet + " niet geweest</span>" +
+          '<span class="open">' + svg("clock", "icon-sm") + ws.open + " open</span></div>" +
+        '<button class="btn btn-sm dash-view dash-wasbar-btn" data-viewmod="buswassing">' + svg("arrowRight", "icon-sm") + "Bekijk Buswassing</button>" +
+        "</div>";
+    }
+    return todoBanner + grid + wasBar;
   }
 
   // Trolleyvoorraad-tab: alleen de systeemvoorraad (alleen-lezen). De kwaliteitstelling is verwijderd (v=102).
