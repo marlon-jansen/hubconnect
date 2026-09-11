@@ -2363,6 +2363,8 @@
     if (!state.opDate) state.opDate = ymd(new Date());
     if (!state.opShiftUserSet) state.opShift = S.defaultDagdeelFor(moduleKey);
   }
+  // Docks toewijzen/tonen hoort bij de PM-shift; op zondag is er geen PM, dus dan bij AM.
+  function dockShift(c) { return c.dd === "PM" || S.isSunday(c.d); }
   // Mag de taakuitvoerder deze shift nu nog bewerken? (binnendienst/senior+ mag altijd.)
   function opWindowOK(u, moduleKey, c) { return S.isSetup(u) || S.withinShiftWindow(moduleKey, c.d, c.dd); }
   // Melding wanneer je wél de dienst hebt maar buiten het tijdvenster valt → alleen-lezen.
@@ -2422,15 +2424,16 @@
         svg(done ? "check" : "clipboard", "icon-sm") + "Steekproef</button></td>";
     }
     var busSorted = s.buses.slice().sort(byBusNr); // altijd laagste busnummer bovenaan
+    var showDock = dockShift(c);                    // docks horen bij de PM-shift (en zondag AM, want dan is er geen PM)
     var rows = busSorted.length ? busSorted.map(function (b) {
       var dockCell = b.dock ? '<span class="badge dock">' + svg("building", "icon-sm") + "Dock " + esc(b.dock) + "</span>" : '<span class="cellsub">—</span>';
       var opmNote = b.opmerking ? '<div class="bus-opm">' + svg("alertTri", "icon-sm") + esc(b.opmerking) + "</div>" : "";
       var wasNote = b.wassen ? '<span class="badge was">' + svg("droplet", "icon-sm") + (b.wasStatus === "gewassen" ? "Gewassen" : b.wasStatus === "niet" ? "Niet gewassen" : "Naar wasstraat") + "</span>" : "";
       return "<tr class=\"" + (b.gecontroleerd ? "sc-done" : "") + "\"><td><div class=\"cellname\">Bus " + esc(b.bus || "?") + "</div><div class=\"cellsub\">" + esc(b.naam || "") + (b.kenteken ? " · " + esc(b.kenteken) : "") + "</div>" + wasNote + opmNote + "</td>" +
-        chkCell(b) + mistCell(b) + spCell(b) + '<td data-th="Dock">' + dockCell + "</td></tr>";
-    }).join("") : '<tr><td colspan="5"><div class="cellsub" style="padding:14px">De binnendienst zet de lijst klaar via het dashboard.</div></td></tr>';
+        chkCell(b) + mistCell(b) + spCell(b) + (showDock ? '<td data-th="Dock">' + dockCell + "</td>" : "") + "</tr>";
+    }).join("") : '<tr><td colspan="' + (showDock ? 5 : 4) + '"><div class="cellsub" style="padding:14px">Er is nog geen schadecontrolelijst klaargezet.</div></td></tr>';
     var table = '<div class="panel" style="padding:0"><div class="table-scroll"><table class="table sc-table">' +
-      "<thead><tr><th>Bus</th><th>Gecontroleerd</th><th>Ontbreekt</th><th>Steekproef</th><th>Dock</th></tr></thead><tbody>" + rows + "</tbody></table></div></div>";
+      "<thead><tr><th>Bus</th><th>Gecontroleerd</th><th>Ontbreekt</th><th>Steekproef</th>" + (showDock ? "<th>Dock</th>" : "") + "</tr></thead><tbody>" + rows + "</tbody></table></div></div>";
 
     // Steekproeven controleren doet de binnendienst via het senior-dashboard (niet hier).
     el("app").innerHTML = moduleShell("Schadecontrole",
@@ -2509,7 +2512,7 @@
           esc(b.naam || "") + (b.kenteken ? " · " + esc(b.kenteken) : "") + "</div></td>" +
         '<td data-th="Shift"><span class="badge">' + svg(row.dagdeel === "PM" ? "moon" : "sun", "icon-sm") + esc(row.dagdeel) + "</span></td>" +
         '<td data-th="Status">' + (canEdit ? '<div class="chips">' + statusKnoppen(row) + "</div>" : statusBadge(b)) + wie + "</td></tr>";
-    }).join("") : '<tr><td colspan="3"><div class="cellsub" style="padding:14px">Vandaag zijn er geen bussen aangemerkt voor de wasstraat. De senior doet dat via het dashboard bij Klaarzetten.</div></td></tr>';
+    }).join("") : '<tr><td colspan="3"><div class="cellsub" style="padding:14px">Er zijn nog geen bussen aangewezen voor de wasstraat.</div></td></tr>';
 
     var rechtNote = (!canEdit && !state.viewOnly)
       ? '<div class="alert" style="margin-bottom:12px">' + svg("lock", "icon-sm") + " Je bent vandaag niet aangewezen voor de buswassing — je kunt de lijst wel bekijken.</div>" : "";
@@ -2699,7 +2702,9 @@
       '<div><span class="ar-lab">Datum</span><b>' + esc(fmtDate(c.d)) + "</b></div>" +
       '<div><span class="ar-lab">Bereik</span><b>hele dag · AM + PM</b></div>' +
       "</div>";
-    if (!rijen.length) return kop + '<div class="cellsub" style="padding:14px">Er staan geen pendels klaar op deze dag.</div>';
+    // Geen pendels, of wel pendels maar nergens een meting → niets te archiveren.
+    var gemeten = rijen.some(function (r) { return r.metingen.some(function (x) { return !!x.meting; }); });
+    if (!gemeten) return kop + '<div class="cellsub" style="padding:14px">Geen temperatuurcontroles gevonden.</div>';
 
     var body = rijen.map(function (r) {
       var pendelCel = '<td rowspan="2" class="ar-nr"><b>Pendel ' + r.nr + "</b>" +
@@ -2969,7 +2974,7 @@
         '<td class="cellsub" data-th="Rit">' + (v.rit ? esc(v.rit) : "—") + '</td><td data-th="Type">' + typeCell + "</td>" +
         '<td data-th="ZE" style="text-align:center">' + (v.ze ? '<span class="badge dock">ZE</span>' : "") + "</td>" +
         '<td class="sc-chk" data-th="Geladen">' + chkCell + timeCell + "</td></tr>";
-    }).join("") : '<tr><td colspan="7"><div class="cellsub" style="padding:14px">' + (state.lcOnlyOpen && lc.vakken.length ? "Alle bussen zijn geladen. 🎉" : "De binnendienst zet de vakken klaar via het dashboard.") + "</div></td></tr>";
+    }).join("") : '<tr><td colspan="7"><div class="cellsub" style="padding:14px">' + (state.lcOnlyOpen && lc.vakken.length ? "Alle bussen zijn geladen. 🎉" : "Er is nog geen laadlijst klaargezet.") + "</div></td></tr>";
     var table = '<div class="panel" style="padding:0"><div class="table-scroll"><table class="table lc-table">' +
       "<thead><tr><th>Vak</th><th>Vertrek</th><th>Bus</th><th>Rit</th><th>Type</th><th>ZE</th><th>Geladen</th></tr></thead><tbody>" + rows + "</tbody></table></div></div>";
     var lcFilter = lc.vakken.length ? '<label class="chk lc-filter"><input type="checkbox" id="lcOnlyOpen"' + (state.lcOnlyOpen ? " checked" : "") + "> Alleen nog te laden</label>" : "";
@@ -3001,7 +3006,7 @@
           (p.trolleysVerwacht ? '<span class="cellsub">' + esc(p.trolleysVerwacht) + " trolleys</span>" : "") + "</div>" +
         '<div class="pen-grid">' + retLay(p, 4) + retLay(p, 5) + "</div>" +
         tempBlock(p, i + 1, canTemp) + "</div>";
-    }).join("") : '<div class="cellsub" style="padding:12px">De binnendienst zet de pendels klaar via het dashboard.</div>';
+    }).join("") : '<div class="cellsub" style="padding:12px">Er zijn nog geen pendels klaargezet.</div>';
     var stockBar = '<div class="hub-stock"><div class="hub-stock-h">' + svg("inbox", "icon-sm") + "Op de hub</div>" +
       '<div class="hub-stock-grid">' +
         '<div class="hub-stock-item">' + svg("layers5", "icon-sm") + '<div><div class="hub-stock-n">' + tr.stock5 + '</div><div class="hub-stock-l">5-laags</div></div></div>' +
@@ -3020,10 +3025,10 @@
         '<td data-th="Vers">' + (r.versb || 0) + '</td><td data-th="Diepvries">' + (r.dvboxen || 0) + '</td><td data-th="XL">' + (r.xl || 0) + "</td>" +
         '<td data-th="4-laags">' + pcCounter(idx, "l4", r.l4) + '</td><td data-th="5-laags">' + pcCounter(idx, "l5", r.l5) + "</td>" +
         '<td class="sc-chk" data-th="Gecontroleerd"><label class="chk-box ' + (r.gecontroleerd ? "on" : "") + (canPC ? "" : " ro") + '"><input type="checkbox" ' + (r.gecontroleerd ? "checked" : "") + (canPC ? "" : " disabled") + ' data-pcchk="' + idx + '">' + svg("check", "icon-sm") + "</label></td></tr>";
-    }).join("") : '<tr><td colspan="9"><div class="cellsub" style="padding:14px">Nog geen tellijst geïmporteerd.' + (canPC ? " Plak 'm hierboven." : "") + "</div></td></tr>";
+    }).join("") : '<tr><td colspan="9"><div class="cellsub" style="padding:14px">Er is nog geen tellijst klaargezet.</div></td></tr>';
     var pcTot = pcSt.tot;
     var pcFoot = pcRows.length ? '<tr class="pc-tot"><td class="cellname">Totaal</td><td data-th="Trolleys"><b>' + pcTot.trolleys + '</b></td><td data-th="Kratten"><b>' + pcTot.kratten + '</b></td><td data-th="Vers"><b>' + pcTot.versb + '</b></td><td data-th="Diepvries"><b>' + pcTot.dvboxen + '</b></td><td data-th="XL"><b>' + pcTot.xl + '</b></td><td data-th="4-laags"><b>' + pcTot.l4 + '</b></td><td data-th="5-laags"><b>' + pcTot.l5 + "</b></td><td></td></tr>" : "";
-    var pcTable = '<div class="panel" style="padding:0"><div class="table-scroll"><table class="table pc-table"><thead><tr><th>Vak</th><th>Trolleys</th><th>Kratten</th><th>Vers</th><th>Diepvries</th><th>XL</th><th>4-laags</th><th>5-laags</th><th>Klaar</th></tr></thead><tbody>' + pcBodyRows + pcFoot + "</tbody></table></div></div>";
+    var pcTable = '<div class="panel" style="padding:0"><div class="table-scroll"><table class="table pc-table"><thead><tr><th>Vak</th><th>Trolleys</th><th>Kratten</th><th>Vers</th><th>Diepvries</th><th>XL</th><th>4-laags</th><th>5-laags</th><th>Geteld</th></tr></thead><tbody>' + pcBodyRows + pcFoot + "</tbody></table></div></div>";
     // Pendelcontrol-tab: pendels met retour. Tellen-tab: de tellijst-telling (import staat in het dashboard).
     // Temperatuurcontrole hoort bij de pendel: voortgang + openstaande afwijkingen bovenaan.
     var tSt = S.tempStats(c.h, c.d, c.dd);
@@ -3036,7 +3041,7 @@
     var pcBody = stockBar + tempTop + '<div class="pc-col-h">' + svg("van", "icon-sm") + "Pendels — retour &amp; temperatuur</div><div class=\"pen-list\">" + pendelList + "</div>" +
       (tr.pendels.length ? tempNormsBox() : "");
     var tellenBody = opProgress(pcSt.done, pcSt.total, "vakken gecontroleerd") +
-      (pcRows.length ? "" : '<div class="cellsub" style="margin-bottom:10px">De binnendienst zet de tellijst klaar via het dashboard (Klaarzetten &rsaquo; Pendel).</div>') + pcTable;
+      pcTable;
 
     // ----- STATIEGELD: emballagevakken zien + leeghalen (ook voor de LC-dienst, niet alleen Kwaliteit) -----
     var embVakken = S.VAK_NUMMERS.filter(function (i) { return S.vakSoort(c.h, c.d, c.dd, i) === "emb5"; });
@@ -3221,7 +3226,7 @@
       var sub = meta.length ? '<div class="kz-pendel-sub">' + meta.join(" · ") + "</div>" : "";
       return '<div class="kz-pendel-row"><div><span>' + svg("van", "icon-sm") + "Pendel " + (i + 1) + (p.tijd ? " · aankomst " + esc(p.tijd) : "") + "</span>" + sub + "</div>" +
         '<button class="pl-x" data-pendeldel="' + p.id + '" title="Verwijderen">' + svg("trash", "icon-sm") + "</button></div>";
-    }).join("") : '<div class="cellsub" style="padding:8px 0">Nog geen pendels klaargezet.</div>';
+    }).join("") : '<div class="cellsub" style="padding:8px 0">Er zijn nog geen pendels klaargezet.</div>';
     var pendelImportBlock = '<div class="kz-section"><div class="kz-h">' + svg("download", "icon-sm") + "Aankomsttijden importeren</div>" +
       '<p class="cellsub" style="margin:0 0 8px">Plak de pendellijst (blokken per pendel: aankomsttijd, aantallen, venstertijd, ritnr, herkomst). Pendels vóór 13:00 komen in AM, vanaf 13:00 in PM. <b>Vervangt de pendelplanning van deze dag.</b></p>' +
       '<textarea id="kzPendelImport" rows="5" class="kz-sheet" placeholder="05:15&#10;31&#10;29&#10;Venstertijd: 05:15 - 06:19&#10;A1003455643&#10;EFC Bleiswijk&#10;+30&#10;…"></textarea>' +
@@ -3245,7 +3250,7 @@
       '<textarea id="kzSheetSchade" rows="5" class="kz-sheet" placeholder="Plak hier de sheet…"></textarea>' +
       '<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"><button class="btn btn-primary btn-sm" id="kzImportSchade">' + svg("check", "icon-sm") + "Importeren</button>" +
       '<button class="btn btn-ghost btn-sm" id="kzResetSchade">' + svg("trash", "icon-sm") + "Schade leegmaken</button></div></div>";
-    var showDock = c.dd === "PM"; // docks toewijzen is een PM-taak; tijdens AM niet tonen
+    var showDock = dockShift(c); // docks toewijzen is een PM-taak (zondag: AM); anders niet tonen
     var scRows = s.buses.length ? s.buses.map(function (b) {
       return "<tr><td><div class=\"cellname\">Bus " + esc(b.bus || "?") + "</div><div class=\"cellsub\">" + esc(b.naam || "") + (b.kenteken ? " · " + esc(b.kenteken) : "") + "</div></td>" +
         (showDock ? '<td data-th="Dock (morgen)"><select class="lc-in dock-sel" data-dock="' + b.id + '">' + dockOptions(b.dock) + "</select></td>" : "") +
@@ -3253,7 +3258,7 @@
         '<td data-th="Buswassing"><span class="chip was-chip ' + (b.wassen ? "on" : "") + '" data-scwas="' + b.id + '">' +
           svg("droplet", "icon-sm") + (b.wassen ? "Naar wasstraat" : "Wassen") + "</span></td>" +
         '<td data-th="" style="text-align:right"><button class="pl-x" data-schadedel="' + b.id + '">' + svg("trash", "icon-sm") + "</button></td></tr>";
-    }).join("") : '<tr><td colspan="' + (showDock ? 5 : 4) + '"><div class="cellsub" style="padding:12px">Nog geen bussen. Importeer de planning of voeg toe.</div></td></tr>';
+    }).join("") : '<tr><td colspan="' + (showDock ? 5 : 4) + '"><div class="cellsub" style="padding:12px">Er is nog geen schadecontrolelijst klaargezet. Importeer de planning of voeg bussen toe.</div></td></tr>';
     var schadeBlock = schadeImport + '<div class="kz-section"><div class="kz-h">' + svg("sun", "icon-sm") + "Voorbereiding AM — bussen klaarzetten voor morgen</div>" +
       '<div class="add-inline"><input id="scBus" placeholder="Busnr"><input id="scKent" placeholder="Kenteken"><input id="scNaam" placeholder="Bezorger"><button class="btn btn-dark btn-sm" id="scAdd">' + svg("plus", "icon-sm") + "Bus</button></div>" +
       '<div class="panel" style="padding:0;margin-top:10px"><div class="table-scroll"><table class="table"><thead><tr><th>Bus</th>' + (showDock ? "<th>Dock (morgen)</th>" : "") + "<th>Opmerking voor controleur</th><th>Buswassing</th><th></th></tr></thead><tbody>" + scRows + "</tbody></table></div></div></div>";
