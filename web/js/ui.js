@@ -2851,7 +2851,7 @@
       "</div>";
     // Geen pendels, of wel pendels maar nergens een meting → niets te archiveren.
     var gemeten = rijen.some(function (r) { return r.metingen.some(function (x) { return !!x.meting; }); });
-    if (!gemeten) return panel("van", "Temperatuurcontrole pendels (EFC)", kop + '<div class="cellsub" style="padding:14px">Geen temperatuurcontroles gevonden.</div>') + vbArchiefBody(c);
+    if (!gemeten) return panel("van", "Temperatuurcontrole pendels (EFC)", kop + '<div class="cellsub" style="padding:14px">Geen temperatuurcontroles gevonden.</div>');
 
     var body = rijen.map(function (r) {
       var pendelCel = '<td rowspan="2" class="ar-nr"><b>Pendel ' + r.nr + "</b>" +
@@ -2885,8 +2885,7 @@
       '<div class="table-scroll"><table class="table table-grid ar-table">' +
       "<thead><tr><th>Pendel</th><th>Vak</th><th>Rtnr.</th><th>Boxnr.</th><th>Gemeten product</th><th>Temperatuur</th><th>Oordeel</th><th>Controleur</th><th>Actie bij afwijking</th></tr></thead>" +
       "<tbody>" + body + "</tbody></table></div>" +
-      '<p class="cellsub" style="margin:10px 12px 8px">Alleen-lezen archief. Het oordeel volgt uit de wettelijke normtemperaturen; bij een afwijking is een actie verplicht vastgelegd (WI 01).</p>') +
-      vbArchiefBody(c);
+      '<p class="cellsub" style="margin:10px 12px 8px">Alleen-lezen archief. Het oordeel volgt uit de wettelijke normtemperaturen; bij een afwijking is een actie verplicht vastgelegd (WI 01).</p>');
   }
   // Tweede blok in het dagarchief: de Voedselbank-metingen (AM + PM) in de kolomvolgorde van het papieren formulier.
   function vbArchiefBody(c) {
@@ -2911,8 +2910,14 @@
   // Eigen module onder "Beheer" (v=103, was een tab in Laadproces). Per dag (AM + PM samen), dus alleen een datumkiezer.
   function renderTempArchief() {
     var c = ctx();
-    el("app").innerHTML = moduleShell("Temperatuurarchief", dayBar() + tempArchiefBody(c), { noShift: true });
+    if (!state.arTab) state.arTab = "pendels";
+    var seg = '<div class="seg" style="margin-bottom:16px">' +
+      '<button data-artab="pendels" class="' + (state.arTab === "pendels" ? "active" : "") + '">Pendels</button>' +
+      '<button data-artab="retouren" class="' + (state.arTab === "retouren" ? "active" : "") + '">Retouren</button></div>';
+    el("app").innerHTML = moduleShell("Temperatuurarchief", dayBar() + seg + (state.arTab === "retouren" ? vbArchiefBody(c) : tempArchiefBody(c)), { noShift: true });
     bindModuleHeader(renderTempArchief);
+    document.querySelectorAll("[data-artab]").forEach(function (b) { b.addEventListener("click", function () { state.arTab = b.getAttribute("data-artab"); renderTempArchief(); }); });
+    animateTab(el("app").querySelector("main"), "archief:" + state.arTab);
   }
 
   /* ---------- Boxnummer scannen (QR én streepjescode) ----------
