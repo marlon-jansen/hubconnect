@@ -2851,7 +2851,7 @@
       "</div>";
     // Geen pendels, of wel pendels maar nergens een meting → niets te archiveren.
     var gemeten = rijen.some(function (r) { return r.metingen.some(function (x) { return !!x.meting; }); });
-    if (!gemeten) return kop + '<div class="cellsub" style="padding:14px">Geen temperatuurcontroles gevonden.</div>' + vbArchiefBody(c);
+    if (!gemeten) return panel("van", "Temperatuurcontrole pendels (EFC)", kop + '<div class="cellsub" style="padding:14px">Geen temperatuurcontroles gevonden.</div>') + vbArchiefBody(c);
 
     var body = rijen.map(function (r) {
       var pendelCel = '<td rowspan="2" class="ar-nr"><b>Pendel ' + r.nr + "</b>" +
@@ -2881,18 +2881,18 @@
       }).join("");
     }).join("");
 
-    return kop +
-      '<div class="panel" style="padding:0"><div class="table-scroll"><table class="table table-grid ar-table">' +
+    return panel("van", "Temperatuurcontrole pendels (EFC)", kop +
+      '<div class="table-scroll"><table class="table table-grid ar-table">' +
       "<thead><tr><th>Pendel</th><th>Vak</th><th>Rtnr.</th><th>Boxnr.</th><th>Gemeten product</th><th>Temperatuur</th><th>Oordeel</th><th>Controleur</th><th>Actie bij afwijking</th></tr></thead>" +
-      "<tbody>" + body + "</tbody></table></div></div>" +
-      '<p class="cellsub" style="margin:10px 2px 0">Alleen-lezen archief. Het oordeel volgt uit de wettelijke normtemperaturen; bij een afwijking is een actie verplicht vastgelegd (WI 01).</p>' +
+      "<tbody>" + body + "</tbody></table></div>" +
+      '<p class="cellsub" style="margin:10px 12px 8px">Alleen-lezen archief. Het oordeel volgt uit de wettelijke normtemperaturen; bij een afwijking is een actie verplicht vastgelegd (WI 01).</p>') +
       vbArchiefBody(c);
   }
   // Tweede blok in het dagarchief: de Voedselbank-metingen (AM + PM) in de kolomvolgorde van het papieren formulier.
   function vbArchiefBody(c) {
     var items; try { items = S.vbArchief(c.h, c.d); } catch (e) { return ""; }
-    var kop = '<div class="ar-head" style="margin-top:22px"><div><span class="ar-lab">Registratieformulier temperatuur Voedselbank</span><b>' + esc(fmtDate(c.d)) + "</b></div></div>";
-    if (!items.length) return kop + '<div class="cellsub" style="padding:14px">Geen Voedselbank-metingen gevonden.</div>';
+    var kop = '<div class="ar-head"><div><span class="ar-lab">Registratieformulier temperatuur Voedselbank</span><b>' + esc(fmtDate(c.d)) + "</b></div><div><span class=\"ar-lab\">Bereik</span><b>hele dag · AM + PM</b></div></div>";
+    if (!items.length) return panel("thermo", "Temperatuurcontrole retouren (Voedselbank)", kop + '<div class="cellsub" style="padding:14px">Geen Voedselbank-metingen gevonden.</div>');
     var leeg = '<span class="cellsub">—</span>';
     var rows = items.map(function (x) {
       var m = x.m, o = S.vbOordeel(m);
@@ -2903,9 +2903,9 @@
         "<td>" + esc(m.doorNaam || "—") + '<div class="cellsub">' + fmtClock(m.at) + "</div></td>" +
         '<td class="ar-actie">' + (m.actie ? esc(m.actie) : leeg) + "</td></tr>";
     }).join("");
-    return kop + '<div class="panel" style="padding:0"><div class="table-scroll"><table class="table table-grid ar-table">' +
+    return panel("thermo", "Temperatuurcontrole retouren (Voedselbank)", kop + '<div class="table-scroll"><table class="table table-grid ar-table">' +
       "<thead><tr><th>AM / PM</th><th>Box</th><th>Temperatuur</th><th>Oordeel</th><th>Controleur</th><th>Actie bij afwijking</th></tr></thead>" +
-      "<tbody>" + rows + "</tbody></table></div></div>";
+      "<tbody>" + rows + "</tbody></table></div>");
   }
 
   // Eigen module onder "Beheer" (v=103, was een tab in Laadproces). Per dag (AM + PM samen), dus alleen een datumkiezer.
