@@ -3157,7 +3157,7 @@
           '<div class="field"><label>Naam controleur</label><div class="vb-ro">' + svg("user", "icon-sm") + fullName(c.u) + "</div></div>" +
         "</div>" +
         '<div class="field"><label>Boxnummer</label><div class="box-scan">' +
-          '<input name="box" value="' + esc(m.box || "") + '" required>' +
+          '<input name="box" inputmode="numeric" pattern="[0-9]*" value="' + esc(m.box || "") + '" required>' +
           (scanBeschikbaar() ? '<button type="button" class="btn btn-ghost scan-btn" id="ptScan" title="Code op de box scannen">' + svg("scan", "icon-sm") + "Scan</button>" : "") +
         "</div></div>" +
         '<div class="field"><label>Gemeten product</label><input name="product" value="' + esc(m.product || "") + '" required></div>' +
