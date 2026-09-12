@@ -1227,6 +1227,8 @@ details.prep[open] > summary { border-bottom: 1px solid var(--line); }
   .dash-page .dash-tabrow { margin: 0 0 10px; }
 }
 
+.pen-afrond { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+.pen-card.pen-done { border-color: var(--green); }
 /* Voedselbank-registratie (Kwaliteit) */
 .vb-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-bottom: 4px; }
 .vb-ro { display: inline-flex; align-items: center; gap: 8px; padding: 9px 12px; border-radius: 10px; background: var(--surface-2); font-weight: 800; font-size: 14px; }
