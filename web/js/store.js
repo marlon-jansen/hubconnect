@@ -1478,6 +1478,10 @@
     if (!(canOpShift(u, hubId, datum, dagdeel, "lc", "LC") || isSetup(u))) throw new Error("Je bent deze shift niet aangewezen als LC.");
     var p = findPendel(hubId, datum, dagdeel, penId);
     if (!p) throw new Error("Deze pendel bestaat niet meer.");
+    if (val !== false) {
+      var t = tempsOf(p), ontbreekt = TEMP_SLOTS.filter(function (sl) { return !t[sl.id]; }).map(function (sl) { return sl.naam.toLowerCase(); });
+      if (ontbreekt.length) throw new Error("Eerst de temperatuur meten: " + ontbreekt.join(" en ") + ".");
+    }
     p.afgerond = val !== false; p.afgerondAt = p.afgerond ? now() : null; p.afgerondDoor = p.afgerond ? u.id : null; save();
   }
   function pendelStats(hubId, datum, dagdeel) {
