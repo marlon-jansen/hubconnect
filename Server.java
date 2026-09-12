@@ -19,7 +19,13 @@ public class Server {
   static String DB_URL, DB_USER, DB_PASS;
   static String GATE_USER, GATE_PASS;
   static String SESSION_SECRET;                 // HMAC-sleutel voor stateless sessie-tokens
-  static final long SESSION_TTL_MS = 12L * 3600 * 1000;   // sessie 12 uur geldig
+  // Sessies lopen af op de eerstvolgende 03:00 (Nederlandse tijd) — nooit midden in een shift.
+  static long nextThreeAm() {
+    java.time.ZonedDateTime now = java.time.ZonedDateTime.now(java.time.ZoneId.of("Europe/Amsterdam"));
+    java.time.ZonedDateTime cut = now.withHour(3).withMinute(0).withSecond(0).withNano(0);
+    if (!cut.isAfter(now)) cut = cut.plusDays(1);
+    return cut.toInstant().toEpochMilli();
+  }
   static Connection conn;
   static final Object DBLOCK = new Object(); // serialiseert alle DB-toegang (1 gedeelde verbinding)
   static final Gson GSON = new Gson();
@@ -42,13 +48,20 @@ public class Server {
     // Sessie-geheim (HMAC voor inlog-tokens). Zet SESSION_SECRET in de omgeving zodat sessies
     // een herstart overleven; anders genereren we er een (iedereen moet dan na een herstart opnieuw inloggen).
     SESSION_SECRET = env("SESSION_SECRET", p.getProperty("session.secret"));
-    if (SESSION_SECRET == null || SESSION_SECRET.length() < 16) {
-      byte[] rnd = new byte[32]; RNG.nextBytes(rnd);
-      SESSION_SECRET = Base64.getEncoder().encodeToString(rnd);
-      System.out.println("LET OP: geen SESSION_SECRET gezet - tijdelijk geheim gegenereerd (gebruikers loggen na elke herstart opnieuw in).");
-    }
 
     initDb();
+    // Geen geheim in de omgeving? Dan één keer genereren en in de database bewaren, zodat sessies
+    // een herstart (Render-free slaapt vaak) gewoon overleven.
+    if (SESSION_SECRET == null || SESSION_SECRET.length() < 16) {
+      Map<String,String> meta = readMeta(db());
+      SESSION_SECRET = meta.get("session_secret");
+      if (SESSION_SECRET == null || SESSION_SECRET.length() < 16) {
+        byte[] rnd = new byte[32]; RNG.nextBytes(rnd);
+        SESSION_SECRET = Base64.getEncoder().encodeToString(rnd);
+        setMeta(db(), "session_secret", SESSION_SECRET);
+        System.out.println("Sessie-geheim gegenereerd en in de database bewaard.");
+      }
+    }
 
     HttpServer server = HttpServer.create(new InetSocketAddress(port), 0);
     server.setExecutor(Executors.newCachedThreadPool());
@@ -547,7 +560,7 @@ public class Server {
 
   /* ===================== Auth: sessie-tokens (stateless, HMAC) ===================== */
   static String makeToken(String userId) {
-    long exp = System.currentTimeMillis() + SESSION_TTL_MS;
+    long exp = nextThreeAm();
     String payload = userId + "|" + exp;
     String p64 = Base64.getUrlEncoder().withoutPadding().encodeToString(payload.getBytes(StandardCharsets.UTF_8));
     return p64 + "." + hmac(p64);
@@ -575,7 +588,7 @@ public class Server {
     } catch (Exception e) { throw new RuntimeException(e); }
   }
   static void setSessionCookie(HttpExchange ex, String token) {
-    ex.getResponseHeaders().add("Set-Cookie", "hc_session=" + token + "; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=" + (SESSION_TTL_MS / 1000));
+    ex.getResponseHeaders().add("Set-Cookie", "hc_session=" + token + "; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=" + Math.max(60, (nextThreeAm() - System.currentTimeMillis()) / 1000));
   }
   static void clearSessionCookie(HttpExchange ex) {
     ex.getResponseHeaders().add("Set-Cookie", "hc_session=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0");
