@@ -2785,7 +2785,7 @@
                 '<button type="button" data-vbgroep="kip" class="' + (groep === "kip" ? "active" : "") + '">Kip &amp; gevogelte</button></div>' +
                 '<div class="cellsub" style="margin-top:4px">' + esc(tempNormHint(S.tempGroep(groep === "kip" ? "kip" : "koel"))) + "</div></div>"
             : '<div class="cellsub" style="margin:-4px 0 12px">' + esc(tempNormHint(S.tempGroep("dv"))) + "</div>") +
-          '<div class="field"><label>Temperatuur (°C)</label><div class="temp-wrap" id="vbTempWrap"><input class="lc-in" type="text" inputmode="decimal" name="temp" autofocus><span class="temp-ico" aria-hidden="true"></span></div></div>' +
+          '<div class="field"><label>Temperatuur (°C)</label><div class="temp-wrap" id="vbTempWrap"><input class="lc-in" type="text" inputmode="text" autocapitalize="off" autocorrect="off" name="temp" autofocus><span class="temp-ico" aria-hidden="true"></span></div></div>' +
           '<div class="field" id="vbActieWrap" hidden><label>Actie bij afwijking temperatuur / kwaliteit</label><textarea class="lc-in" name="actie" rows="2" placeholder="Verplicht bij een afwijking: waarschuw je leidinggevende, beschrijf de actie en wat er met de producten is gedaan."></textarea></div>' +
           '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-primary" type="submit">' + svg("check", "icon-sm") + "Meting opslaan</button>" +
           '<button class="btn btn-ghost" type="button" data-vbcancel>Annuleren</button></div>' +
@@ -3162,7 +3162,7 @@
         "</div></div>" +
         '<div class="field"><label>Gemeten product</label><input name="product" value="' + esc(m.product || "") + '" required></div>' +
         groepVeld +
-        '<div class="field"><label>Temperatuur (°C)</label><div class="temp-wrap" id="ptTempWrap"><input name="temp" inputmode="decimal" value="' + esc(m.temp === "" ? "" : String(m.temp).replace(".", ",")) + '" required><span class="temp-ico" aria-hidden="true"></span></div></div>' +
+        '<div class="field"><label>Temperatuur (°C)</label><div class="temp-wrap" id="ptTempWrap"><input name="temp" type="text" inputmode="text" autocapitalize="off" autocorrect="off" value="' + esc(m.temp === "" ? "" : String(m.temp).replace(".", ",")) + '" required><span class="temp-ico" aria-hidden="true"></span></div></div>' +
         '<div class="field"><label>THT (houdbaarheidsdatum)</label><div class="seg pt-seg">' +
           '<button type="button" data-ptht="ok" class="' + (tht ? "active" : "") + '">OK</button>' +
           '<button type="button" data-ptht="niet" class="' + (tht ? "" : "active") + '">NIET OK</button></div></div>' +
@@ -3345,7 +3345,7 @@
     // Temperatuurcontrole hoort bij de pendel: voortgang + openstaande afwijkingen bovenaan.
     var tSt = S.tempStats(c.h, c.d, c.dd);
     var tempTop = tr.pendels.length
-      ? opProgress(tSt.klaar, tSt.total, "pendels volledig gecontroleerd (koel + vries)") +
+      ? opProgress(tSt.klaar, tSt.total, "pendels volledig gecontroleerd") +
         (tSt.afwijkingen ? '<div class="alert alert-error">' + svg("alertTri", "icon-sm") + " " +
           (tSt.afwijkingen === 1 ? "1 meting wijkt af" : tSt.afwijkingen + " metingen wijken af") +
           " — waarschuw je leidinggevende en leg vast wat er met de producten is gedaan (WI 01).</div>" : "")
