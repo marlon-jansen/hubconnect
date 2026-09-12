@@ -3308,12 +3308,16 @@
       var ritCell = canTemp
         ? '<input class="pen-rit" data-penrit="' + p.id + '" placeholder="ritnummer" value="' + esc(p.rit || "") + '">'
         : '<span class="' + (p.rit ? "cellname" : "cellsub") + '">' + (p.rit ? "rit " + esc(p.rit) : "geen ritnummer") + "</span>";
-      return '<div class="pen-card' + (afw ? " pen-afw" : "") + '"><div class="pen-head">' + svg("truck", "icon-sm") + "<b>Pendel " + (i + 1) + "</b>" +
+      var canAfrond = !state.viewOnly && (canLoad || S.isSetup(u));
+      var afrondBtn = p.afgerond
+        ? '<span class="badge st-goedgekeurd">' + svg("check", "icon-sm") + "Afgerond " + fmtClock(p.afgerondAt) + "</span>" + (canAfrond ? ' <button class="btn btn-ghost btn-sm" data-penafrond="' + p.id + '|0">Heropenen</button>' : "")
+        : (canAfrond ? '<button class="btn btn-primary btn-sm" data-penafrond="' + p.id + '|1">' + svg("check", "icon-sm") + "Pendel afronden</button>" : "");
+      return '<div class="pen-card' + (afw ? " pen-afw" : "") + (p.afgerond ? " pen-done" : "") + '"><div class="pen-head">' + svg("truck", "icon-sm") + "<b>Pendel " + (i + 1) + "</b>" +
         (p.tijd ? '<span class="pen-tijd">aankomst ' + esc(p.tijd) + "</span>" : "") + "</div>" +
         '<div class="pen-rit-row">' + ritCell +
           (p.trolleysVerwacht ? '<span class="cellsub">' + esc(p.trolleysVerwacht) + " trolleys</span>" : "") + "</div>" +
         '<div class="pen-grid">' + retLay(p, 4) + retLay(p, 5) + "</div>" +
-        tempBlock(p, i + 1, canTemp) + "</div>";
+        tempBlock(p, i + 1, canTemp) + '<div class="pen-afrond">' + afrondBtn + "</div></div>";
     }).join("") : '<div class="cellsub" style="padding:12px">Er zijn nog geen pendels klaargezet.</div>';
     var stockBar = '<div class="hub-stock"><div class="hub-stock-h">' + svg("inbox", "icon-sm") + "Op de hub</div>" +
       '<div class="hub-stock-grid">' +
@@ -3379,6 +3383,9 @@
           var q = b.getAttribute("data-pttemp").split("|"), p = penById(q[0]);
           if (p) openPenTemp(c, p, penNr(q[0]), S.tempSlot(q[1]), renderLC);
         });
+      });
+      document.querySelectorAll("[data-penafrond]").forEach(function (b) {
+        b.addEventListener("click", function () { var q = b.getAttribute("data-penafrond").split("|"); try { S.setPendelAfgerond(c.h, c.d, c.dd, q[0], q[1] === "1"); toast(q[1] === "1" ? "Pendel afgerond." : "Pendel heropend.", "ok"); renderLC(); } catch (e) { toast(e.message, "err"); } });
       });
       document.querySelectorAll("[data-penrit]").forEach(function (inp) {
         inp.addEventListener("change", function () {
@@ -3579,8 +3586,8 @@
     // ----- Pendels -----
     var tr = S.getTrolley(c.h, c.d, c.dd), tSt = S.tempStats(c.h, c.d, c.dd);
     var komendePendels = recentList(S.komendePendels(c.h, c.d, c.dd).map(function (p) { return recentItem("truck", "Pendel " + (p.tijd || "?"), p.tijd || null); }), "Geen aankomende pendels");
-    // Afgehandeld = de temperatuurcontrole van de pendel is compleet (koelbox én vriesbox gemeten).
-    var pGeweest = tSt.klaar, pPct = tSt.pct;
+    // Afgehandeld = de LC heeft op 'Pendel afronden' gedrukt in Pendelcontrol.
+    var pSt = S.pendelStats(c.h, c.d, c.dd), pGeweest = pSt.done, pPct = pSt.pct;
     var pendelInner = '<div class="dash-row">' + ring(pPct, "b") + '<div><div class="dash-big">' + pGeweest + " / " + tr.pendels.length + '</div><div class="cellsub">Pendels afgehandeld</div></div></div>' +
       facts([
         { lab: "Vakken geteld", val: pc.done + " / " + pc.total, cls: pc.total && pc.done >= pc.total ? "ok" : "", go: "lc|tellen" },

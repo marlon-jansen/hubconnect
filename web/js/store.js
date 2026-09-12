@@ -1472,6 +1472,18 @@
     if (!p) throw new Error("Deze pendel bestaat niet meer.");
     p.rit = String(rit || "").trim(); save();
   }
+  // Pendel afronden (LC/binnendienst): retour verwerkt en temperatuur gecontroleerd → telt op het dashboard als afgehandeld.
+  function setPendelAfgerond(hubId, datum, dagdeel, penId, val) {
+    var u = currentUser();
+    if (!(canOpShift(u, hubId, datum, dagdeel, "lc", "LC") || isSetup(u))) throw new Error("Je bent deze shift niet aangewezen als LC.");
+    var p = findPendel(hubId, datum, dagdeel, penId);
+    if (!p) throw new Error("Deze pendel bestaat niet meer.");
+    p.afgerond = val !== false; p.afgerondAt = p.afgerond ? now() : null; p.afgerondDoor = p.afgerond ? u.id : null; save();
+  }
+  function pendelStats(hubId, datum, dagdeel) {
+    var ps = getTrolley(hubId, datum, dagdeel).pendels, done = ps.filter(function (p) { return p.afgerond; }).length;
+    return { total: ps.length, done: done, pct: ps.length ? Math.round(done / ps.length * 100) : 0 };
+  }
   // Eén meting vastleggen of bijwerken. De productgroep moet bij het vak passen:
   // een vriesbox is altijd diepvries, een koelbox is kip/gevogelte of overig koel.
   function setPendelTemp(hubId, datum, dagdeel, penId, slotId, data) {
@@ -1841,6 +1853,7 @@
     vorigeShift: vorigeShift, steekproefControleer: steekproefControleer, steekproefControleStats: steekproefControleStats,
     getKwaliteit: getKwaliteit, vakSoort: vakSoort, setVakSoort: setVakSoort, emballageSet: emballageSet, emballageVakTotal: emballageVakTotal, emballageVakArr: emballageVakArr, clearEmbVak: clearEmbVak,
     spTrolleyMogelijk: spTrolleyMogelijk, spTrolleyGet: spTrolleyGet, spTrolleyStart: spTrolleyStart, spTrolleyAnnuleer: spTrolleyAnnuleer, spTrolleyIndienen: spTrolleyIndienen, spTrolleyAfsluiten: spTrolleyAfsluiten, spTrolleyVerschil: spTrolleyVerschil,
+    setPendelAfgerond: setPendelAfgerond, pendelStats: pendelStats,
     getTrolley: getTrolley, addPendelPlan: addPendelPlan, removePendel: removePendel, pendelImport: pendelImport, pendelBump: pendelBump, trolleySetStock: trolleySetStock, trolleyBump: trolleyBump, recentPendels: recentPendels, komendePendels: komendePendels,
     qtelGet: qtelGet, qtelBump: qtelBump, qtelReset: qtelReset, qtelVoltooien: qtelVoltooien, qtelAfwijking: qtelAfwijking,
     getLC: getLC, lcSetAantal: lcSetAantal, lcSetupVak: lcSetupVak, lcSetBus: lcSetBus, lcToggleGeladen: lcToggleGeladen, lcImportColumns: lcImportColumns, lcReset: lcReset, lcStats: lcStats, recentGeladenBussen: recentGeladenBussen,
