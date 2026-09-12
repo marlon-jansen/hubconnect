@@ -3579,14 +3579,9 @@
     // ----- Pendels -----
     var tr = S.getTrolley(c.h, c.d, c.dd), tSt = S.tempStats(c.h, c.d, c.dd);
     var komendePendels = recentList(S.komendePendels(c.h, c.d, c.dd).map(function (p) { return recentItem("truck", "Pendel " + (p.tijd || "?"), p.tijd || null); }), "Geen aankomende pendels");
-    // Geweest = de geplande aankomsttijd is verstreken (alleen op de dag zelf; eerdere dagen: alles, latere: niets).
-    var nowMin = new Date().getHours() * 60 + new Date().getMinutes(), vandaag = ymd(new Date());
-    var pGeweest = tr.pendels.filter(function (p) {
-      if (c.d < vandaag) return true; if (c.d > vandaag) return false;
-      var m = /^(\d{1,2}):(\d{2})$/.exec(p.tijd || ""); return !!m && (parseInt(m[1], 10) * 60 + parseInt(m[2], 10)) <= nowMin;
-    }).length;
-    var pPct = tr.pendels.length ? Math.round(pGeweest / tr.pendels.length * 100) : 0;
-    var pendelInner = '<div class="dash-row">' + ring(pPct, "b") + '<div><div class="dash-big">' + pGeweest + " / " + tr.pendels.length + '</div><div class="cellsub">Pendels geweest</div></div></div>' +
+    // Afgehandeld = de temperatuurcontrole van de pendel is compleet (koelbox én vriesbox gemeten).
+    var pGeweest = tSt.klaar, pPct = tSt.pct;
+    var pendelInner = '<div class="dash-row">' + ring(pPct, "b") + '<div><div class="dash-big">' + pGeweest + " / " + tr.pendels.length + '</div><div class="cellsub">Pendels afgehandeld</div></div></div>' +
       facts([
         { lab: "Vakken geteld", val: pc.done + " / " + pc.total, cls: pc.total && pc.done >= pc.total ? "ok" : "", go: "lc|tellen" },
         { lab: "Pendels getemperatuurd", val: tSt.klaar + " / " + tSt.total, cls: tSt.total && tSt.klaar >= tSt.total ? "ok" : "", go: "lc|pc" },
