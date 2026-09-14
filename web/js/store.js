@@ -324,7 +324,7 @@
   }
   // Eerste wachtwoord instellen (na eenmalige code). Promise.
   function setInitialPassword(newPw) {
-    if (!newPw || newPw.length < 4) return Promise.reject(new Error("Kies een wachtwoord van minimaal 4 tekens."));
+    if (!newPw || newPw.length < 8) return Promise.reject(new Error("Kies een wachtwoord van minimaal 8 tekens."));
     return postJson("/api/set-password", { newPassword: newPw }).then(function (res) {
       if (!res.ok) throw new Error("Kon het wachtwoord niet instellen.");
       return loadStateAuthed(sessionUserId);
@@ -332,7 +332,7 @@
   }
   // Eigen wachtwoord wijzigen. Promise.
   function changeOwnPassword(oldPw, newPw) {
-    if (!newPw || newPw.length < 4) return Promise.reject(new Error("Kies een nieuw wachtwoord van minimaal 4 tekens."));
+    if (!newPw || newPw.length < 8) return Promise.reject(new Error("Kies een nieuw wachtwoord van minimaal 8 tekens."));
     return postJson("/api/change-password", { oldPassword: oldPw, newPassword: newPw }).then(function (res) {
       if (!res.ok) throw new Error(res.body && res.body.error === "wrong_old" ? "Je huidige wachtwoord klopt niet." : "Kon het wachtwoord niet wijzigen.");
     });
@@ -368,7 +368,7 @@
       personeelsnummer: data.personeelsnummer, email: data.email, wachtwoord: data.wachtwoord
     }).then(function (res) {
       if (!res.ok) {
-        var m = { code: "Ongeldige of verlopen code.", email: "Vul een geldig e-mailadres in.", email_bestaat: "Er bestaat al een account met dit e-mailadres.", hr: "Vul een geldig HR-nummer in (minimaal 4 cijfers).", naam: "Vul voor- en achternaam in.", weak: "Kies een wachtwoord van minimaal 4 tekens." };
+        var m = { code: "Ongeldige of verlopen code.", email: "Vul een geldig e-mailadres in.", email_bestaat: "Er bestaat al een account met dit e-mailadres.", hr: "Vul een geldig HR-nummer in (minimaal 4 cijfers).", naam: "Vul voor- en achternaam in.", weak: "Kies een wachtwoord van minimaal 8 tekens." };
         throw new Error(m[res.body && res.body.error] || "Registreren mislukt.");
       }
       return loadStateAuthed(res.body.user.id);

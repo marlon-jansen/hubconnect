@@ -293,6 +293,38 @@ public class Server {
   static String key(ResultSet r) throws SQLException { return r.getString("hub_id") + "|" + r.getString("datum") + "|" + r.getString("dagdeel"); }
 
   /* ===================== PUT: staat -> tabellen ===================== */
+  /* Hub-scoping (broken access control): de volledige-staat-PUT bevat álle hubs. Een rol zonder
+     hub-overstijgende rechten (alles onder manager-thuisbezorging) mag alleen data van de eigen hub(s)
+     schrijven. Rijen/sleutels van andere hubs worden uit de bestaande DB-staat overgenomen — de client
+     kan ze niet aanmaken, wijzigen, verplaatsen of verwijderen. Voor iemand die alleen zijn eigen hub
+     bewerkt verandert er niets (die stuurt de andere hubs toch al ongewijzigd mee). */
+  static java.util.Set<String> allowedHubsFor(JsonObject actor) {
+    if (actor == null) return null;                       // bootstrap/seed: niet beperken
+    if (roleLevel(str(actor, "rol")) >= 6) return null;   // admin + manager-thuisbezorging: alle hubs
+    java.util.Set<String> hs = new java.util.HashSet<>();
+    String h = str(actor, "hubId"); if (h != null && !h.isEmpty()) hs.add(h);
+    if (actor.has("hubIds") && actor.get("hubIds").isJsonArray())
+      for (JsonElement e : actor.get("hubIds").getAsJsonArray()) if (e.isJsonPrimitive()) hs.add(e.getAsString());
+    return hs;
+  }
+  static String hubOfKey(String key) { int i = key.indexOf('|'); return i < 0 ? key : key.substring(0, i); }
+  static JsonArray mergeHubList(JsonArray incoming, JsonArray existing, java.util.Set<String> allowed) {
+    JsonArray out = new JsonArray();
+    java.util.Set<String> frozen = new java.util.HashSet<>();
+    for (JsonElement e : existing) { JsonObject o = e.getAsJsonObject();
+      if (!allowed.contains(str(o, "hubId"))) { out.add(o); frozen.add(str(o, "id")); } }   // andere hub: bevroren
+    for (JsonElement e : incoming) { JsonObject o = e.getAsJsonObject();
+      if (allowed.contains(str(o, "hubId")) && !frozen.contains(str(o, "id"))) out.add(o); } // eigen hub: onveranderd
+    return out;
+  }
+  static JsonObject mergeHubMap(JsonObject incoming, JsonObject existing, java.util.Set<String> allowed) {
+    JsonObject out = new JsonObject();
+    for (java.util.Map.Entry<String,JsonElement> en : existing.entrySet())
+      if (!allowed.contains(hubOfKey(en.getKey()))) out.add(en.getKey(), en.getValue());
+    for (java.util.Map.Entry<String,JsonElement> en : incoming.entrySet())
+      if (allowed.contains(hubOfKey(en.getKey())) && !out.has(en.getKey())) out.add(en.getKey(), en.getValue());
+    return out;
+  }
   static void saveState(String body, String actorId) throws SQLException {
     JsonObject root = JsonParser.parseString(body).getAsJsonObject();
     Connection c = db();
@@ -300,6 +332,15 @@ public class Server {
     // wijzigingen te autoriseren (de client stuurt geen wachtwoord-hashes/otp meer mee).
     Map<String,JsonObject> existingUsers = loadUsers(c);
     JsonObject actor = actorId != null ? existingUsers.get(actorId) : null;
+    // Hub-scoping: rijen/sleutels van hubs die deze actor niet mag beschrijven, terugzetten op de DB-staat.
+    java.util.Set<String> allowedHubs = allowedHubsFor(actor);
+    if (actor != null && allowedHubs != null) {
+      JsonObject cur = JsonParser.parseString(buildState()).getAsJsonObject();  // huidige DB-staat (vóór wissen)
+      for (String t : new String[]{"shifts","taskOffers","backups","callouts","logs","plannings"})
+        root.add(t, mergeHubList(arr(root, t), arr(cur, t), allowedHubs));
+      for (String t : new String[]{"schade","kwaliteit","lc","trolley","trolleyStock","diensten"})
+        root.add(t, mergeHubMap(obj(root, t), obj(cur, t), allowedHubs));
+    }
     boolean prevAuto = c.getAutoCommit();
     c.setAutoCommit(false);
     try (Statement s = c.createStatement()) {
@@ -513,6 +554,17 @@ public class Server {
     h.set("X-Frame-Options", "DENY");
     h.set("Referrer-Policy", "no-referrer");
     h.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+    // CSP: eigen scripts (+ inline in index.html), Google Fonts, camerabeeld via data:/blob:.
+    // Geen 'unsafe-eval' nodig (ZXing/eigen code gebruiken geen eval/Function op runtime).
+    h.set("Content-Security-Policy",
+      "default-src 'self'; " +
+      "script-src 'self' 'unsafe-inline'; " +
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+      "font-src 'self' https://fonts.gstatic.com; " +
+      "img-src 'self' data: blob:; " +
+      "media-src 'self' blob:; " +
+      "connect-src 'self'; " +
+      "object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'");
   }
   // Body lezen met harde limiet (voorkomt geheugen-uitputting). Geeft null bij overschrijding.
   static byte[] readLimited(InputStream in, int max) throws IOException {
@@ -782,11 +834,15 @@ public class Server {
       secHeaders(ex);
       if (!ex.getRequestMethod().equals("POST")) { sendJson(ex, 405, "{\"error\":\"method\"}"); return; }
       String ip = clientIp(ex);
-      if (loginLocked(ip)) { sendJson(ex, 429, "{\"error\":\"too_many\"}"); return; }
       byte[] raw = readLimited(ex.getRequestBody(), 64 * 1024);
       if (raw == null) { sendJson(ex, 413, "{\"error\":\"too_large\"}"); return; }
       JsonObject b = JsonParser.parseString(new String(raw, StandardCharsets.UTF_8)).getAsJsonObject();
       String identifier = str(b, "identifier"), password = str(b, "password");
+      // Twee sloten: per IP (10/15 min) én per account (30/15 min). Het accountslot blijft ook staan als een
+      // aanvaller via een vervalste X-Forwarded-For steeds een ander IP voorwendt; ruim genoeg om echte
+      // gebruikers niet te hinderen en het wist zichzelf bij een geslaagde login.
+      String idKey = "id:" + (identifier == null ? "" : identifier.trim().toLowerCase());
+      if (loginLocked(ip, 10) || loginLocked(idKey, 30)) { sendJson(ex, 429, "{\"error\":\"too_many\"}"); return; }
       JsonObject u;
       synchronized (DBLOCK) {
         u = findUserByLogin(db(), identifier);
@@ -796,9 +852,9 @@ public class Server {
           if (pass != null && verifyPassword(pass, password)) { ok = true; upgrade = !pass.startsWith("pbkdf2$"); }
           else if (otp != null && password != null && otp.equalsIgnoreCase(password.trim())) { ok = true; } // eenmalige code
         }
-        if (!ok) { loginFail(ip); sendJson(ex, 401, "{\"error\":\"invalid\"}"); return; }
+        if (!ok) { loginFail(ip); loginFail(idKey); sendJson(ex, 401, "{\"error\":\"invalid\"}"); return; }
         if (upgrade) { exec(db(), "UPDATE users SET pass=? WHERE id=?", pbkdf2(password), str(u, "id")); }
-        loginOk(ip);
+        loginOk(ip); loginOk(idKey);
       }
       setSessionCookie(ex, makeToken(str(u, "id")));
       sendJson(ex, 200, "{\"user\":" + GSON.toJson(safeUser(u)) + "}");
@@ -835,7 +891,7 @@ public class Server {
       byte[] raw = readLimited(ex.getRequestBody(), 64 * 1024); if (raw == null) { sendJson(ex, 413, "{\"error\":\"too_large\"}"); return; }
       JsonObject b = JsonParser.parseString(new String(raw, StandardCharsets.UTF_8)).getAsJsonObject();
       String oldPw = str(b, "oldPassword"), newPw = str(b, "newPassword");
-      if (newPw == null || newPw.length() < 4) { sendJson(ex, 400, "{\"error\":\"weak\"}"); return; }
+      if (newPw == null || newPw.length() < 8) { sendJson(ex, 400, "{\"error\":\"weak\"}"); return; }
       synchronized (DBLOCK) {
         JsonObject u = loadUsers(db()).get(id);
         if (u == null) { sendJson(ex, 401, "{\"error\":\"auth\"}"); return; }
@@ -856,7 +912,7 @@ public class Server {
       byte[] raw = readLimited(ex.getRequestBody(), 64 * 1024); if (raw == null) { sendJson(ex, 413, "{\"error\":\"too_large\"}"); return; }
       JsonObject b = JsonParser.parseString(new String(raw, StandardCharsets.UTF_8)).getAsJsonObject();
       String newPw = str(b, "newPassword");
-      if (newPw == null || newPw.length() < 4) { sendJson(ex, 400, "{\"error\":\"weak\"}"); return; }
+      if (newPw == null || newPw.length() < 8) { sendJson(ex, 400, "{\"error\":\"weak\"}"); return; }
       synchronized (DBLOCK) {
         JsonObject u = loadUsers(db()).get(id);
         if (u == null) { sendJson(ex, 401, "{\"error\":\"auth\"}"); return; }
@@ -880,7 +936,7 @@ public class Server {
       if (voornaam == null || achternaam == null || voornaam.trim().isEmpty() || achternaam.trim().isEmpty()) { sendJson(ex, 400, "{\"error\":\"naam\"}"); return; }
       if (num == null || num.length() < 4) { sendJson(ex, 400, "{\"error\":\"hr\"}"); return; }
       if (email == null || !email.matches("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")) { sendJson(ex, 400, "{\"error\":\"email\"}"); return; }
-      if (pw == null || pw.length() < 4) { sendJson(ex, 400, "{\"error\":\"weak\"}"); return; }
+      if (pw == null || pw.length() < 8) { sendJson(ex, 400, "{\"error\":\"weak\"}"); return; }
       String newId;
       synchronized (DBLOCK) {
         Connection c = db();
@@ -1015,11 +1071,11 @@ public class Server {
     if (xff != null && !xff.isEmpty()) return xff.get(0).split(",")[0].trim();
     return ex.getRemoteAddress() != null ? ex.getRemoteAddress().getAddress().getHostAddress() : "?";
   }
-  static boolean loginLocked(String ip) {
-    long[] f = loginFails.get(ip);
+  static boolean loginLocked(String key, int max) {
+    long[] f = loginFails.get(key);
     if (f == null) return false;
-    if (System.currentTimeMillis() - f[1] > 15 * 60 * 1000) { loginFails.remove(ip); return false; } // venster 15 min
-    return f[0] >= 10;
+    if (System.currentTimeMillis() - f[1] > 15 * 60 * 1000) { loginFails.remove(key); return false; } // venster 15 min
+    return f[0] >= max;
   }
   static void loginFail(String ip) {
     loginFails.compute(ip, (k, v) -> {

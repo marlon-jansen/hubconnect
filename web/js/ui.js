@@ -585,7 +585,7 @@
               '<div class="field"><label>Achternaam</label><input name="achternaam" required></div></div>' +
             '<div class="field"><label>HR-nummer</label><input name="num" inputmode="numeric" placeholder="1234567" required></div>' +
             '<div class="field"><label>E-mailadres</label><input type="email" name="email" placeholder="naam@jumbo.com" required></div>' +
-            '<div class="field"><label>Wachtwoord</label>' + pwInput("p1", "Min. 4 tekens", " required") + "</div>" +
+            '<div class="field"><label>Wachtwoord</label>' + pwInput("p1", "Min. 8 tekens", " required") + "</div>" +
             '<div class="field"><label>Herhaal wachtwoord</label>' + pwInput("p2", "", " required") + "</div>" +
             '<div id="regMsg"></div>' +
             '<button class="btn btn-primary btn-block" type="submit">' + svg("check") + "Account aanmaken</button>" +
@@ -617,7 +617,7 @@
         '<div class="auth-body">' +
           '<div class="alert alert-info">Je logde in met een eenmalige code. Stel nu een persoonlijk wachtwoord in om verder te gaan.</div>' +
           '<form id="pwForm">' +
-            '<div class="field"><label>Nieuw wachtwoord</label>' + pwInput("p1", "Min. 4 tekens", " required") + "</div>" +
+            '<div class="field"><label>Nieuw wachtwoord</label>' + pwInput("p1", "Min. 8 tekens", " required") + "</div>" +
             '<div class="field"><label>Herhaal wachtwoord</label>' + pwInput("p2", "", " required") + "</div>" +
             '<div id="pwMsg"></div>' +
             '<button class="btn btn-primary btn-block" type="submit">' + svg("check") + "Opslaan en doorgaan</button>" +
@@ -2080,7 +2080,7 @@
       '<div class="prof-divider">Wachtwoord wijzigen</div>' +
       '<form id="cpForm">' +
         '<div class="field"><label>Huidig wachtwoord</label>' + pwInput("old", "", " required") + "</div>" +
-        '<div class="field"><label>Nieuw wachtwoord</label>' + pwInput("n1", "Min. 4 tekens", " required") + "</div>" +
+        '<div class="field"><label>Nieuw wachtwoord</label>' + pwInput("n1", "Min. 8 tekens", " required") + "</div>" +
         '<div class="field"><label>Herhaal nieuw wachtwoord</label>' + pwInput("n2", "", " required") + "</div>" +
         '<div id="cpMsg"></div>' +
       "</form>";
