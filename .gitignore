@@ -1,3 +1,7 @@
 out/
 *.class
 db.properties
+
+# nooit archieven/geheimen meecommitten
+*.zip
+db.properties

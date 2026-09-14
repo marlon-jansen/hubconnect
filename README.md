@@ -9,12 +9,12 @@ Render bouwt de `Dockerfile` en draait alles als één service — net als een e
    - Runtime: **Docker** (wordt automatisch herkend via de Dockerfile).
    - Plan: **Free**.
 3. Bij **Environment** voeg je 3 variabelen toe:
-   - `DB_URL` = `jdbc:postgresql://<host>:5432/<database>`
-   - `DB_USER` = `postgres`
-   - `DB_PASSWORD` = `***VERWIJDERD***`
+   - `DB_URL` = `jdbc:postgresql://<host>:5432/<database>?sslmode=require`
+   - `DB_USER` = `<gebruiker>`
+   - `DB_PASSWORD` = `<wachtwoord>` (alleen in Render, nooit in de repo)
 4. **Create Web Service**. Render bouwt en start; je krijgt een vast adres als
    `https://hubconnect.onrender.com`.
-5. Open dat adres → inloggen als `marlon@admin.com` / `Admin!1` → accounts aanmaken.
+5. Open dat adres → inloggen met het beheerdersaccount → accounts aanmaken.
 
 Werkt daarna op **elk apparaat, overal**, zonder dat jouw laptop aanstaat.
 
