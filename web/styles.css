@@ -171,6 +171,9 @@ svg { display: block; }
 @keyframes alertIn { from { opacity: 0; transform: translateY(-4px); } }
 .alert-error { background: var(--red-soft); color: var(--red); }
 .alert-info { background: var(--blue-soft); color: var(--blue); }
+.alert-warn { background: var(--orange-soft); color: var(--orange); display: flex; align-items: center; gap: 8px; }
+/* lijst met open punten in de afrond-waarschuwing */
+.afrond-open { margin: 0; padding-left: 20px; font-size: 13.5px; font-weight: 700; color: var(--ink); line-height: 1.7; }
 
 .demo-box { margin-top: 18px; border: 1px dashed var(--line); border-radius: 12px; overflow: hidden; }
 .demo-box summary { cursor: pointer; padding: 11px 14px; font-weight: 800; font-size: 13px; color: var(--ink-soft); list-style: none; display: flex; align-items: center; gap: 8px; }
@@ -1098,7 +1101,10 @@ main { max-width: 1100px; margin: 0 auto; padding: 22px 18px 80px; }
 .dash-blue .dash-ring, .dash-card.dash-blue .dash-ring { background: conic-gradient(var(--blue) calc(var(--p) * 1%), var(--surface-2) 0); }
 /* Voorbereiding: uitklapbare checklist */
 details.prep { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); margin-bottom: 10px; overflow: hidden; }
-details.prep > summary { list-style: none; display: flex; align-items: center; gap: 12px; padding: 14px 16px; cursor: pointer; }
+/* Open paneel mag niet knippen: het "Persoon toewijzen"-menu (absolute .pick-menu) steekt onder het paneel uit. */
+details.prep[open] { overflow: visible; }
+details.prep > summary { list-style: none; display: flex; align-items: center; gap: 12px; padding: 14px 16px; cursor: pointer; border-radius: var(--radius); }
+details.prep[open] > summary { border-radius: var(--radius) var(--radius) 0 0; }
 details.prep > summary::-webkit-details-marker { display: none; }
 details.prep > summary:hover { background: var(--surface-2); }
 .prep-st { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; flex: 0 0 auto; font-weight: 900; font-size: 16px; color: #fff; }
@@ -1133,9 +1139,10 @@ details.prep[open] > summary { border-bottom: 1px solid var(--line); }
 .pick.open .pick-chev { transform: rotate(180deg); }
 .pick-clear { flex: 0 0 auto; width: 34px; height: 38px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); color: var(--muted); cursor: pointer; display: grid; place-items: center; }
 .pick-clear:hover { color: var(--red); border-color: var(--red); }
-.pick-menu { display: none; position: absolute; z-index: 40; top: calc(100% + 6px); left: 0; right: 0; background: var(--card); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow-lg); padding: 6px; }
+.pick-menu { display: none; position: absolute; z-index: 40; top: calc(100% + 6px); left: 0; right: 0; background: var(--card); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow-lg); padding: 6px;
+  max-height: min(340px, 55vh); overflow-y: auto; overscroll-behavior: contain; }  /* lange lijsten scrollen binnen het menu */
 .pick.open .pick-menu { display: block; }
-.pick-search { display: flex; align-items: center; gap: 8px; padding: 4px 8px; border-bottom: 1px solid var(--line); margin-bottom: 4px; color: var(--muted); }
+.pick-search { position: sticky; top: -6px; z-index: 1; background: var(--card); display: flex; align-items: center; gap: 8px; padding: 4px 8px; border-bottom: 1px solid var(--line); margin: -6px 0 4px; padding-top: 10px; color: var(--muted); }
 .pick-search input { flex: 1; border: 0; background: transparent; padding: 8px 0; font-family: inherit; font-size: 14px; font-weight: 600; color: var(--ink); outline: none; }
 .pick-list { max-height: 240px; overflow-y: auto; }
 .pick-item { display: flex; align-items: center; gap: 10px; width: 100%; border: 0; background: transparent; text-align: left; padding: 9px 10px; border-radius: 8px; font-family: inherit; font-size: 14px; font-weight: 700; color: var(--ink); cursor: pointer; }
@@ -1297,7 +1304,11 @@ details.prep[open] > summary { border-bottom: 1px solid var(--line); }
 .was-time { font-size: 11px; font-weight: 700; color: var(--muted); margin-top: 3px; }
 td.sc-chk { white-space: nowrap; }
 td.sc-chk .chk-box { vertical-align: middle; }
-.chk-time { display: inline-block; vertical-align: middle; margin: 0 0 0 10px; font-size: 12px; font-weight: 700; color: var(--muted); }
+/* tijd + vinkje als één groep: de tijd komt links naast het vinkje, het vinkje blijft op zijn plek */
+.chk-wrap { position: relative; display: inline-flex; align-items: center; vertical-align: middle; }
+.chk-time { font-size: 12px; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* Desktop (gecentreerde cel): de tijd hangt links van het vinkje zonder de centrering te verschuiven. */
+td.sc-chk .chk-time { position: absolute; right: calc(100% + 10px); top: 50%; transform: translateY(-50%); }
 .lc-in.sys-ok { background: var(--green-soft); border-color: var(--green); color: var(--green); font-weight: 800; }
 .lc-in.sys-err { background: var(--red-soft); border-color: var(--red); color: var(--red); font-weight: 800; }
 .chk-box { display: inline-flex; width: 30px; height: 30px; border-radius: 8px; border: 2px solid var(--line); cursor: pointer; align-items: center; justify-content: center; color: transparent; transition: .12s; }
@@ -1536,6 +1547,8 @@ button.n2-bolt:hover { background: var(--surface-2); }
   .table:not(.table-grid) tr.vak-emb { background: var(--jumbo-yellow-soft); border-color: #f0e2a8; }
   .table:not(.table-grid) tr.vak-emb td { background: transparent; }
   .chk-box { width: 34px; height: 34px; }  /* groter aantikbaar */
+  .chk-wrap { gap: 10px; }
+  td.sc-chk .chk-time { position: static; transform: none; }
   .plan-cell button { min-width: 52px; height: 34px; }
 
   /* shiftbar + segmenten netjes onder elkaar */

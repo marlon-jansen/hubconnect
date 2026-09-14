@@ -943,7 +943,7 @@
   function getSchade(hubId, datum, dagdeel) { if (!db.schade) db.schade = {}; var k = opKey(hubId, datum, dagdeel); if (!db.schade[k]) db.schade[k] = { buses: [], steekproeven: [] }; if (!db.schade[k].steekproeven) db.schade[k].steekproeven = []; return db.schade[k]; }
   // Steekproef per bus: gele knop op de busregel opent naam/hr/rit/kratten (standaard 5 steekproeven).
   function setBusSteekproef(hubId, datum, dagdeel, busId, data) {
-    if (!canOpShift(currentUser(), hubId, datum, dagdeel, "schadecontrole", "Schadecontrole")) throw new Error("Je bent deze shift niet aangewezen voor de schadecontrole.");
+    if (!(canOpShift(currentUser(), hubId, datum, dagdeel, "schadecontrole", "Schadecontrole") || isSetup(currentUser()))) throw new Error("Je bent deze shift niet aangewezen voor de schadecontrole.");
     var b = getSchade(hubId, datum, dagdeel).buses.filter(function (x) { return x.id === busId; })[0]; if (!b) return;
     if (!b.steekproef) b.steekproef = { naam: "", hr: "", rit: "", kratten: "" };
     if (data.naam !== undefined) b.steekproef.naam = data.naam.trim();
@@ -1024,7 +1024,7 @@
     getSchade(hubId, datum, dagdeel).buses.push(applyGebreken(hubId, newBus(naam, bus, kenteken))); save();
   }
   function schadeToggle(hubId, datum, dagdeel, busId, field) {
-    if (!canOpShift(currentUser(), hubId, datum, dagdeel, "schadecontrole", "Schadecontrole")) throw new Error("Je bent deze shift niet aangewezen voor de schadecontrole.");
+    if (!(canOpShift(currentUser(), hubId, datum, dagdeel, "schadecontrole", "Schadecontrole") || isSetup(currentUser()))) throw new Error("Je bent deze shift niet aangewezen voor de schadecontrole.");
     var b = getSchade(hubId, datum, dagdeel).buses.filter(function (x) { return x.id === busId; })[0]; if (!b) return;
     b[field] = !b[field];
     if (field === "gecontroleerd") b.gecontroleerdAt = b.gecontroleerd ? now() : null;
@@ -1179,19 +1179,51 @@
   }
   function getPCRows(hubId, datum, dagdeel) { return pcStore(hubId, datum, dagdeel).rows; }
   function num(x) { var v = parseInt(String(x == null ? "" : x).replace(/[^0-9-]/g, ""), 10); return isNaN(v) ? 0 : Math.max(0, v); }
+  // Tellijst importeren. Twee vormen:
+  //  1. de debriefing-export uit het systeem (kopregel JAAR/WEEK/…/SUBRITNR/…/TROLLEYS/KRATTEN/VERS_BOXEN/DV_BOXEN/KWGR/…):
+  //     kolommen worden op naam gezocht, dus de hele sheet mag geplakt worden; volgorde maakt niet uit.
+  //  2. de handmatige 6-koloms lijst (subrit · trolleys · kratten · vers · diepvries · kwgr), met of zonder kopregel.
+  var PC_KOLOMMEN = {
+    subrit:   ["subritnr", "subrit nr", "subrit", "vak", "volgnr"],
+    trolleys: ["trolleys", "trolley"],
+    kratten:  ["kratten", "krat"],
+    versb:    ["vers_boxen", "versboxen", "vers boxen", "vers"],
+    dvboxen:  ["dv_boxen", "dvboxen", "diepvriesboxen", "diepvries boxen", "diepvries", "dv"],
+    xl:       ["kwgr", "xl"],
+    rit:      ["route_efc", "route", "rit", "ritnr"],
+    dock:     ["docknummer", "dock"],
+    opm:      ["opmerking", "opmerkingen"]
+  };
   function pcImport(hubId, datum, dagdeel, text) {
     if (!isSetup(currentUser())) throw new Error("Alleen de binnendienst (senior+) mag de tellijst importeren.");
     var lines = (text || "").split(/\r?\n/).map(function (l) { return l.replace(/\s+$/, ""); }).filter(function (l) { return l.trim(); });
     if (!lines.length) throw new Error("Plak de tellijst.");
     function cells(l) { return l.indexOf("\t") !== -1 ? l.split("\t") : l.trim().split(/ {2,}|;|,/); }
-    var start = 0, h0 = lines[0].toLowerCase();
-    if (h0.indexOf("subrit") !== -1 || h0.indexOf("trolley") !== -1) start = 1; // kopregel overslaan
+    var kop = cells(lines[0]).map(function (x) { return (x || "").trim().toLowerCase(); });
+    // Kolomindex per veld via de kopregel; ontbreekt een kopregel, dan de vaste 6-koloms volgorde.
+    var idx = {}, heeftKop = false;
+    Object.keys(PC_KOLOMMEN).forEach(function (veld) {
+      var i = -1;
+      PC_KOLOMMEN[veld].forEach(function (alias) { if (i === -1) i = kop.indexOf(alias); });
+      if (i !== -1) { idx[veld] = i; heeftKop = true; }
+    });
+    if (!heeftKop) idx = { subrit: 0, trolleys: 1, kratten: 2, versb: 3, dvboxen: 4, xl: 5 };
+    else if (idx.trolleys == null || idx.kratten == null) throw new Error("Kopregel herkend, maar de kolommen TROLLEYS en/of KRATTEN ontbreken.");
+    var start = heeftKop ? 1 : 0;
+    function veld(c, k) { return idx[k] == null ? "" : (c[idx[k]] || "").trim(); }
     var rows = [];
     for (var i = start; i < lines.length; i++) {
       var c = cells(lines[i]).map(function (x) { return (x || "").trim(); });
       if (!c.length || !c.join("")) continue;
-      rows.push({ subrit: c[0] || String(rows.length + 1), trolleys: num(c[1]), kratten: num(c[2]), versb: num(c[3]), dvboxen: num(c[4]), xl: num(c[5]), gecontroleerd: false, gecontroleerdAt: null, l4: 0, l5: 0 });
+      if (heeftKop && !veld(c, "trolleys") && !veld(c, "kratten")) continue; // lege/totaalregels overslaan
+      rows.push({ subrit: veld(c, "subrit") || String(rows.length + 1), trolleys: num(veld(c, "trolleys")), kratten: num(veld(c, "kratten")),
+        versb: num(veld(c, "versb")), dvboxen: num(veld(c, "dvboxen")), xl: num(veld(c, "xl")),
+        rit: veld(c, "rit"), dock: veld(c, "dock"), opm: veld(c, "opm"),
+        gecontroleerd: false, gecontroleerdAt: null, l4: 0, l5: 0 });
     }
+    if (!rows.length) throw new Error("Geen regels met aantallen gevonden in de tellijst.");
+    // De export staat per route gegroepeerd; tellen gaat op subritnummer, dus daarop sorteren als het getallen zijn.
+    if (rows.every(function (r) { return /^\d+$/.test(r.subrit); })) rows.sort(function (a, b) { return parseInt(a.subrit, 10) - parseInt(b.subrit, 10); });
     pcStore(hubId, datum, dagdeel).rows = rows; save(); return rows.length;
   }
   function pcToggle(hubId, datum, dagdeel, idx) {

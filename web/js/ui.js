@@ -2532,8 +2532,9 @@
 
     function chkCell(b) {
       var timeCell = (showTimes && b.gecontroleerd && b.gecontroleerdAt) ? '<div class="chk-time">' + fmtClock(b.gecontroleerdAt) + "</div>" : "";
-      return '<td class="sc-chk" data-th="Gecontroleerd"><label class="chk-box ' + (b.gecontroleerd ? "on" : "") + (canEdit ? "" : " ro") + '">' +
-        '<input type="checkbox" ' + (b.gecontroleerd ? "checked" : "") + (canEdit ? "" : " disabled") + ' data-scchk="' + b.id + '">' + svg("check", "icon-sm") + "</label>" + timeCell + "</td>";
+      // Tijd vóór het vinkje in één wrapper: zo blijft het vinkje op zijn vaste plek (rechts) als de tijd verschijnt.
+      return '<td class="sc-chk" data-th="Gecontroleerd"><span class="chk-wrap">' + timeCell + '<label class="chk-box ' + (b.gecontroleerd ? "on" : "") + (canEdit ? "" : " ro") + '">' +
+        '<input type="checkbox" ' + (b.gecontroleerd ? "checked" : "") + (canEdit ? "" : " disabled") + ' data-scchk="' + b.id + '">' + svg("check", "icon-sm") + "</label></span></td>";
     }
     function mistCell(b) {
       var items = [["mist_tolkrol", "Tolkrol"], ["mist_kabels", "Kabels"], ["mist_doekjes", "Doekjes"]];
@@ -3373,7 +3374,7 @@
         '<td class="cellsub" data-th="Vertrek">' + (v.vertrek ? esc(v.vertrek) : "—") + '</td><td data-th="Bus">' + busCell + "</td>" +
         '<td class="cellsub" data-th="Rit">' + (v.rit ? esc(v.rit) : "—") + '</td><td data-th="Type">' + typeCell + "</td>" +
         '<td data-th="ZE" style="text-align:center">' + (v.ze ? '<span class="badge dock">ZE</span>' : "") + "</td>" +
-        '<td class="sc-chk" data-th="Geladen">' + chkCell + timeCell + "</td></tr>";
+        '<td class="sc-chk" data-th="Geladen"><span class="chk-wrap">' + timeCell + chkCell + "</span></td></tr>";
     }).join("") : '<tr><td colspan="7"><div class="cellsub" style="padding:14px">' + (state.lcOnlyOpen && lc.vakken.length ? "Alle bussen zijn geladen. 🎉" : "Er is nog geen laadlijst klaargezet.") + "</div></td></tr>";
     var table = panel("vanFast", "1e ritten", '<div class="table-scroll"><table class="table lc-table">' +
       "<thead><tr><th>Vak</th><th>Vertrek</th><th>Bus</th><th>Rit</th><th>Type</th><th>ZE</th><th>Geladen</th></tr></thead><tbody>" + rows + "</tbody></table></div>");
@@ -3529,11 +3530,35 @@
       : (S.isSetup(u) && !state.viewOnly ? '<button class="btn btn-dark btn-sm" data-afronden>' + svg("check", "icon-sm") + "Shift afronden</button>" : "")) + "</div>";
     el("app").innerHTML = moduleShell("Senior Dashboard", '<div class="dash-tabrow">' + seg + afrondBtn + "</div>" + body);
     el("app").classList.toggle("dash-page", state.dashTab === "overzicht"); // compacte kop op het overzicht (alles in beeld)
-    var ab = el("app").querySelector("[data-afronden]"); if (ab) ab.addEventListener("click", function () {
+    // Wat is er nog niet 100% in deze shift? (voor de waarschuwing vóór het afronden)
+    function afrondOpenPunten(c) {
+      var lcS = S.lcStats(c.h, c.d, c.dd), pc = S.pcStats(c.h, c.d, c.dd), tp = S.tempStats(c.h, c.d, c.dd),
+          sc = S.schadeStats(c.h, c.d, c.dd), sp = S.steekproefStats(c.h, c.d, c.dd), ws = S.wasStats(c.h, c.d);
+      var p = [];
+      if (lcS.used > 0 && lcS.done < lcS.used) p.push("Laadproces: " + lcS.done + " van " + lcS.used + " vakken geladen");
+      if (pc.total > 0 && pc.done < pc.total) p.push("Tellijst: " + pc.done + " van " + pc.total + " vakken geteld");
+      if (tp.total > 0 && tp.klaar < tp.total) p.push("Pendelcontrol: " + tp.klaar + " van " + tp.total + " pendels volledig getemperatuurd");
+      if (sc.total > 0 && sc.done < sc.total) p.push("Schadecontrole: " + sc.done + " van " + sc.total + " bussen gecontroleerd");
+      if (sc.total > 0 && sp.done < sp.total) p.push("Steekproeven: " + sp.done + " van " + sp.total + " gedaan");
+      if (ws.total > 0 && ws.open > 0) p.push("Buswassing: " + ws.open + " van " + ws.total + " bussen nog open");
+      return p;
+    }
+    function afrondBevestiging() {
       openModal({ title: "Shift afronden", icon: "check",
         body: '<p style="margin:0">Je staat op het punt de shift <b>' + esc(fmtDate(c.d)) + " · " + esc(c.dd) + "</b> af te ronden. Iedereen met een dienst wordt uit z'n taakmodule gehaald en kan niets meer aanpassen.</p>",
         foot: '<button class="btn btn-ghost" data-close>Annuleren</button><button class="btn btn-primary" id="afrondOk">' + svg("check", "icon-sm") + "Shift afronden</button>",
         onMount: function (ov, close) { ov.querySelector("#afrondOk").addEventListener("click", function () { try { S.shiftAfronden(c.h, c.d, c.dd); close(); toast("Shift afgerond.", "ok"); renderDashboard(); } catch (e) { toast(e.message, "err"); } }); } });
+    }
+    var ab = el("app").querySelector("[data-afronden]"); if (ab) ab.addEventListener("click", function () {
+      var open = afrondOpenPunten(c);
+      if (!open.length) return afrondBevestiging();
+      // Eerst een oranje waarschuwing als het proces nog niet 100% is afgerond; "Doorgaan" leidt naar de gewone bevestiging.
+      openModal({ title: "Nog niet alles afgerond", icon: "alertTri",
+        body: '<div class="alert alert-warn">' + svg("alertTri", "icon-sm") + " Het proces van deze shift is nog niet volledig afgerond:</div>" +
+          '<ul class="afrond-open">' + open.map(function (t) { return "<li>" + esc(t) + "</li>"; }).join("") + "</ul>" +
+          '<p class="cellsub" style="margin:10px 0 0">Wil je toch doorgaan met afronden?</p>',
+        foot: '<button class="btn btn-ghost" data-close>Annuleren</button><button class="btn btn-primary" id="afrondDoor">Doorgaan</button>',
+        onMount: function (ov, close) { ov.querySelector("#afrondDoor").addEventListener("click", function () { close(); setTimeout(afrondBevestiging, 60); }); } });
     });
     var hb = el("app").querySelector("[data-heropen]"); if (hb) hb.addEventListener("click", function () { try { S.shiftAfronden(c.h, c.d, c.dd, true); toast("Shift heropend.", "ok"); renderDashboard(); } catch (e) { toast(e.message, "err"); } });
     bindModuleHeader(renderDashboard);
@@ -3573,11 +3598,11 @@
 
   // Aantal voorbereidingsonderdelen dat nog open staat (zelfde criteria als de checklist).
   function prepOpenCount(c) {
-    var lcS = S.lcStats(c.h, c.d, c.dd), sc = S.schadeStats(c.h, c.d, c.dd), tr = S.getTrolley(c.h, c.d, c.dd), d = S.getDiensten(c.h, c.d, c.dd);
+    var lcS = S.lcStats(c.h, c.d, c.dd), sc = S.schadeStats(c.h, c.d, c.dd), tr = S.getTrolley(c.h, c.d, c.dd), d = S.getDiensten(c.h, c.d, c.dd), pc = S.pcStats(c.h, c.d, c.dd);
     var prevSc = S.vorigeShift(c.d, c.dd), scc = S.steekproefControleStats(c.h, prevSc.datum, prevSc.dagdeel);
     var n = 0;
     if (!(lcS.used > 0)) n++;
-    if (!(tr.pendels.length > 0)) n++;
+    if (!(tr.pendels.length > 0 && pc.total > 0)) n++; // pendels én tellijst zijn allebei verplicht
     if (!(sc.total > 0)) n++;
     if (["lc", "schadecontrole", "kwaliteit"].some(function (k) { return !(d[k] || []).length; })) n++;
     if (!(scc.total === 0 || scc.done >= scc.total)) n++;
@@ -3595,8 +3620,8 @@
     var items = [
       { key: "laden", titel: "Laadproces", icon: "inbox", done: lcS.used > 0,
         sub: lcS.used > 0 ? lcS.used + " ritten in " + lcS.total + " vakken" : (lcS.total > 0 ? lcS.total + " vakken, nog geen ritten" : "Laadlijst nog niet klaargezet"), body: blocks.laden },
-      { key: "pendel", titel: "Pendels", icon: "truck", done: tr.pendels.length > 0,
-        sub: tr.pendels.length > 0 ? tr.pendels.length + (tr.pendels.length === 1 ? " pendel" : " pendels") + " · tellijst " + (pc.total ? pc.total + " vakken" : "nog niet geïmporteerd") : "Nog geen pendels klaargezet", body: blocks.pendel },
+      { key: "pendel", titel: "Pendels", icon: "truck", done: tr.pendels.length > 0 && pc.total > 0, // tellijst hoort erbij
+        sub: (tr.pendels.length > 0 ? tr.pendels.length + (tr.pendels.length === 1 ? " pendel" : " pendels") : "Nog geen pendels klaargezet") + " · tellijst " + (pc.total ? pc.total + " vakken" : "nog niet geïmporteerd"), body: blocks.pendel },
       { key: "schade", titel: "Schadecontrole", icon: "shield", done: sc.total > 0,
         sub: sc.total > 0 ? sc.total + " bussen klaargezet" : "Schadecontrolelijst nog niet klaargezet", body: blocks.schade },
       { key: "diensten", titel: "Diensten", icon: "users", done: !dienstOpen.length,
@@ -3854,7 +3879,7 @@
       '<div class="lc-setup"><label>Aantal vakken</label><input type="number" min="0" max="60" id="lcAantal" value="' + (lc.aantal || lc.vakken.length) + '"><button class="btn btn-dark btn-sm" id="lcSetAantal">' + svg("check", "icon-sm") + "Instellen</button></div>" +
       '<div class="panel" style="padding:0;margin-top:10px"><div class="table-scroll"><table class="table lc-table"><thead><tr><th>Vak</th><th>Vertrek</th><th>Bus</th><th>Rit</th><th>Type</th><th>ZE</th></tr></thead><tbody>' + lcRows + "</tbody></table></div></div>" + kzRit2 + "</div>";
     var pcImportBlockDash = '<div class="kz-section"><div class="kz-h">' + svg("download", "icon-sm") + "Tellijst klaarzetten (" + (c.dd === "PM" ? "PM" : "AM") + ")</div>" +
-      '<p class="cellsub" style="margin:0 0 8px">Plak de debriefing-tellijst — kolommen SUBRITNR · TROLLEYS · KRATTEN · VERSBOXEN · DIEPVRIESBOXEN · KWGR. Verschijnt bij Laadproces &rsaquo; Tellen.</p>' +
+      '<p class="cellsub" style="margin:0 0 8px">Plak de debriefing-export (hele sheet mét kopregel; de kolommen SUBRITNR · TROLLEYS · KRATTEN · VERS_BOXEN · DV_BOXEN · KWGR worden op naam gevonden, ). Verschijnt bij Laadproces &rsaquo; Tellen, gesorteerd op subritnummer.</p>' +
       '<textarea id="kzPcSheet" rows="4" class="kz-sheet" placeholder="Plak hier de tellijst…"></textarea>' +
       '<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"><button class="btn btn-primary btn-sm" id="kzPcImport">' + svg("check", "icon-sm") + "Importeren</button>" +
       '<button class="btn btn-ghost btn-sm" id="kzPcClear">' + svg("trash", "icon-sm") + "Leegmaken</button></div></div>";
@@ -3931,7 +3956,7 @@
           '<div class="pick-list">' + items + "</div></div>" +
         "</div></div>";
     }
-    return '<div class="kz-section dienst-grid">' + block("schadecontrole", "Schadecontrole", "Schadecontrole") + block("lc", "Laadproces", "LC") + block("kwaliteit", "Kwaliteit", "Kwaliteit") + block("buswassing", "Buswassing", "Buswassing") + "</div>";
+    return '<div class="kz-section dienst-grid">' + block("lc", "Laadproces", "LC") + block("schadecontrole", "Schadecontrole", "Schadecontrole") + block("kwaliteit", "Kwaliteit", "Kwaliteit") + block("buswassing", "Buswassing", "Buswassing") + "</div>";
   }
   function bindDashDiensten(c) {
     function rerender(focusKey) {
