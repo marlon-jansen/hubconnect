@@ -3053,8 +3053,26 @@
   }
   function scanBeschikbaar() { return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia); }
 
-  function openBoxScanner(onFound) {
+  /* Per boxsoort een eigen scanner: de koelbox draagt een QR-code (vierkant kader), de vriesbox een
+     streepjescode (breed kader). Alleen de bijbehorende formaten staan aan, dus een verdwaalde
+     code op een andere sticker wordt niet per ongeluk gelezen. */
+  var SCAN_SOORTEN = {
+    qr:      { titel: "QR-code koelbox scannen", kader: "vierkant", tip: "Richt de camera op de QR-code van de koelbox.",
+               natief: ["qr_code", "data_matrix"], zxing: ["QR_CODE", "DATA_MATRIX"] },
+    barcode: { titel: "Barcode vriesbox scannen", kader: "breed", tip: "Houd de streepjescode van de vriesbox in het kader.",
+               natief: ["code_39", "code_128", "ean_13", "ean_8", "itf", "upc_a", "upc_e"], zxing: ["CODE_39", "CODE_128", "EAN_13", "EAN_8", "ITF"] }
+  };
+  // De code bevat het boxnummer; zit er meer omheen (prefix, URL), dan halen we het langste getal eruit.
+  function boxnummerUit(raw) {
+    var s = String(raw == null ? "" : raw).trim();
+    var m = s.match(/\d+/g);
+    if (!m) return s;
+    return m.reduce(function (a, b) { return b.length > a.length ? b : a; }, "");
+  }
+
+  function openBoxScanner(onFound, soort) {
     if (!scanBeschikbaar()) { toast("Deze browser kan de camera niet gebruiken — typ het nummer.", "err"); return; }
+    var sc = SCAN_SOORTEN[soort] || SCAN_SOORTEN.qr;
     var stream = null, reader = null, gestopt = false, bewaker = null;
     function stop() {
       gestopt = true;
@@ -3063,17 +3081,25 @@
       if (stream) { stream.getTracks().forEach(function (t) { try { t.stop(); } catch (e) {} }); stream = null; }
     }
     var mod = openModal({
-      title: "Boxnummer scannen", icon: "scan",
-      body: '<div class="scan-wrap"><video id="scanVid" playsinline muted autoplay></video><div class="scan-frame"></div></div>' +
-        '<div id="scanMsg" class="scan-msg">Camera starten…</div>',
+      title: sc.titel, icon: "scan",
+      body: '<div class="scan-wrap"><video id="scanVid" playsinline muted autoplay></video><div class="scan-frame scan-' + sc.kader + '"></div></div>' +
+        '<div id="scanMsg" class="scan-msg">Camera starten…</div>' +
+        '<div id="scanDiag" class="scan-diag"></div>',
       foot: '<button class="btn btn-ghost" data-close>Annuleren</button>',
       onMount: function (ov, close) {
-        var video = ov.querySelector("#scanVid"), msg = ov.querySelector("#scanMsg");
+        var video = ov.querySelector("#scanVid"), msg = ov.querySelector("#scanMsg"), diag = ov.querySelector("#scanDiag");
         function zeg(t, err) { msg.textContent = t; msg.classList.toggle("err", !!err); }
+        // Diagnoseregel: welke decoder draait en in welke resolutie — zo is een mislukte scan op een echt toestel te herleiden.
+        var route = "";
+        function toonDiag() {
+          var res = video.videoWidth ? video.videoWidth + "×" + video.videoHeight : "";
+          diag.textContent = "Scanner: " + (route || "…") + (res ? " · " + res : "");
+        }
+        video.addEventListener("loadedmetadata", toonDiag);
         function klaar(waarde) {
-          var v = String(waarde == null ? "" : waarde).trim();
+          var v = boxnummerUit(waarde);
           if (!v || gestopt) return;
-          stop(); close(); onFound(v);
+          stop(); close(); onFound(v, String(waarde == null ? "" : waarde).trim());
         }
         // De camera moet ook stoppen als de gebruiker via de achtergrond of het kruisje sluit.
         bewaker = setInterval(function () { if (!document.body.contains(ov)) stop(); }, 400);
@@ -3084,7 +3110,7 @@
             if (gestopt) { s.getTracks().forEach(function (t) { t.stop(); }); return; }
             stream = s; video.srcObject = s;
             var p = video.play(); if (p && p.catch) p.catch(function () {});
-            zeg("Richt de camera op de code op de box.");
+            zeg(sc.tip);
             if ("BarcodeDetector" in window) return startNatief(video, klaar, zeg);
             return startZXing(s, video, klaar, zeg);
           })
@@ -3094,19 +3120,20 @@
                           : "Camera niet beschikbaar — typ het nummer.", true);
           });
 
-        // Formaten die op de boxen voorkomen: QR (koelbox) en Code 39 (vriesbox), plus de gangbare rest.
-        var WIL = ["qr_code", "code_39", "code_128", "ean_13", "ean_8", "itf", "data_matrix", "upc_a", "upc_e"];
         function startNatief(vid, gevonden, zeggen) {
           return window.BarcodeDetector.getSupportedFormats().then(function (fmts) {
-            var gebruik = (fmts || []).filter(function (f) { return WIL.indexOf(f) !== -1; });
+            var gebruik = (fmts || []).filter(function (f) { return sc.natief.indexOf(f) !== -1; });
             // Sommige Androids melden de API wel maar kunnen niets (geen Play Services): dan meteen ZXing.
             if (!gebruik.length) return startZXing(stream, vid, gevonden, zeggen);
             var det = new window.BarcodeDetector({ formats: gebruik });
+            route = "ingebouwd (" + gebruik.join(", ") + ")"; toonDiag();
             var start = Date.now(), fouten = 0;
+            // Levert de ingebouwde detector niets op (of blijft hij fouten geven), dan alsnog ZXing erbij.
+            // Bij streepjescodes sneller (3 s): daar bleek de ingebouwde detector op een echt toestel stil te blijven.
+            var geduld = sc.kader === "breed" ? 3000 : 6000;
             (function lus() {
               if (gestopt) return;
-              // Levert de ingebouwde detector na 6 s niets op (of blijft hij fouten geven), dan alsnog ZXing erbij.
-              if (Date.now() - start > 6000 || fouten > 5) return startZXing(stream, vid, gevonden, zeggen);
+              if (Date.now() - start > geduld || fouten > 5) return startZXing(stream, vid, gevonden, zeggen);
               det.detect(vid).then(function (codes) {
                 if (codes && codes.length) return gevonden(codes[0].rawValue);
                 setTimeout(lus, 100);
@@ -3117,15 +3144,17 @@
         function startZXing(s, vid, gevonden, zeggen) {
           if (reader) return; // al actief
           zeggen("Scanner laden…");
+          route = "ZXing laden…"; toonDiag();
           return loadZXing().then(function (Z) {
             if (gestopt) return;
-            zeggen("Richt de camera op de code op de box en houd stil.");
+            zeggen(sc.tip + " Houd stil.");
+            route = "ZXing (" + sc.zxing.join(", ") + ")"; toonDiag();
             var hints = new Map();
             hints.set(Z.DecodeHintType.TRY_HARDER, true);
-            hints.set(Z.DecodeHintType.POSSIBLE_FORMATS, [Z.BarcodeFormat.QR_CODE, Z.BarcodeFormat.CODE_39, Z.BarcodeFormat.CODE_128, Z.BarcodeFormat.EAN_13, Z.BarcodeFormat.EAN_8, Z.BarcodeFormat.ITF, Z.BarcodeFormat.DATA_MATRIX]);
+            hints.set(Z.DecodeHintType.POSSIBLE_FORMATS, sc.zxing.map(function (k) { return Z.BarcodeFormat[k]; }));
             reader = new Z.BrowserMultiFormatReader(hints, 200);
             reader.decodeFromStream(s, vid, function (result) { if (result) gevonden(result.getText()); });
-          }).catch(function (e) { zeggen(e.message + " Typ het nummer.", true); });
+          }).catch(function (e) { route = "ZXing mislukt"; toonDiag(); zeggen(e.message + " Typ het nummer.", true); });
         }
       }
     });
@@ -3143,6 +3172,9 @@
       return '<option value="' + g.id + '"' + (m.groep === g.id ? " selected" : "") + ">" + esc(g.naam) + "</option>";
     }).join("");
     // Bij de vriesbox is er maar één productgroep — dan is een keuzelijst alleen ruis.
+    // Koelbox draagt een QR-code, vriesbox een streepjescode: de scanner past zich daarop aan.
+    var scanSoort = slot.id === "dv" ? "barcode" : "qr";
+    var scanLabel = scanSoort === "barcode" ? "Scan barcode" : "Scan QR";
     var groepVeld = slot.groepen.length > 1
       ? '<div class="field"><label>Productgroep</label><select name="groep">' + groepOpts + '</select><div class="hint" id="ptNorm"></div></div>'
       : '<input type="hidden" name="groep" value="' + slot.groepen[0] + '"><div class="field"><label>Productgroep</label>' +
@@ -3158,7 +3190,7 @@
         "</div>" +
         '<div class="field"><label>Boxnummer</label><div class="box-scan">' +
           '<input name="box" inputmode="numeric" pattern="[0-9]*" value="' + esc(m.box || "") + '" required>' +
-          (scanBeschikbaar() ? '<button type="button" class="btn btn-ghost scan-btn" id="ptScan" title="Code op de box scannen">' + svg("scan", "icon-sm") + "Scan</button>" : "") +
+          (scanBeschikbaar() ? '<button type="button" class="btn btn-ghost scan-btn" id="ptScan" title="' + (scanSoort === "barcode" ? "Streepjescode op de vriesbox scannen" : "QR-code op de koelbox scannen") + '">' + svg("scan", "icon-sm") + scanLabel + "</button>" : "") +
         "</div></div>" +
         '<div class="field"><label>Gemeten product</label><input name="product" value="' + esc(m.product || "") + '" required></div>' +
         groepVeld +
@@ -3196,13 +3228,13 @@
         f.addEventListener("change", sync);
         var scanKnop = ov.querySelector("#ptScan");
         if (scanKnop) scanKnop.addEventListener("click", function () {
-          openBoxScanner(function (waarde) {
-            f.box.value = waarde;
+          openBoxScanner(function (nummer, raw) {
+            f.box.value = nummer;
             f.box.focus();
-            // De ruwe waarde tonen: zo zie je meteen of er meer in de code zit dan het nummer.
-            toast("Gescand: " + waarde, "ok");
+            // Zat er meer in de code dan het nummer, laat dat dan zien — handig om de stickers te leren kennen.
+            toast("Gescand: " + nummer + (raw !== nummer ? " (uit " + raw + ")" : ""), "ok");
             sync();
-          });
+          }, scanSoort);
         });
         ov.querySelectorAll("[data-ptht]").forEach(function (b) {
           b.addEventListener("click", function () {

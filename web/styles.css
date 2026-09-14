@@ -970,8 +970,17 @@ main { max-width: 1100px; margin: 0 auto; padding: 22px 18px 80px; }
   position: absolute; inset: 18% 12%; border-radius: 12px; pointer-events: none;
   border: 2px solid var(--jumbo-yellow); box-shadow: 0 0 0 100vmax rgba(0,0,0,.35);
 }
+/* QR-code (koelbox): vierkant kader in het midden. */
+.scan-frame.scan-vierkant { inset: auto; top: 50%; left: 50%; width: 56%; aspect-ratio: 1; transform: translate(-50%, -50%); }
+/* Streepjescode (vriesbox): breed en laag kader met een rode richtlijn erdoorheen. */
+.scan-frame.scan-breed { inset: 34% 8%; border-radius: 8px; }
+.scan-frame.scan-breed::after {
+  content: ""; position: absolute; left: 6%; right: 6%; top: 50%; height: 2px; margin-top: -1px;
+  background: rgba(255, 60, 60, .85); border-radius: 2px;
+}
 .scan-msg { margin-top: 12px; font-size: 13px; font-weight: 700; color: var(--ink-soft); text-align: center; }
 .scan-msg.err { color: var(--red); }
+.scan-diag { margin-top: 6px; font-size: 11px; color: var(--muted); text-align: center; font-variant-numeric: tabular-nums; }
 
 /* Dagarchief: leest als het papieren formulier, dus een echte tabel die scrollt. */
 .ar-head { display: flex; flex-wrap: wrap; gap: 10px 26px; padding: 12px 14px; margin: 8px 12px 12px; background: var(--jumbo-yellow-soft); border-radius: 12px; }
