@@ -930,20 +930,13 @@
     });
     return { free: false, heeftTaak: heeftTaak, allowed: !!gevonden, afgerond: !gevonden && afgerondGezien, datum: datum, dagdeel: gevonden || dagdeel };
   }
-  // Tijdvensters per taak: PM begint op onderstaand tijdstip; ervoor is het AM.
+  // Omslagtijd per taak: vanaf dit tijdstip staat standaard de PM-shift open, ervoor de AM. Alleen een
+  // standaardkeuze — geen tijdvenster: een shift gaat uitsluitend dicht via "Shift afronden" (v=145).
   var PM_START = { lc: 13 * 60, pc: 13 * 60, kwaliteit: 16 * 60, schadecontrole: 16 * 60 };
-  // Welke shift bij het (opnieuw) openen standaard actief is, op basis van de klok.
   function defaultDagdeelFor(moduleKey) {
     var d = new Date(), m = d.getHours() * 60 + d.getMinutes();
     var s = PM_START[moduleKey] != null ? PM_START[moduleKey] : 13 * 60;
     return m >= s ? "PM" : "AM";
-  }
-  // Mag de taakuitvoerder deze (datum, dagdeel) NU nog bewerken? Alleen vandaag én binnen het eigen tijdvenster.
-  function withinShiftWindow(moduleKey, datum, dagdeel) {
-    if (datum !== todayYmd()) return false;
-    var d = new Date(), m = d.getHours() * 60 + d.getMinutes();
-    var s = PM_START[moduleKey] != null ? PM_START[moduleKey] : 13 * 60;
-    return dagdeel === "PM" ? m >= s : m < s;
   }
 
   /* ----- Schadecontrole ----- */
@@ -1852,7 +1845,7 @@
     planningFor: planningFor, planById: planById, setPlanCell: setPlanCell, addPlanRow: addPlanRow, removePlanRow: removePlanRow,
     reload: reload, DOCKS: DOCKS, EMB_TROLLEYS: EMB_TROLLEYS, EMB_VAKKEN: EMB_VAKKEN, VAK_NUMMERS: VAK_NUMMERS, VAK_SOORTEN: VAK_SOORTEN, vakSoortLabel: vakSoortLabel,
     isSunday: isSunday, dagdelenVoor: dagdelenVoor, isFutureDay: isFutureDay, todayYmd: todayYmd, isSetup: isSetup, canOpShift: canOpShift,
-    defaultDagdeelFor: defaultDagdeelFor, withinShiftWindow: withinShiftWindow,
+    defaultDagdeelFor: defaultDagdeelFor,
     getDiensten: getDiensten, setDienst: setDienst, importSheet: importSheet,
     getSchade: getSchade, schadeImportColumns: schadeImportColumns, schadeAddBus: schadeAddBus, schadeToggle: schadeToggle, schadeSetDock: schadeSetDock, schadeSetOpmerking: schadeSetOpmerking, schadeRemove: schadeRemove, schadeReset: schadeReset, schadeStats: schadeStats,
     setBusSteekproef: setBusSteekproef, steekproefDone: steekproefDone, steekproefStats: steekproefStats, steekproevenList: steekproevenList, recentGecontroleerdeBussen: recentGecontroleerdeBussen, busHeeftProbleem: busHeeftProbleem,

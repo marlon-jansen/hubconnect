@@ -2493,7 +2493,7 @@
     document.querySelectorAll("[data-opshift]").forEach(function (b) { b.addEventListener("click", function () { state.opShift = b.getAttribute("data-opshift"); state.opShiftUserSet = true; rer(); }); });
   }
   // Zet bij het (opnieuw) openen van een taakmodule de shift-kiezer op de juiste shift voor die taak,
-  // op basis van de klok en de tijdvensters — tot de gebruiker zelf een shift kiest (opShiftUserSet).
+  // op basis van de klok — tot de gebruiker zelf een shift kiest (opShiftUserSet).
   function autoShift(moduleKey) {
     if (!state.opDate) state.opDate = ymd(new Date());
     if (state.shiftLocked) return; // uitvoerder zit vast in zijn toegewezen shift
@@ -2501,17 +2501,8 @@
   }
   // Docks toewijzen/tonen hoort bij de PM-shift; op zondag is er geen PM, dus dan bij AM.
   function dockShift(c) { return c.dd === "PM" || S.isSunday(c.d); }
-  // Mag de taakuitvoerder deze shift nu nog bewerken? (binnendienst/senior+ mag altijd.)
-  // Sinds v=131 is de toewijzing door de senior de poort: wie in zijn toegewezen shift zit (shiftLocked) mag werken,
-  // ook buiten het oude tijdvenster. Het venster geldt alleen nog voor wie vrij door datum/shift bladert.
-  function opWindowOK(u, moduleKey, c) { return S.isSetup(u) || state.shiftLocked || S.withinShiftWindow(moduleKey, c.d, c.dd); }
-  // Melding wanneer je wél de dienst hebt maar buiten het tijdvenster valt → alleen-lezen.
-  function windowLockNote(u, moduleKey, c) {
-    if (state.viewOnly || S.isSetup(u) || state.shiftLocked) return "";
-    if (!S.canOpShift(u, c.h, c.d, c.dd, moduleKey)) return "";
-    if (S.withinShiftWindow(moduleKey, c.d, c.dd)) return "";
-    return '<div class="alert" style="margin-bottom:12px">' + svg("lock", "icon-sm") + " Buiten de tijd van deze " + c.dd + "-shift — je kunt nu alleen bekijken, niet meer aanpassen.</div>";
-  }
+  // Tijdvensters zijn weg (v=145): een shift gaat alleen dicht via "Shift afronden" (canOpShift → ds.afgerond).
+  // De klok bepaalt nog uitsluitend welke shift (AM/PM) standaard openstaat (defaultDagdeelFor).
   function opProgress(done, total, label) {
     var pct = total ? Math.round(done / total * 100) : 0;
     return '<div class="op-progress"><div class="op-bar"><span style="width:' + pct + '%"></span></div><div class="op-pct">' + done + " / " + total + " " + esc(label) + " (" + pct + "%)</div></div>";
@@ -2536,7 +2527,7 @@
     var s = S.getSchade(c.h, c.d, c.dd);
     var dashView = state.viewOnly, isBinnen = S.isSetup(u);
     var showTimes = dashView && isBinnen; // afvinktijden alleen voor de binnendienst in de dashboard-weergave
-    var canEdit = dashView ? isBinnen : (opWindowOK(u, "schadecontrole", c) && S.canOpShift(u, c.h, c.d, c.dd, "schadecontrole", "Schadecontrole"));
+    var canEdit = dashView ? isBinnen : (S.canOpShift(u, c.h, c.d, c.dd, "schadecontrole", "Schadecontrole"));
     var st = S.schadeStats(c.h, c.d, c.dd), spSt = S.steekproefStats(c.h, c.d, c.dd);
 
     function chkCell(b) {
@@ -2576,7 +2567,6 @@
 
     // Steekproeven controleren doet de binnendienst via het senior-dashboard (niet hier).
     el("app").innerHTML = moduleShell("Schadecontrole",
-      windowLockNote(u, "schadecontrole", c) +
       opProgress(st.done, st.total, "bussen gecontroleerd") +
       opProgress(spSt.done, spSt.total, "steekproeven gedaan") + table);
     bindModuleHeader(renderSchade);
@@ -2707,7 +2697,7 @@
   function renderKwaliteit() {
     autoShift("kwaliteit");
     var c = ctx(), u = c.u;
-    var canEdit = !state.viewOnly && opWindowOK(u, "kwaliteit", c) && S.canOpShift(u, c.h, c.d, c.dd, "kwaliteit", "Kwaliteit");
+    var canEdit = !state.viewOnly && S.canOpShift(u, c.h, c.d, c.dd, "kwaliteit", "Kwaliteit");
     function soortOpts(sel) { return S.VAK_SOORTEN.map(function (s) { return '<option value="' + s.id + '"' + (sel === s.id ? " selected" : "") + ">" + esc(s.label) + "</option>"; }).join(""); }
     var rows = S.VAK_NUMMERS.map(function (i) {
       var soort = S.vakSoort(c.h, c.d, c.dd, i), isEmb = soort === "emb5", tot = isEmb ? S.emballageVakTotal(c.h, c.d, c.dd, i) : 0;
@@ -2725,8 +2715,8 @@
       '<button data-kwtab="vakken" class="' + (state.kwTab === "vakken" ? "active" : "") + '">Vakken</button>' +
       '<button data-kwtab="voedselbank" class="' + (state.kwTab === "voedselbank" ? "active" : "") + '">Retouren</button>' +
       (spActief ? '<button data-kwtab="trolleys" class="' + (state.kwTab === "trolleys" ? "active" : "") + (spT.status === "open" ? " tab-warn" : "") + '">Trolleys' + (spT.status === "open" ? '<span class="tab-bang">!</span>' : "") + "</button>" : "") + "</div>";
-    var canVb = !state.viewOnly && opWindowOK(u, "kwaliteit", c) && S.vbCanEdit(u, c.h, c.d, c.dd);
-    el("app").innerHTML = moduleShell("Kwaliteit", windowLockNote(u, "kwaliteit", c) + seg + (state.kwTab === "voedselbank" ? vbBody(c, canVb) : state.kwTab === "trolleys" ? spTrolleyBody(c, spT, canEdit) : table));
+    var canVb = !state.viewOnly && S.vbCanEdit(u, c.h, c.d, c.dd);
+    el("app").innerHTML = moduleShell("Kwaliteit", seg + (state.kwTab === "voedselbank" ? vbBody(c, canVb) : state.kwTab === "trolleys" ? spTrolleyBody(c, spT, canEdit) : table));
     bindModuleHeader(renderKwaliteit);
     document.querySelectorAll("[data-kwtab]").forEach(function (b) { b.addEventListener("click", function () { state.kwTab = b.getAttribute("data-kwtab"); state.vbAdding = false; renderKwaliteit(); }); });
     document.querySelectorAll("[data-vaksoort]").forEach(function (s) { s.addEventListener("change", function () { try { S.setVakSoort(c.h, c.d, c.dd, parseInt(s.getAttribute("data-vaksoort"), 10), s.value); renderKwaliteit(); } catch (e) { toast(e.message, "err"); } }); });
@@ -3347,13 +3337,13 @@
     var isBinnen = S.isSetup(u);
     var showTimes = dashView && isBinnen;   // afvinktijden alleen voor de binnendienst in de dashboard-weergave
     // In de dashboard-weergave mag de binnendienst zelf bewerken (zoals de controleur); anders de LC binnen het venster.
-    var canLoad = dashView ? (isBinnen && !S.isFutureDay(c.d)) : (opWindowOK(u, "lc", c) && S.canOpShift(u, c.h, c.d, c.dd, "lc", "LC"));
+    var canLoad = dashView ? (isBinnen && !S.isFutureDay(c.d)) : (S.canOpShift(u, c.h, c.d, c.dd, "lc", "LC"));
     var canSetup = !state.viewOnly && S.level(u) >= 3;
     var isPM = c.dd === "PM";
     var st = S.lcStats(c.h, c.d, c.dd);
-    var canPC = !state.viewOnly && opWindowOK(u, "lc", c) && S.pcCanEdit(u, c.h, c.d, c.dd);
-    // Temperatuurregistratie: de LC-dienst óf de binnendienst, binnen hetzelfde tijdvenster.
-    var canTemp = !state.viewOnly && opWindowOK(u, "lc", c) && S.tempCanEdit(u, c.h, c.d, c.dd);
+    var canPC = !state.viewOnly && S.pcCanEdit(u, c.h, c.d, c.dd);
+    // Temperatuurregistratie: de LC-dienst óf de binnendienst.
+    var canTemp = !state.viewOnly && S.tempCanEdit(u, c.h, c.d, c.dd);
     if (!state.lcTab || state.lcTab === "pendels") state.lcTab = state.lcTab === "pendels" ? "pc" : (state.lcTab || "laden");
     if (state.lcTab === "archief") state.lcTab = "pc";           // archief is sinds v=103 een eigen module onder Beheer
     var seg = '<div class="seg" style="margin-bottom:16px;flex-wrap:wrap">' +
@@ -3477,7 +3467,7 @@
 
     var body = state.lcTab === "pc" ? pcBody : state.lcTab === "tellen" ? tellenBody
       : state.lcTab === "statiegeld" ? statiegeldBody : ladenBody;
-    el("app").innerHTML = moduleShell("Laadproces", windowLockNote(u, "lc", c) + seg + body);
+    el("app").innerHTML = moduleShell("Laadproces", seg + body);
     bindModuleHeader(renderLC);
     document.querySelectorAll("[data-lctab]").forEach(function (b) { b.addEventListener("click", function () { state.lcTab = b.getAttribute("data-lctab"); renderLC(); }); });
     if (state.lcTab === "laden") {
