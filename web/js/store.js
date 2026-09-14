@@ -133,7 +133,10 @@
       var meId = me && me.user ? me.user.id : null;
       if (!meId) {
         // Niet ingelogd: alleen kijken of de DB nog leeg is (eerste installatie → seeden), anders login tonen.
-        return fetch(API).then(function (r) { return r.json(); }).then(function (j) {
+        // De server zegt dat tegenwoordig al in /api/me ("empty"); alleen een oudere server vraagt nog om /api/state.
+        var weetEmpty = me && typeof me.empty === "boolean";
+        var check = weetEmpty ? Promise.resolve({ empty: me.empty }) : fetch(API).then(function (r) { return r.json(); });
+        return check.then(function (j) {
           if (j && j.empty) { db = seed(); setSessionUser(null); pushState(true); }
           else { db = emptyClientDb(); setSessionUser(null); }
           cb(null);

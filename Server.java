@@ -812,9 +812,16 @@ public class Server {
     try {
       secHeaders(ex);
       String id = currentUserId(ex);
-      if (id == null) { sendJson(ex, 401, "{\"error\":\"auth\"}"); return; }
-      JsonObject u; synchronized (DBLOCK) { u = loadUsers(db()).get(id); }
-      if (u == null) { clearSessionCookie(ex); sendJson(ex, 401, "{\"error\":\"auth\"}"); return; }
+      JsonObject u = null;
+      if (id != null) { synchronized (DBLOCK) { u = loadUsers(db()).get(id); } }
+      if (id != null && u == null) clearSessionCookie(ex); // sessie wijst naar een verwijderd account
+      if (u == null) {
+        // "Niemand" is een geldig antwoord, geen fout: zo hoeft de client bij het opstarten
+        // geen /api/state te proberen (en logt de browser geen 401's in de console).
+        boolean empty; synchronized (DBLOCK) { empty = !hasUsers(); }
+        sendJson(ex, 200, "{\"user\":null,\"empty\":" + empty + "}");
+        return;
+      }
       sendJson(ex, 200, "{\"user\":" + GSON.toJson(safeUser(u)) + "}");
     } catch (Exception e) { try { sendJson(ex, 500, "{\"error\":\"server\"}"); } catch (IOException ig) {} }
     finally { ex.close(); }
