@@ -350,6 +350,28 @@ main { max-width: 1100px; margin: 0 auto; padding: 22px 18px 80px; }
 
 /* Beheer / chips */
 .chips { display: flex; flex-wrap: wrap; gap: 7px; }
+/* Personeelsbeheer › Taken: de taken als tekst, daaronder een dropdown met vinkjes om ze te wijzigen */
+.td-taken { min-width: 220px; }
+.taken-cel { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+/* links: lijstje met wat iemand heeft */
+.taken-lijst { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; font-size: 13px; font-weight: 700; color: var(--ink); line-height: 1.35; }
+.taken-lijst li { position: relative; padding-left: 12px; }
+.taken-lijst li::before { content: ""; position: absolute; left: 0; top: .55em; width: 5px; height: 5px; border-radius: 50%; background: var(--jumbo-yellow-dark); }
+.taken-lijst.leeg li { color: var(--muted); font-weight: 600; }
+.taken-lijst.leeg li::before { background: var(--line); }
+/* rechts: potlood dat het keuzemenu opent; menu hangt rechts uitgelijnd onder het potlood */
+.task-pick { flex: 0 0 auto; position: relative; }
+.taken-edit { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border: 1px solid var(--line); background: var(--card); color: var(--ink-soft); cursor: pointer; }
+.taken-edit:hover, .task-pick.open .taken-edit { border-color: var(--jumbo-yellow); color: var(--ink); }
+.task-pick .pick-menu { left: auto; right: 0; width: 220px; max-height: 300px; }
+.task-pick .pick-item { gap: 10px; }
+.chk-box.sm { width: 20px; height: 20px; border-radius: 6px; flex: 0 0 auto; cursor: inherit; }
+.task-pick .pick-item .chk-box.sm .icon { width: 13px; height: 13px; color: inherit; }  /* wint van .pick-item .icon (groen) → leeg hokje blijft leeg */
+.task-pick .chk-box.sm.on { background: var(--jumbo-yellow); border-color: var(--jumbo-yellow-dark); color: var(--ink-fixed); }  /* geel i.p.v. groen: "toegewezen" */
+.task-pick .pick-item.on { background: transparent; }
+.task-pick .pick-item.on:hover { background: var(--surface-2); }
+/* open taakmenu mag over de rand van het paneel/de tabel heen steken */
+.panel:has(.task-pick.open), .table-scroll:has(.task-pick.open) { overflow: visible; }
 .chip {
   display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 800;
   padding: 5px 11px; border-radius: 999px; background: var(--surface-2); color: var(--ink-soft);
@@ -1488,6 +1510,28 @@ button.n2-bolt:hover { background: var(--surface-2); }
 
 /* dashboard klaarzetten + waarschuwing */
 .kz-section { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px; margin-bottom: 14px; }
+/* Klaarzetten schadecontrole: docks met busnummer, opmerkingen, compacte bussenlijst */
+.dock-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px 14px; }
+.dock-row { display: flex; align-items: center; gap: 10px; min-height: 40px; }
+.dock-row .badge.dock { flex: 0 0 auto; min-width: 84px; justify-content: center; }
+.dock-row .dock-bus { width: 74px; text-align: center; font-weight: 800; font-variant-numeric: tabular-nums; }
+.dock-note { font-size: 12px; font-weight: 700; color: var(--orange); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dock-note.ok { color: var(--muted); }
+.opm-lijst { list-style: none; margin: 0 0 10px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.opm-lijst li { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--line); color: var(--ink); font-size: 13px; }
+.opm-lijst li b { color: var(--ink); }
+.opm-lijst li b { flex: 0 0 auto; }
+.opm-lijst li span { flex: 1; min-width: 0; font-weight: 600; }
+.opm-lijst li .pl-x { color: inherit; opacity: .7; }
+.kz-bussen > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 14px; }
+.kz-bussen > summary::-webkit-details-marker { display: none; }
+.kz-buslijst { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.kz-bus { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 10px; }
+.kz-bus .kz-bus-nr { font-weight: 800; min-width: 64px; }
+.kz-bus > .cellsub { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kz-bus.dockonly { border-style: dashed; }
+tr.sc-dockonly td { opacity: .85; }
+tr.sc-dockonly .cellname { color: var(--ink-soft); }
 .kz-h { display: flex; align-items: center; gap: 8px; font-weight: 900; font-size: 15px; margin-bottom: 10px; }
 .kz-h .icon { color: var(--jumbo-yellow-dark); }
 .kz-sheet { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; font-family: ui-monospace, monospace; font-size: 12.5px; resize: vertical; }

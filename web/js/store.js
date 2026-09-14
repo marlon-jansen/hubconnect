@@ -1050,6 +1050,43 @@
     }
     b.dock = dock || ""; save();
   }
+  /* ----- Docks per busnummer (klaarzetten, v=147) -----
+     De binnendienst vult per dock een busnummer in. Staat die bus niet in de schadecontrolelijst, dan komt hij
+     onderaan te staan als "alleen dock" (`dockOnly`): de controleur ziet dat de bus naar dat dock mag, maar hoeft
+     hem niet te controleren en hij telt niet mee in de voortgang. Leegmaken haalt zo'n bus weer weg. */
+  function busByNr(s, nr) { nr = String(nr || "").trim(); return nr ? s.buses.filter(function (x) { return String(x.bus).trim() === nr; })[0] : null; }
+  function schadeSetDockBus(hubId, datum, dagdeel, dock, busNr) {
+    if (!isSetup(currentUser())) throw new Error("Alleen binnendienst (senior+) mag een dock toewijzen.");
+    var s = getSchade(hubId, datum, dagdeel);
+    busNr = String(busNr || "").trim();
+    if (busNr && !/^\d{1,3}$/.test(busNr)) throw new Error("Busnummer is 1 tot 3 cijfers.");
+    // De bus die nu op dit dock staat: dock loskoppelen; was hij alleen voor het dock toegevoegd, dan weg.
+    s.buses.filter(function (x) { return String(x.dock) === String(dock); }).forEach(function (x) {
+      if (busNr && String(x.bus).trim() === busNr) return; // zelfde bus opnieuw ingevuld: laten staan
+      x.dock = "";
+    });
+    s.buses = s.buses.filter(function (x) { return !(x.dockOnly && !x.dock); });
+    if (!busNr) { save(); return null; }
+    var b = busByNr(s, busNr);
+    if (!b) { b = applyGebreken(hubId, newBus("", busNr, "")); b.dockOnly = true; s.buses.push(b); }
+    b.dock = String(dock); // een bus staat maar op één dock (het oude dock is hierboven al losgekoppeld via de filter op busnummer)
+    s.buses.forEach(function (x) { if (x !== b && String(x.bus).trim() === busNr) x.dock = ""; });
+    save();
+    return { bus: b, toegevoegd: !!b.dockOnly };
+  }
+  // Busnummer dat op een dock staat (voor het invulveld).
+  function busOpDock(hubId, datum, dagdeel, dock) {
+    var b = getSchade(hubId, datum, dagdeel).buses.filter(function (x) { return String(x.dock) === String(dock); })[0];
+    return b ? b.bus : "";
+  }
+  // Opmerking op busnummer (de bus moet in de lijst staan).
+  function schadeSetOpmerkingBus(hubId, datum, dagdeel, busNr, tekst) {
+    if (!isSetup(currentUser())) throw new Error("Alleen binnendienst (senior+) mag een opmerking plaatsen.");
+    var b = busByNr(getSchade(hubId, datum, dagdeel), busNr);
+    if (!b) throw new Error("Bus " + String(busNr || "").trim() + " staat niet in de schadecontrolelijst.");
+    b.opmerking = (tekst || "").trim(); save();
+    return b;
+  }
   // Opmerking bij een bus (binnendienst zet 'm klaar, de schadecontroleur ziet 'm).
   function schadeSetOpmerking(hubId, datum, dagdeel, busId, tekst) {
     if (!isSetup(currentUser())) throw new Error("Alleen binnendienst (senior+) mag een opmerking plaatsen.");
@@ -1059,7 +1096,7 @@
   function schadeRemove(hubId, datum, dagdeel, busId) { if (!isSetup(currentUser())) throw new Error("Geen rechten."); var s = getSchade(hubId, datum, dagdeel); s.buses = s.buses.filter(function (x) { return x.id !== busId; }); save(); }
   function schadeReset(hubId, datum, dagdeel) { if (!isSetup(currentUser())) throw new Error("Geen rechten."); db.schade[opKey(hubId, datum, dagdeel)] = { buses: [] }; save(); }
   function schadeStats(hubId, datum, dagdeel) {
-    var b = getSchade(hubId, datum, dagdeel).buses;
+    var b = getSchade(hubId, datum, dagdeel).buses.filter(function (x) { return !x.dockOnly; }); // alleen-dock-bussen hoeven niet gecontroleerd
     var done = b.filter(function (x) { return x.gecontroleerd; }).length;
     return { total: b.length, done: done, pct: b.length ? Math.round(done / b.length * 100) : 0 };
   }
@@ -1785,7 +1822,7 @@
     var schade = getSchade(hubId, datum, dagdeel);
     var lc = getLC(hubId, datum, dagdeel);
     var n = 0, seen = {};
-    schade.buses.forEach(function (b) { if (b.bus) seen[b.bus] = true; }); // nooit dubbel in de schadecontrole
+    schade.buses.forEach(function (b) { if (b.bus && !b.dockOnly) seen[b.bus] = true; }); // nooit dubbel in de schadecontrole (alleen-dock-bussen mogen "gepromoveerd" worden)
     for (var r = headIdx + 1; r < lines.length; r++) {
       var c = cells(lines[r]).map(function (x) { return (x || "").trim(); });
       var bus = iBus > -1 ? (c[iBus] || "") : "";
@@ -1810,7 +1847,12 @@
       if (!bus && !rit) continue; // lege regel
       // schade alleen voor regels met een echte bus; een bus met twee ritten staat er één keer in
       if (bus && doSchade) {
-        if (!seen[bus]) { schade.buses.push(applyGebreken(hubId, newBus(naam, bus, kent))); seen[bus] = true; }
+        if (!seen[bus]) {
+          var dockBus = schade.buses.filter(function (b) { return b.dockOnly && String(b.bus).trim() === bus; })[0];
+          if (dockBus) { dockBus.dockOnly = false; dockBus.naam = naam; dockBus.kenteken = kent; } // stond al klaar voor een dock → wordt gewone bus
+          else schade.buses.push(applyGebreken(hubId, newBus(naam, bus, kent)));
+          seen[bus] = true;
+        }
         // bus rijdt een 2e rit: markeren op de (ene) busregel in de schadecontrole
         if (tweedeRit) schade.buses.forEach(function (b) { if (b.bus === bus) b.tweedeRit = true; });
       }
@@ -1879,7 +1921,7 @@
     isSunday: isSunday, dagdelenVoor: dagdelenVoor, isFutureDay: isFutureDay, todayYmd: todayYmd, isSetup: isSetup, canOpShift: canOpShift,
     defaultDagdeelFor: defaultDagdeelFor,
     getDiensten: getDiensten, setDienst: setDienst, importSheet: importSheet,
-    getSchade: getSchade, schadeImportColumns: schadeImportColumns, schadeAddBus: schadeAddBus, schadeToggle: schadeToggle, schadeSetDock: schadeSetDock, schadeSetOpmerking: schadeSetOpmerking, schadeRemove: schadeRemove, schadeReset: schadeReset, schadeStats: schadeStats,
+    getSchade: getSchade, schadeImportColumns: schadeImportColumns, schadeAddBus: schadeAddBus, schadeToggle: schadeToggle, schadeSetDock: schadeSetDock, schadeSetDockBus: schadeSetDockBus, busOpDock: busOpDock, schadeSetOpmerkingBus: schadeSetOpmerkingBus, schadeSetOpmerking: schadeSetOpmerking, schadeRemove: schadeRemove, schadeReset: schadeReset, schadeStats: schadeStats,
     setBusSteekproef: setBusSteekproef, steekproefDone: steekproefDone, steekproefStats: steekproefStats, steekproevenList: steekproevenList, recentGecontroleerdeBussen: recentGecontroleerdeBussen, busHeeftProbleem: busHeeftProbleem,
     setBusWassen: setBusWassen, wasLijst: wasLijst, wasStats: wasStats, wasCanEdit: wasCanEdit, setWasStatus: setWasStatus,
     vorigeShift: vorigeShift, steekproefControleer: steekproefControleer, steekproefControleStats: steekproefControleStats,
