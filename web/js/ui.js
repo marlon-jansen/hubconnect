@@ -3152,8 +3152,52 @@
             var hints = new Map();
             hints.set(Z.DecodeHintType.TRY_HARDER, true);
             hints.set(Z.DecodeHintType.POSSIBLE_FORMATS, sc.zxing.map(function (k) { return Z.BarcodeFormat[k]; }));
-            reader = new Z.BrowserMultiFormatReader(hints, 200);
-            reader.decodeFromStream(s, vid, function (result) { if (result) gevonden(result.getText()); });
+            // Eigen decodeerlus i.p.v. reader.decodeFromStream(): die wacht intern op het 'playing'-event van
+            // de video, en dat komt niet meer omdat wij de video al hebben gestart → op iPhone begon hij nooit.
+            // Bovendien knippen we het frame uit rond het gele kader, zodat de code op volle resolutie wordt
+            // gelezen (de decoder scant anders het hele beeld waar de code maar een klein deel van is).
+            var mfr = new Z.MultiFormatReader();
+            mfr.setHints(hints);
+            var canvas = document.createElement("canvas"), ctx = canvas.getContext("2d", { willReadFrequently: true });
+            var wrap = ov.querySelector(".scan-wrap"), kader = ov.querySelector(".scan-frame");
+            reader = { reset: function () { gestopt = true; } };
+            // Het deel van de video dat in het kader zichtbaar is (video staat met object-fit: cover in de wrap).
+            function kaderInVideo() {
+              var vw = vid.videoWidth, vh = vid.videoHeight, W = wrap.clientWidth, H = wrap.clientHeight;
+              if (!vw || !vh || !W || !H) return null;
+              var schaal = Math.max(W / vw, H / vh);                 // cover: grootste schaal
+              var zichtW = W / schaal, zichtH = H / schaal;          // zichtbaar deel in videopixels
+              var ox = (vw - zichtW) / 2, oy = (vh - zichtH) / 2;
+              var wr = wrap.getBoundingClientRect(), kr = kader.getBoundingClientRect();
+              var marge = 0.12;                                      // iets ruimer dan het kader
+              var x = ox + ((kr.left - wr.left) / W - marge * kr.width / W) * zichtW;
+              var y = oy + ((kr.top - wr.top) / H - marge * kr.height / H) * zichtH;
+              var w = (kr.width / W) * (1 + 2 * marge) * zichtW, h = (kr.height / H) * (1 + 2 * marge) * zichtH;
+              x = Math.max(0, x); y = Math.max(0, y); w = Math.min(w, vw - x); h = Math.min(h, vh - y);
+              return { x: x, y: y, w: w, h: h };
+            }
+            function decodeer(rect) {
+              canvas.width = Math.round(rect.w); canvas.height = Math.round(rect.h);
+              ctx.drawImage(vid, rect.x, rect.y, rect.w, rect.h, 0, 0, canvas.width, canvas.height);
+              var bmp = new Z.BinaryBitmap(new Z.HybridBinarizer(new Z.HTMLCanvasElementLuminanceSource(canvas)));
+              try { return mfr.decode(bmp); } catch (e) { if (!(e instanceof Z.NotFoundException)) throw e; return null; }
+              finally { mfr.reset(); }
+            }
+            var frames = 0;
+            (function lus() {
+              if (gestopt) return;
+              if (vid.readyState >= 2 && vid.videoWidth) {
+                try {
+                  frames++;
+                  // Om en om: het kader (scherp, groot) en het hele beeld (als de code er net buiten valt).
+                  var rect = (frames % 3 !== 0 && kaderInVideo()) || { x: 0, y: 0, w: vid.videoWidth, h: vid.videoHeight };
+                  var r = decodeer(rect);
+                  if (frames % 5 === 0) { route = "ZXing (" + sc.zxing.join(", ") + ") · " + frames + " frames"; toonDiag(); }
+                  if (r) return gevonden(r.getText());
+                } catch (e) { route = "ZXing fout: " + (e && e.message ? e.message : e); toonDiag(); }
+              }
+              setTimeout(lus, 120);
+            })();
           }).catch(function (e) { route = "ZXing mislukt"; toonDiag(); zeggen(e.message + " Typ het nummer.", true); });
         }
       }
