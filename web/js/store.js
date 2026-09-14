@@ -307,6 +307,9 @@
     return fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data || {}) })
       .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, status: r.status, body: j }; }); });
   }
+  // Wachtwoordeisen (gelijk aan de server): min. 8 tekens, ≥1 hoofdletter, ≥1 cijfer of symbool.
+  function passwordOk(pw) { return !!pw && pw.length >= 8 && /[A-Z]/.test(pw) && /[^A-Za-z]/.test(pw); }
+  var PW_EIS = "Kies een wachtwoord van minimaal 8 tekens, met minstens 1 hoofdletter en 1 cijfer of symbool.";
   var LOGIN_ERR = {
     invalid: "Onjuist e-mailadres/personeelsnummer of wachtwoord.",
     too_many: "Te veel mislukte pogingen. Probeer het over 15 minuten opnieuw.",
@@ -324,7 +327,7 @@
   }
   // Eerste wachtwoord instellen (na eenmalige code). Promise.
   function setInitialPassword(newPw) {
-    if (!newPw || newPw.length < 8) return Promise.reject(new Error("Kies een wachtwoord van minimaal 8 tekens."));
+    if (!passwordOk(newPw)) return Promise.reject(new Error(PW_EIS));
     return postJson("/api/set-password", { newPassword: newPw }).then(function (res) {
       if (!res.ok) throw new Error("Kon het wachtwoord niet instellen.");
       return loadStateAuthed(sessionUserId);
@@ -332,7 +335,7 @@
   }
   // Eigen wachtwoord wijzigen. Promise.
   function changeOwnPassword(oldPw, newPw) {
-    if (!newPw || newPw.length < 8) return Promise.reject(new Error("Kies een nieuw wachtwoord van minimaal 8 tekens."));
+    if (!passwordOk(newPw)) return Promise.reject(new Error(PW_EIS));
     return postJson("/api/change-password", { oldPassword: oldPw, newPassword: newPw }).then(function (res) {
       if (!res.ok) throw new Error(res.body && res.body.error === "wrong_old" ? "Je huidige wachtwoord klopt niet." : "Kon het wachtwoord niet wijzigen.");
     });
@@ -368,7 +371,7 @@
       personeelsnummer: data.personeelsnummer, email: data.email, wachtwoord: data.wachtwoord
     }).then(function (res) {
       if (!res.ok) {
-        var m = { code: "Ongeldige of verlopen code.", email: "Vul een geldig e-mailadres in.", email_bestaat: "Er bestaat al een account met dit e-mailadres.", hr: "Vul een geldig HR-nummer in (minimaal 4 cijfers).", naam: "Vul voor- en achternaam in.", weak: "Kies een wachtwoord van minimaal 8 tekens." };
+        var m = { code: "Ongeldige of verlopen code.", email: "Vul een geldig e-mailadres in.", email_bestaat: "Er bestaat al een account met dit e-mailadres.", hr: "Vul een geldig HR-nummer in (minimaal 4 cijfers).", naam: "Vul voor- en achternaam in.", weak: "Kies een wachtwoord van minimaal 8 tekens, met minstens 1 hoofdletter en 1 cijfer of symbool." };
         throw new Error(m[res.body && res.body.error] || "Registreren mislukt.");
       }
       return loadStateAuthed(res.body.user.id);

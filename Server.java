@@ -576,6 +576,17 @@ public class Server {
 
   /* ===================== Auth: wachtwoord-hashing ===================== */
   // Nieuw formaat: pbkdf2$<iteraties>$<salt-b64>$<hash-b64>. Oud (legacy) formaat: kale DJB2-hex.
+  // Wachtwoordeisen (gelijk aan de client): min. 8 tekens, ≥1 hoofdletter, ≥1 cijfer of symbool.
+  static boolean passwordOk(String pw) {
+    if (pw == null || pw.length() < 8) return false;
+    boolean upper = false, other = false;
+    for (int i = 0; i < pw.length(); i++) {
+      char ch = pw.charAt(i);
+      if (ch >= 'A' && ch <= 'Z') upper = true;
+      else if (!((ch >= 'a' && ch <= 'z'))) other = true;   // cijfer of symbool (alles behalve a-z/A-Z)
+    }
+    return upper && other;
+  }
   static String pbkdf2(String password) {
     try {
       byte[] salt = new byte[16]; RNG.nextBytes(salt);
@@ -891,7 +902,7 @@ public class Server {
       byte[] raw = readLimited(ex.getRequestBody(), 64 * 1024); if (raw == null) { sendJson(ex, 413, "{\"error\":\"too_large\"}"); return; }
       JsonObject b = JsonParser.parseString(new String(raw, StandardCharsets.UTF_8)).getAsJsonObject();
       String oldPw = str(b, "oldPassword"), newPw = str(b, "newPassword");
-      if (newPw == null || newPw.length() < 8) { sendJson(ex, 400, "{\"error\":\"weak\"}"); return; }
+      if (!passwordOk(newPw)) { sendJson(ex, 400, "{\"error\":\"weak\"}"); return; }
       synchronized (DBLOCK) {
         JsonObject u = loadUsers(db()).get(id);
         if (u == null) { sendJson(ex, 401, "{\"error\":\"auth\"}"); return; }
@@ -912,7 +923,7 @@ public class Server {
       byte[] raw = readLimited(ex.getRequestBody(), 64 * 1024); if (raw == null) { sendJson(ex, 413, "{\"error\":\"too_large\"}"); return; }
       JsonObject b = JsonParser.parseString(new String(raw, StandardCharsets.UTF_8)).getAsJsonObject();
       String newPw = str(b, "newPassword");
-      if (newPw == null || newPw.length() < 8) { sendJson(ex, 400, "{\"error\":\"weak\"}"); return; }
+      if (!passwordOk(newPw)) { sendJson(ex, 400, "{\"error\":\"weak\"}"); return; }
       synchronized (DBLOCK) {
         JsonObject u = loadUsers(db()).get(id);
         if (u == null) { sendJson(ex, 401, "{\"error\":\"auth\"}"); return; }
@@ -936,7 +947,7 @@ public class Server {
       if (voornaam == null || achternaam == null || voornaam.trim().isEmpty() || achternaam.trim().isEmpty()) { sendJson(ex, 400, "{\"error\":\"naam\"}"); return; }
       if (num == null || num.length() < 4) { sendJson(ex, 400, "{\"error\":\"hr\"}"); return; }
       if (email == null || !email.matches("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")) { sendJson(ex, 400, "{\"error\":\"email\"}"); return; }
-      if (pw == null || pw.length() < 8) { sendJson(ex, 400, "{\"error\":\"weak\"}"); return; }
+      if (!passwordOk(pw)) { sendJson(ex, 400, "{\"error\":\"weak\"}"); return; }
       String newId;
       synchronized (DBLOCK) {
         Connection c = db();

@@ -49,6 +49,13 @@ body {
 input, select, textarea { font-size: 16px; }
 /* Wachtwoordveld met oogje */
 .pw-wrap { position: relative; }
+/* Wachtwoordeisen-checklist: groen vinkje bij voldaan, rood kruisje zolang niet */
+.pw-reqs { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.pw-reqs:empty { display: none; }
+.pw-reqs li { display: flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 700; }
+.pw-reqs li .icon { flex: 0 0 auto; width: 15px; height: 15px; stroke-width: 3; }
+.pw-reqs li.ok { color: var(--green-bright); }
+.pw-reqs li.bad { color: var(--muted); }
 .pw-wrap input { width: 100%; padding-right: 42px; }
 .pw-eye { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); background: none; border: 0; padding: 7px; color: var(--muted); cursor: pointer; display: inline-flex; border-radius: 8px; }
 .pw-eye.on, .pw-eye:hover { color: var(--ink); }

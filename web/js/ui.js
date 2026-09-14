@@ -35,6 +35,29 @@
       (placeholder ? ' placeholder="' + placeholder + '"' : "") + (extra || "") + ">" +
       '<button type="button" class="pw-eye" tabindex="-1" aria-label="Toon wachtwoord">' + svg("eye", "icon-sm") + "</button></div>";
   }
+  // Wachtwoordeisen — client en server houden exact dezelfde regels aan.
+  var PW_MIN = 8;
+  function pwChecks(pw) {
+    pw = pw || "";
+    return [
+      { label: "Minimaal " + PW_MIN + " tekens", ok: pw.length >= PW_MIN },
+      { label: "Minstens 1 hoofdletter", ok: /[A-Z]/.test(pw) },
+      { label: "Minstens 1 cijfer of symbool", ok: /[^A-Za-z]/.test(pw) }
+    ];
+  }
+  function pwValid(pw) { return pwChecks(pw).every(function (c) { return c.ok; }); }
+  function pwChecklist(id) { return '<ul class="pw-reqs" id="' + id + '"></ul>'; }
+  // Koppelt een live-checklist (groen vinkje / rood kruisje) aan een wachtwoordveld.
+  function bindPwChecklist(scope, inputName, listId) {
+    var inp = scope.querySelector('[name="' + inputName + '"]'), list = scope.querySelector("#" + listId);
+    if (!inp || !list) return;
+    function upd() {
+      list.innerHTML = pwChecks(inp.value).map(function (c) {
+        return '<li class="' + (c.ok ? "ok" : "bad") + '">' + svg(c.ok ? "check" : "x", "icon-sm") + "<span>" + c.label + "</span></li>";
+      }).join("");
+    }
+    inp.addEventListener("input", upd); upd();
+  }
   function esc(s) {
     return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
@@ -585,7 +608,7 @@
               '<div class="field"><label>Achternaam</label><input name="achternaam" required></div></div>' +
             '<div class="field"><label>HR-nummer</label><input name="num" inputmode="numeric" placeholder="1234567" required></div>' +
             '<div class="field"><label>E-mailadres</label><input type="email" name="email" placeholder="naam@jumbo.com" required></div>' +
-            '<div class="field"><label>Wachtwoord</label>' + pwInput("p1", "Min. 8 tekens", " required") + "</div>" +
+            '<div class="field"><label>Wachtwoord</label>' + pwInput("p1", "Min. 8 tekens", " required") + pwChecklist("regReqs") + "</div>" +
             '<div class="field"><label>Herhaal wachtwoord</label>' + pwInput("p2", "", " required") + "</div>" +
             '<div id="regMsg"></div>' +
             '<button class="btn btn-primary btn-block" type="submit">' + svg("check") + "Account aanmaken</button>" +
@@ -596,9 +619,11 @@
 
     el("app").querySelector("[data-back]").addEventListener("click", function () { regInvite = null; switchAuthScreen("register-code"); });
     bindAuthModeSeg();
+    bindPwChecklist(el("regForm"), "p1", "regReqs");
     el("regForm").addEventListener("submit", function (e) {
       e.preventDefault();
       var f = e.target, btn = f.querySelector('button[type="submit"]');
+      if (!pwValid(f.p1.value)) { el("regMsg").innerHTML = '<div class="alert alert-error">Het wachtwoord voldoet nog niet aan alle eisen.</div>'; return; }
       if (f.p1.value !== f.p2.value) { el("regMsg").innerHTML = '<div class="alert alert-error">De wachtwoorden komen niet overeen.</div>'; return; }
       setBtnLoading(btn, true);
       S.registerWithCode(regInvite.code, { voornaam: f.voornaam.value, achternaam: f.achternaam.value, personeelsnummer: f.num.value, email: f.email.value, wachtwoord: f.p1.value })
@@ -617,15 +642,17 @@
         '<div class="auth-body">' +
           '<div class="alert alert-info">Je logde in met een eenmalige code. Stel nu een persoonlijk wachtwoord in om verder te gaan.</div>' +
           '<form id="pwForm">' +
-            '<div class="field"><label>Nieuw wachtwoord</label>' + pwInput("p1", "Min. 8 tekens", " required") + "</div>" +
+            '<div class="field"><label>Nieuw wachtwoord</label>' + pwInput("p1", "Min. 8 tekens", " required") + pwChecklist("pwReqs") + "</div>" +
             '<div class="field"><label>Herhaal wachtwoord</label>' + pwInput("p2", "", " required") + "</div>" +
             '<div id="pwMsg"></div>' +
             '<button class="btn btn-primary btn-block" type="submit">' + svg("check") + "Opslaan en doorgaan</button>" +
           "</form>" +
         "</div></div>" + authFoot() + "</div></div>";
+    bindPwChecklist(el("pwForm"), "p1", "pwReqs");
     el("pwForm").addEventListener("submit", function (e) {
       e.preventDefault();
       var f = e.target, btn = f.querySelector('button[type="submit"]');
+      if (!pwValid(f.p1.value)) { el("pwMsg").innerHTML = '<div class="alert alert-error">Het wachtwoord voldoet nog niet aan alle eisen.</div>'; return; }
       if (f.p1.value !== f.p2.value) { el("pwMsg").innerHTML = '<div class="alert alert-error">De wachtwoorden komen niet overeen.</div>'; return; }
       setBtnLoading(btn, true);
       S.setInitialPassword(f.p1.value)
@@ -2080,7 +2107,7 @@
       '<div class="prof-divider">Wachtwoord wijzigen</div>' +
       '<form id="cpForm">' +
         '<div class="field"><label>Huidig wachtwoord</label>' + pwInput("old", "", " required") + "</div>" +
-        '<div class="field"><label>Nieuw wachtwoord</label>' + pwInput("n1", "Min. 8 tekens", " required") + "</div>" +
+        '<div class="field"><label>Nieuw wachtwoord</label>' + pwInput("n1", "Min. 8 tekens", " required") + pwChecklist("cpReqs") + "</div>" +
         '<div class="field"><label>Herhaal nieuw wachtwoord</label>' + pwInput("n2", "", " required") + "</div>" +
         '<div id="cpMsg"></div>' +
       "</form>";
@@ -2096,9 +2123,11 @@
             toast("Gegevens opgeslagen.", "ok"); close(); render();
           } catch (e) { msg.innerHTML = '<div class="alert alert-error">' + esc(e.message) + "</div>"; }
         });
+        bindPwChecklist(ov, "n1", "cpReqs");
         ov.querySelector("#cpSave").addEventListener("click", function () {
           var f = ov.querySelector("#cpForm");
           var msg = ov.querySelector("#cpMsg");
+          if (!pwValid(f.n1.value)) { msg.innerHTML = '<div class="alert alert-error">Het nieuwe wachtwoord voldoet nog niet aan alle eisen.</div>'; return; }
           if (f.n1.value !== f.n2.value) { msg.innerHTML = '<div class="alert alert-error">De nieuwe wachtwoorden komen niet overeen.</div>'; return; }
           S.changeOwnPassword(f.old.value, f.n1.value)
             .then(function () { toast("Wachtwoord gewijzigd.", "ok"); close(); })
