@@ -3057,9 +3057,9 @@
      streepjescode (breed kader). Alleen de bijbehorende formaten staan aan, dus een verdwaalde
      code op een andere sticker wordt niet per ongeluk gelezen. */
   var SCAN_SOORTEN = {
-    qr:      { titel: "QR-code koelbox scannen", kader: "vierkant", tip: "Richt de camera op de QR-code van de koelbox.",
+    qr:      { titel: "QR-code koelbox scannen", kader: "vierkant", tip: "Richt op de QR-code van de koelbox. Houd 15–20 cm afstand: scherp is belangrijker dan groot.",
                natief: ["qr_code", "data_matrix"], zxing: ["QR_CODE", "DATA_MATRIX"] },
-    barcode: { titel: "Barcode vriesbox scannen", kader: "breed", tip: "Houd de streepjescode van de vriesbox in het kader.",
+    barcode: { titel: "Barcode vriesbox scannen", kader: "breed", tip: "Houd de streepjescode in het kader, 15–20 cm van het etiket: scherp is belangrijker dan groot.",
                natief: ["code_39", "code_128", "ean_13", "ean_8", "itf", "upc_a", "upc_e"], zxing: ["CODE_39", "CODE_128", "EAN_13", "EAN_8", "ITF"] }
   };
   // De code bevat het boxnummer; zit er meer omheen (prefix, URL), dan halen we het langste getal eruit.
@@ -3090,10 +3090,10 @@
         var video = ov.querySelector("#scanVid"), msg = ov.querySelector("#scanMsg"), diag = ov.querySelector("#scanDiag");
         function zeg(t, err) { msg.textContent = t; msg.classList.toggle("err", !!err); }
         // Diagnoseregel: welke decoder draait en in welke resolutie — zo is een mislukte scan op een echt toestel te herleiden.
-        var route = "";
+        var route = "", zoom = "";
         function toonDiag() {
           var res = video.videoWidth ? video.videoWidth + "×" + video.videoHeight : "";
-          diag.textContent = "Scanner: " + (route || "…") + (res ? " · " + res : "");
+          diag.textContent = "Scanner: " + (route || "…") + (res ? " · " + res : "") + (zoom ? " · zoom " + zoom : "");
         }
         video.addEventListener("loadedmetadata", toonDiag);
         function klaar(waarde) {
@@ -3111,6 +3111,15 @@
             stream = s; video.srcObject = s;
             var p = video.play(); if (p && p.catch) p.catch(function () {});
             zeg(sc.tip);
+            // Licht inzoomen als de camera dat kan (iOS 17+, veel Androids): dan kan de gebruiker afstand houden
+            // (scherp beeld) terwijl de code toch groot genoeg in beeld is. Faalt stil als het niet kan.
+            try {
+              var track = s.getVideoTracks()[0], caps = track.getCapabilities ? track.getCapabilities() : null;
+              if (caps && caps.zoom && caps.zoom.max > 1) {
+                var z = Math.min(2, caps.zoom.max);
+                track.applyConstraints({ advanced: [{ zoom: z }] }).then(function () { zoom = z + "×"; toonDiag(); }).catch(function () {});
+              }
+            } catch (e) {}
             if ("BarcodeDetector" in window) return startNatief(video, klaar, zeg);
             return startZXing(s, video, klaar, zeg);
           })
@@ -3176,12 +3185,36 @@
               x = Math.max(0, x); y = Math.max(0, y); w = Math.min(w, vw - x); h = Math.min(h, vh - y);
               return { x: x, y: y, w: w, h: h };
             }
-            function decodeer(rect) {
-              canvas.width = Math.round(rect.w); canvas.height = Math.round(rect.h);
-              ctx.drawImage(vid, rect.x, rect.y, rect.w, rect.h, 0, 0, canvas.width, canvas.height);
+            function probeer() {
               var bmp = new Z.BinaryBitmap(new Z.HybridBinarizer(new Z.HTMLCanvasElementLuminanceSource(canvas)));
               try { return mfr.decode(bmp); } catch (e) { if (!(e instanceof Z.NotFoundException)) throw e; return null; }
               finally { mfr.reset(); }
+            }
+            function decodeer(rect) {
+              canvas.width = Math.round(rect.w); canvas.height = Math.round(rect.h);
+              ctx.drawImage(vid, rect.x, rect.y, rect.w, rect.h, 0, 0, canvas.width, canvas.height);
+              var r = probeer();
+              if (r) return r;
+              // Tweede kans op halve resolutie: bij grote modules/dikke strepen vindt ZXing het patroon soms juist beter klein.
+              if (canvas.width > 500) {
+                var klein = document.createElement("canvas");
+                klein.width = Math.round(canvas.width / 2); klein.height = Math.round(canvas.height / 2);
+                klein.getContext("2d").drawImage(canvas, 0, 0, klein.width, klein.height);
+                var bmp = new Z.BinaryBitmap(new Z.HybridBinarizer(new Z.HTMLCanvasElementLuminanceSource(klein)));
+                try { return mfr.decode(bmp); } catch (e) { if (!(e instanceof Z.NotFoundException)) throw e; return null; }
+                finally { mfr.reset(); }
+              }
+              return null;
+            }
+            // Diagnose: laat af en toe zien wat de decoder binnenkrijgt (uitsnede + gemiddelde helderheid).
+            // Een zwart of leeg plaatje betekent dat drawImage() op dit toestel niets oplevert.
+            var kijk = document.createElement("div"); kijk.className = "scan-peek"; diag.parentNode.insertBefore(kijk, diag.nextSibling);
+            function toonPeek(rect) {
+              var px = ctx.getImageData(0, 0, canvas.width, canvas.height).data, som = 0, n = 0;
+              for (var i = 0; i < px.length; i += 4 * 97) { som += px[i]; n++; }
+              var helder = n ? Math.round(som / n) : 0;
+              kijk.innerHTML = '<img alt="" src="' + canvas.toDataURL("image/jpeg", 0.6) + '">' +
+                '<div>Wat de scanner ziet · uitsnede ' + Math.round(rect.w) + "×" + Math.round(rect.h) + " @ " + Math.round(rect.x) + "," + Math.round(rect.y) + " · helderheid " + helder + "/255</div>";
             }
             var frames = 0;
             (function lus() {
@@ -3193,6 +3226,7 @@
                   var rect = (frames % 3 !== 0 && kaderInVideo()) || { x: 0, y: 0, w: vid.videoWidth, h: vid.videoHeight };
                   var r = decodeer(rect);
                   if (frames % 5 === 0) { route = "ZXing (" + sc.zxing.join(", ") + ") · " + frames + " frames"; toonDiag(); }
+                  if (!r && frames % 30 === 1) toonPeek(rect);
                   if (r) return gevonden(r.getText());
                 } catch (e) { route = "ZXing fout: " + (e && e.message ? e.message : e); toonDiag(); }
               }
