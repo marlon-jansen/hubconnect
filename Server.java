@@ -325,6 +325,38 @@ public class Server {
       if (allowed.contains(hubOfKey(en.getKey())) && !out.has(en.getKey())) out.add(en.getKey(), en.getValue());
     return out;
   }
+  // Beslissingen (ruil goed-/afkeuren) horen bij senior+ (isSetup). Voor een lagere rol bevriezen we de
+  // beslisvelden op de DB-waarde en blokkeren we een overgang naar goedgekeurd/afgekeurd. Legitieme
+  // bezorger-acties (aanbieden = open, overnemen = in-afwachting, intrekken = ingetrokken) blijven werken.
+  static final java.util.Set<String> BESLIST = new java.util.HashSet<>(java.util.Arrays.asList("goedgekeurd", "afgekeurd"));
+  static void freezeField(JsonObject dst, JsonObject src, String key) {
+    dst.add(key, src != null && src.has(key) ? src.get(key) : JsonNull.INSTANCE);
+  }
+  static JsonArray freezeDecisions(JsonArray incoming, Map<String,JsonObject> existingById) {
+    JsonArray out = new JsonArray();
+    for (JsonElement e : incoming) {
+      JsonObject o = e.getAsJsonObject();
+      JsonObject ex = existingById.get(str(o, "id"));
+      // beslisvelden nooit door een lagere rol te zetten → terug naar DB (of leeg bij een nieuwe rij)
+      freezeField(o, ex, "besluitDoorId"); freezeField(o, ex, "besluitOp");
+      freezeField(o, ex, "fifoSkippedBy"); freezeField(o, ex, "fifoSkippedAt");
+      o.addProperty("reden", ex != null ? str(ex, "reden") : "");
+      o.addProperty("fifoWarning", ex != null && bool(ex, "fifoWarning"));
+      String ns = str(o, "status"), es = ex != null ? str(ex, "status") : null;
+      if (ex == null) {
+        if (BESLIST.contains(ns)) o.addProperty("status", "open");        // nieuwe rij mag niet al beslist zijn
+      } else if (BESLIST.contains(ns) || BESLIST.contains(es)) {
+        o.addProperty("status", es);                                      // beslissing zetten óf terugdraaien mag niet
+      }
+      out.add(o);
+    }
+    return out;
+  }
+  static Map<String,JsonObject> byId(JsonArray a) {
+    Map<String,JsonObject> m = new java.util.HashMap<>();
+    for (JsonElement e : a) { JsonObject o = e.getAsJsonObject(); m.put(str(o, "id"), o); }
+    return m;
+  }
   static void saveState(String body, String actorId) throws SQLException {
     JsonObject root = JsonParser.parseString(body).getAsJsonObject();
     Connection c = db();
@@ -334,12 +366,22 @@ public class Server {
     JsonObject actor = actorId != null ? existingUsers.get(actorId) : null;
     // Hub-scoping: rijen/sleutels van hubs die deze actor niet mag beschrijven, terugzetten op de DB-staat.
     java.util.Set<String> allowedHubs = allowedHubsFor(actor);
-    if (actor != null && allowedHubs != null) {
+    boolean actorSetup = actor != null && roleLevel(str(actor, "rol")) >= 3;   // senior+ mag beslissen/diensten zetten
+    if (actor != null && (allowedHubs != null || !actorSetup)) {
       JsonObject cur = JsonParser.parseString(buildState()).getAsJsonObject();  // huidige DB-staat (vóór wissen)
-      for (String t : new String[]{"shifts","taskOffers","backups","callouts","logs","plannings"})
-        root.add(t, mergeHubList(arr(root, t), arr(cur, t), allowedHubs));
-      for (String t : new String[]{"schade","kwaliteit","lc","trolley","trolleyStock","diensten"})
-        root.add(t, mergeHubMap(obj(root, t), obj(cur, t), allowedHubs));
+      if (allowedHubs != null) {
+        for (String t : new String[]{"shifts","taskOffers","backups","callouts","logs","plannings"})
+          root.add(t, mergeHubList(arr(root, t), arr(cur, t), allowedHubs));
+        for (String t : new String[]{"schade","kwaliteit","lc","trolley","trolleyStock","diensten"})
+          root.add(t, mergeHubMap(obj(root, t), obj(cur, t), allowedHubs));
+      }
+      if (!actorSetup) {
+        // Beslissingen bevriezen (ruil goed-/afkeuren is senior+).
+        for (String t : new String[]{"shifts","taskOffers","backups","callouts"})
+          root.add(t, freezeDecisions(arr(root, t), byId(arr(cur, t))));
+        // Diensten toewijzen/afronden is senior+ → een lagere rol wijzigt de dienstenlijst nooit.
+        root.add("diensten", cur.get("diensten"));
+      }
     }
     boolean prevAuto = c.getAutoCommit();
     c.setAutoCommit(false);
