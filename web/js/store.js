@@ -981,37 +981,39 @@
     var done = list.filter(function (b) { return b.steekproef && b.steekproef.controleGedaan; }).length;
     return { total: list.length, done: done };
   }
-  function newBus(naam, bus, kenteken) { return { id: uid("bus"), naam: (naam || "").trim(), bus: (bus || "").trim(), kenteken: (kenteken || "").trim(), dock: "", opmerking: "", gecontroleerd: false, mist_tolkrol: false, mist_kabels: false, mist_doekjes: false, steekproef: null }; }
+  function newBus(naam, bus, kenteken) { return { id: uid("bus"), naam: (naam || "").trim(), bus: (bus || "").trim(), kenteken: (kenteken || "").trim(), dock: "", opDock: false, opmerking: "", gecontroleerd: false, mist_tolkrol: false, mist_doekjes: false, schade: false, steekproef: null }; }
   // Probleembus: er mist iets bij de schadecontrole (voor Bussenbeheer).
-  function busHeeftProbleem(b) { return !!(b.mist_tolkrol || b.mist_kabels || b.mist_doekjes); }
+  function busHeeftProbleem(b) { return !!(b.mist_tolkrol || b.mist_doekjes); }
 
   /* ----- Doorlopende gebreken per bus -----
      Een ontbrekend onderdeel blijft per (hub + busnummer) openstaan op volgende dagen/shifts,
      tot de schadecontrole het in een latere shift als opgelost invoert. Opgeslagen in de
      kwaliteit-tabel onder sentinel `hub|__GEBREKEN__|__GEBREKEN__` (emballage-JSONB), zodat het
      zonder serverwijziging persisteert. */
-  var MIST_FIELDS = ["mist_tolkrol", "mist_kabels", "mist_doekjes"];
+  // "Kabels" is met v=151 verwijderd (zitten standaard niet meer in de bus); mist_kabels blijft ongebruikt
+  // op oudere bus-records staan maar telt nergens meer mee.
+  var MIST_FIELDS = ["mist_tolkrol", "mist_doekjes"];
   function gebrekenStore(hubId) {
     if (!db.kwaliteit) db.kwaliteit = {};
     var k = hubId + "|__GEBREKEN__|__GEBREKEN__";
     if (!db.kwaliteit[k] || !db.kwaliteit[k].emballage) db.kwaliteit[k] = { emballage: {}, soort: {} };
-    return db.kwaliteit[k].emballage; // map: busnummer -> { mist_tolkrol, mist_kabels, mist_doekjes, updatedAt }
+    return db.kwaliteit[k].emballage; // map: busnummer -> { mist_tolkrol, mist_doekjes, updatedAt }
   }
   function readGebrek(hubId, busnr) {
     var b = (busnr || "").trim(), g = b && gebrekenStore(hubId)[b];
-    return { mist_tolkrol: !!(g && g.mist_tolkrol), mist_kabels: !!(g && g.mist_kabels), mist_doekjes: !!(g && g.mist_doekjes) };
+    return { mist_tolkrol: !!(g && g.mist_tolkrol), mist_doekjes: !!(g && g.mist_doekjes) };
   }
   function setGebrek(hubId, busnr, field, val) {
     var b = (busnr || "").trim(); if (!b || MIST_FIELDS.indexOf(field) === -1) return;
     var m = gebrekenStore(hubId);
-    if (!m[b]) m[b] = { mist_tolkrol: false, mist_kabels: false, mist_doekjes: false, updatedAt: null };
+    if (!m[b]) m[b] = { mist_tolkrol: false, mist_doekjes: false, updatedAt: null };
     m[b][field] = !!val; m[b].updatedAt = now();
   }
   // Nieuwe bus erft openstaande gebreken van hetzelfde busnummer (doorloop naar volgende dagen).
   function applyGebreken(hubId, bus) {
     if (!bus || !bus.bus) return bus;
     var g = readGebrek(hubId, bus.bus);
-    bus.mist_tolkrol = g.mist_tolkrol; bus.mist_kabels = g.mist_kabels; bus.mist_doekjes = g.mist_doekjes;
+    bus.mist_tolkrol = g.mist_tolkrol; bus.mist_doekjes = g.mist_doekjes;
     return bus;
   }
   function schadeImportColumns(hubId, datum, dagdeel, busText, kentekenText, naamText) {
@@ -1051,6 +1053,7 @@
       var bezet = s.buses.filter(function (x) { return x.id !== busId && String(x.dock) === String(dock); })[0];
       if (bezet) throw new Error("Dock " + dock + " is al toegewezen aan bus " + (bezet.bus || "?") + ".");
     }
+    if (String(b.dock || "") !== String(dock || "")) b.opDock = false; // ander/geen dock → nog niet aangekomen
     b.dock = dock || ""; save();
   }
   /* ----- Docks per busnummer (klaarzetten, v=147) -----
@@ -1066,14 +1069,15 @@
     // De bus die nu op dit dock staat: dock loskoppelen; was hij alleen voor het dock toegevoegd, dan weg.
     s.buses.filter(function (x) { return String(x.dock) === String(dock); }).forEach(function (x) {
       if (busNr && String(x.bus).trim() === busNr) return; // zelfde bus opnieuw ingevuld: laten staan
-      x.dock = "";
+      x.dock = ""; x.opDock = false;
     });
     s.buses = s.buses.filter(function (x) { return !(x.dockOnly && !x.dock); });
     if (!busNr) { save(); return null; }
     var b = busByNr(s, busNr);
     if (!b) { b = applyGebreken(hubId, newBus("", busNr, "")); b.dockOnly = true; s.buses.push(b); }
+    if (String(b.dock || "") !== String(dock)) b.opDock = false; // nieuw/ander dock → nog niet aangekomen
     b.dock = String(dock); // een bus staat maar op één dock (het oude dock is hierboven al losgekoppeld via de filter op busnummer)
-    s.buses.forEach(function (x) { if (x !== b && String(x.bus).trim() === busNr) x.dock = ""; });
+    s.buses.forEach(function (x) { if (x !== b && String(x.bus).trim() === busNr) { x.dock = ""; x.opDock = false; } });
     save();
     return { bus: b, toegevoegd: !!b.dockOnly };
   }
@@ -1731,7 +1735,7 @@
   function moduleStatus(id) { return (db.moduleStatus && db.moduleStatus[id]) || "actief"; }
   function setModuleStatus(id, status) {
     if (!isAdmin(currentUser())) throw new Error("Alleen de beheerder kan modules aan- of uitzetten.");
-    if ((id === "personeelsbeheer" || id === "modulebeheer") && status !== "actief") throw new Error("Deze module kan niet uit.");
+    if (id === "modulebeheer" && status !== "actief") throw new Error("Deze module kan niet uit.");
     if (!db.moduleStatus) db.moduleStatus = {};
     if (status === "actief") delete db.moduleStatus[id]; else db.moduleStatus[id] = status === "verborgen" ? "verborgen" : "onderhoud";
     save();

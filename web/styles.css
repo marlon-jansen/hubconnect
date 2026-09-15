@@ -400,6 +400,18 @@ main { max-width: 1100px; margin: 0 auto; padding: 22px 18px 80px; }
 .sc-sp-btn.cap { background: var(--surface-2); color: var(--muted); border-color: var(--line); cursor: default; }
 .sc-sp-btn.cap:hover { background: var(--surface-2); }
 .sp-dash { font-weight: 900; margin-right: 4px; font-size: 15px; line-height: 1; }
+.sc-schade-btn { background: var(--surface-2); color: var(--ink-soft); border: 1px solid var(--line); font-weight: 800; white-space: nowrap; }
+.sc-schade-btn:hover { background: var(--red-soft); color: var(--red); border-color: var(--red); }
+.sc-schade-btn.on { background: var(--red); color: #fff; border-color: var(--red); }
+.sc-schade-btn.on:hover { background: var(--red); }
+.badge.dock.dock-check { cursor: pointer; gap: 8px; padding-right: 6px; transition: background .15s, color .15s; }
+.badge.dock.dock-check.ro { cursor: default; }
+.badge.dock.dock-check input { display: none; }
+.dock-check-ico { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; border: 2px solid currentColor; background: color-mix(in srgb, currentColor 16%, transparent); flex: 0 0 auto; }
+.dock-check-ico .icon { width: 12px; height: 12px; stroke-width: 3; opacity: 0; color: currentColor; }
+.badge.dock.dock-check.on { background: var(--green-soft); color: var(--green); }  /* hele boxje mee-groen zodra de bus op het dock staat */
+.badge.dock.dock-check.on .dock-check-ico { background: var(--green-bright); border-color: transparent; color: #fff; }
+.badge.dock.dock-check.on .dock-check-ico .icon { opacity: 1; }
 .chip.removable { cursor: default; }
 .chip .x { cursor: pointer; display: inline-flex; opacity: .6; }
 .chip .x:hover { opacity: 1; }

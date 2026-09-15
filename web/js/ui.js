@@ -1852,11 +1852,11 @@
   // Modules aan/uit (beheerder): actief · onderhoud (zichtbaar, dicht voor niet-beheerders) · verborgen (voor iedereen weg).
   function beheerModules() {
     var rows = S.MODULES.map(function (m) {
-      var st = S.moduleStatus(m.id), vast = m.id === "personeelsbeheer" || m.id === "modulebeheer";
+      var st = S.moduleStatus(m.id), vast = m.id === "modulebeheer";
       function opt(v, l) { return '<option value="' + v + '"' + (st === v ? " selected" : "") + ">" + l + "</option>"; }
       var badge = st === "actief" ? '<span class="badge st-goedgekeurd">Actief</span>' : st === "onderhoud" ? '<span class="badge st-afwachting">Onderhoud</span>' : '<span class="badge st-afgekeurd">Verborgen</span>';
       return '<tr><td class="cellname">' + esc(m.naam) + "</td><td data-th=\"Status\">" + badge + "</td>" +
-        '<td data-th="Instellen">' + (vast ? '<span class="cellsub">Altijd aan</span>' : '<select class="pill-select" data-modstatus="' + m.id + '">' + opt("actief", "Actief") + opt("onderhoud", "Onderhoud") + opt("verborgen", "Verborgen") + "</select>") + "</td></tr>";
+        '<td data-th="Instellen">' + (vast ? '<span class="cellsub">Altijd actief</span>' : '<select class="pill-select" data-modstatus="' + m.id + '">' + opt("actief", "Actief") + opt("onderhoud", "Onderhoud") + opt("verborgen", "Verborgen") + "</select>") + "</td></tr>";
     }).join("");
     return panel("grid", "Modules", tableScroll("<thead><tr><th>Module</th><th>Status</th><th>Instellen</th></tr></thead><tbody>" + rows + "</tbody>"));
   }
@@ -2584,7 +2584,7 @@
         '<input type="checkbox" ' + (b.gecontroleerd ? "checked" : "") + (canEdit ? "" : " disabled") + ' data-scchk="' + b.id + '">' + svg("check", "icon-sm") + "</label></span></td>";
     }
     function mistCell(b) {
-      var items = [["mist_tolkrol", "Tolkrol"], ["mist_kabels", "Kabels"], ["mist_doekjes", "Doekjes"]];
+      var items = [["mist_tolkrol", "Tolkrol"], ["mist_doekjes", "Doekjes"]];
       return '<td data-th="Ontbreekt"><div class="chips">' + items.map(function (it) {
         var on = b[it[0]];
         if (!canEdit) return on ? '<span class="badge st-afgekeurd">' + esc(it[1]) + " mist</span>" : "";
@@ -2600,24 +2600,36 @@
       return '<td data-th="Steekproef"><button class="btn btn-sm sc-sp-btn' + (done ? " done" : "") + '" data-spbus="' + b.id + '"' + (canEdit ? "" : " disabled") + ">" +
         svg(done ? "check" : "clipboard", "icon-sm") + "Steekproef</button></td>";
     }
+    // Schade melden: los van de "ontbreekt"-checklist, kleurt rood zodra actief; de senior ziet het op het dashboard.
+    function schadeCell(b) {
+      return '<td data-th="Schade"><button class="btn btn-sm sc-schade-btn' + (b.schade ? " on" : "") + '" data-scschade="' + b.id + '"' + (canEdit ? "" : " disabled") + ">" +
+        svg("alertTri", "icon-sm") + "Schade</button></td>";
+    }
+    // Eén doorlopend dock-boxje mét het "staat op het dock"-vinkje erin (alleen als er een dock is toegewezen).
+    function dockCell(b, prefix) {
+      if (!b.dock) return '<span class="cellsub">—</span>';
+      return '<label class="badge dock dock-check' + (b.opDock ? " on" : "") + (canEdit ? "" : " ro") + '" title="Bus staat op het dock">' +
+        svg("building", "icon-sm") + esc((prefix || "Dock ") + b.dock) +
+        '<input type="checkbox" ' + (b.opDock ? "checked" : "") + (canEdit ? "" : " disabled") + ' data-scopdock="' + b.id + '">' +
+        '<span class="dock-check-ico">' + svg("check", "icon-sm") + "</span></label>";
+    }
     // Laagste busnummer bovenaan; bussen die alleen voor een dock zijn toegevoegd (hoeven niet gecontroleerd) onderaan.
     var busSorted = s.buses.slice().sort(function (a, b) { if (!!a.dockOnly !== !!b.dockOnly) return a.dockOnly ? 1 : -1; return byBusNr(a, b); });
     var showDock = dockShift(c);                    // docks horen bij de PM-shift (en zondag AM, want dan is er geen PM)
     var rows = busSorted.length ? busSorted.map(function (b) {
-      var dockCell = b.dock ? '<span class="badge dock">' + svg("building", "icon-sm") + "Dock " + esc(b.dock) + "</span>" : '<span class="cellsub">—</span>';
       var opmNote = b.opmerking ? '<div class="bus-opm">' + svg("alertTri", "icon-sm") + esc(b.opmerking) + "</div>" : "";
       var wasNote = b.wassen ? '<span class="badge was">' + svg("droplet", "icon-sm") + (b.wasStatus === "gewassen" ? "Gewassen" : b.wasStatus === "niet" ? "Niet gewassen" : "Naar wasstraat") + "</span>" : "";
       var rit2Note = b.tweedeRit ? '<span class="badge rit2">' + svg("refresh", "icon-sm") + "2e rit</span>" : "";
-      if (b.dockOnly) { // alleen voor een dock toegevoegd: geen controle nodig, wel laten zien waar hij heen mag
+      if (b.dockOnly) { // alleen voor een dock toegevoegd: geen controle nodig, wel laten zien waar hij heen mag + het aankomst-vinkje
         return '<tr class="sc-dockonly"><td><div class="cellname">Bus ' + esc(b.bus || "?") + '</div><div class="cellsub">Niet in de planning — hoeft niet gecontroleerd</div>' + opmNote + "</td>" +
-          '<td data-th="Gecontroleerd"><span class="cellsub">—</span></td><td data-th="Ontbreekt"><span class="cellsub">—</span></td><td data-th="Steekproef"><span class="cellsub">—</span></td>' +
-          (showDock ? '<td data-th="Dock"><span class="badge dock">' + svg("building", "icon-sm") + "Mag naar dock " + esc(b.dock) + "</span></td>" : "") + "</tr>";
+          '<td data-th="Gecontroleerd"><span class="cellsub">—</span></td><td data-th="Ontbreekt"><span class="cellsub">—</span></td><td data-th="Steekproef"><span class="cellsub">—</span></td><td data-th="Schade"><span class="cellsub">—</span></td>' +
+          (showDock ? '<td data-th="Dock">' + dockCell(b, "Mag naar dock ") + "</td>" : "") + "</tr>";
       }
       return "<tr class=\"" + (b.gecontroleerd ? "sc-done" : "") + "\"><td><div class=\"cellname\">Bus " + esc(b.bus || "?") + "</div><div class=\"cellsub\">" + esc(b.naam || "") + (b.kenteken ? " · " + esc(b.kenteken) : "") + "</div>" + rit2Note + wasNote + opmNote + "</td>" +
-        chkCell(b) + mistCell(b) + spCell(b) + (showDock ? '<td data-th="Dock">' + dockCell + "</td>" : "") + "</tr>";
-    }).join("") : '<tr><td colspan="' + (showDock ? 5 : 4) + '"><div class="cellsub" style="padding:14px">Er is nog geen schadecontrolelijst klaargezet.</div></td></tr>';
+        chkCell(b) + mistCell(b) + spCell(b) + schadeCell(b) + (showDock ? '<td data-th="Dock">' + dockCell(b) + "</td>" : "") + "</tr>";
+    }).join("") : '<tr><td colspan="' + (showDock ? 6 : 5) + '"><div class="cellsub" style="padding:14px">Er is nog geen schadecontrolelijst klaargezet.</div></td></tr>';
     var table = '<div class="panel" style="padding:0"><div class="table-scroll"><table class="table sc-table">' +
-      "<thead><tr><th>Bus</th><th>Gecontroleerd</th><th>Ontbreekt</th><th>Steekproef</th>" + (showDock ? "<th>Dock</th>" : "") + "</tr></thead><tbody>" + rows + "</tbody></table></div></div>";
+      "<thead><tr><th>Bus</th><th>Gecontroleerd</th><th>Ontbreekt</th><th>Steekproef</th><th>Schade</th>" + (showDock ? "<th>Dock</th>" : "") + "</tr></thead><tbody>" + rows + "</tbody></table></div></div>";
 
     // Steekproeven controleren doet de binnendienst via het senior-dashboard (niet hier).
     el("app").innerHTML = moduleShell("Schadecontrole",
@@ -2626,6 +2638,8 @@
     bindModuleHeader(renderSchade);
     document.querySelectorAll("[data-scchk]").forEach(function (cb) { cb.addEventListener("change", function () { try { S.schadeToggle(c.h, c.d, c.dd, cb.getAttribute("data-scchk"), "gecontroleerd"); renderSchade(); } catch (e) { toast(e.message, "err"); } }); });
     document.querySelectorAll("[data-scmist]").forEach(function (ch) { ch.addEventListener("click", function () { var p = ch.getAttribute("data-scmist").split("|"); try { S.schadeToggle(c.h, c.d, c.dd, p[0], p[1]); renderSchade(); } catch (e) { toast(e.message, "err"); } }); });
+    document.querySelectorAll("[data-scschade]").forEach(function (b) { b.addEventListener("click", function () { try { S.schadeToggle(c.h, c.d, c.dd, b.getAttribute("data-scschade"), "schade"); renderSchade(); } catch (e) { toast(e.message, "err"); } }); });
+    document.querySelectorAll("[data-scopdock]").forEach(function (cb) { cb.addEventListener("change", function () { try { S.schadeToggle(c.h, c.d, c.dd, cb.getAttribute("data-scopdock"), "opDock"); renderSchade(); } catch (e) { toast(e.message, "err"); } }); });
     document.querySelectorAll("[data-spbus]").forEach(function (b) { b.addEventListener("click", function () { openSteekproef(c, b.getAttribute("data-spbus")); }); });
   }
 
@@ -2727,7 +2741,7 @@
     if (state.bbAll === undefined) state.bbAll = false;
     var buses = s.buses.filter(function (b) { return state.bbAll || S.busHeeftProbleem(b); });
     function mistBadges(b) {
-      var items = [["mist_tolkrol", "Tolkrol"], ["mist_kabels", "Kabels"], ["mist_doekjes", "Doekjes"]];
+      var items = [["mist_tolkrol", "Tolkrol"], ["mist_doekjes", "Doekjes"]];
       var chips = items.filter(function (it) { return b[it[0]]; }).map(function (it) { return '<span class="badge st-afgekeurd">' + esc(it[1]) + " mist</span>"; }).join("");
       return chips || '<span class="cellsub">Geen afwijking</span>';
     }
@@ -3737,27 +3751,31 @@
     var lcGevuld = lcVakken.filter(function (v) { return v.bus || v.rit; });
     var lcRit2 = lcGevuld.filter(function (v) { return v.tweedeRit; }).length;
     var lcJbt = lcGevuld.filter(function (v) { return v.jbt && !v.tweedeRit; }).length;
+    var lcN2 = lcGevuld.filter(function (v) { return v.type === "N2" && !v.tweedeRit; }).length;
     var recentGeladen = recentList(S.recentGeladenBussen(c.h, c.d, c.dd).map(function (v) { return recentItem("check", "Bus " + (v.bus || "vak " + v.nr), fmtClock(v.geladenAt)); }), "Nog geen bussen geladen");
     var ladenInner = '<div class="dash-row">' + ring(lcS.pct, "o") + '<div><div class="dash-big">' + lcS.done + " / " + lcS.used + '</div><div class="cellsub">Vakken geladen</div></div></div>' +
       facts([
-        { lab: "Nog te laden (1e ritten)", val: lcS.used - lcS.done, cls: lcS.used - lcS.done ? "warn" : "ok", go: "lc|laden" },
+        { lab: "1e ritten", val: lcS.used, go: "lc|laden" },
         { lab: "2e ritten", val: lcRit2, go: "lc|laden" },
         { lab: "JBT-ritten", val: lcJbt, go: "lc|laden" },
-        { lab: "Vakken gevuld", val: lcGevuld.length, go: "lc|laden" }
+        { lab: "N2-ritten", val: lcN2, go: "lc|laden" }
       ]) +
       '<div class="dash-recent-title">Recent geladen</div>' + recentGeladen;
 
     // ----- Schadecontrole -----
     var scBuses = S.getSchade(c.h, c.d, c.dd).buses;
     var scProbleem = scBuses.filter(S.busHeeftProbleem).length;
+    var scSchade = scBuses.filter(function (b) { return b.schade; }).length;
+    var scDockTotal = scBuses.filter(function (b) { return !!b.dock; }).length;
+    var scDockDone = scBuses.filter(function (b) { return b.dock && b.opDock; }).length;
     var spSt = S.steekproefStats(c.h, c.d, c.dd);
     var recentSchade = recentList(S.recentGecontroleerdeBussen(c.h, c.d, c.dd).map(function (b) { return recentItem("check", "Bus " + (b.bus || "?"), fmtClock(b.gecontroleerdAt)); }), "Nog geen bussen gecontroleerd");
     var schadeInner = '<div class="dash-row">' + ring(sc.pct, "g") + '<div><div class="dash-big">' + sc.done + " / " + sc.total + '</div><div class="cellsub">Bussen gecontroleerd</div></div></div>' +
       facts([
-        { lab: "Nog te controleren", val: sc.total - sc.done, cls: sc.total - sc.done ? "warn" : "ok", go: "schadecontrole|" },
-        { lab: "Afwijkingen", val: scProbleem, cls: scProbleem ? "err" : "", go: "bussenbeheer|" },
-        { lab: "Steekproeven voltooid", val: spSt.done + " / " + spSt.total, cls: spSt.done >= spSt.total ? "ok" : "warn", go: "schadecontrole|" },
-        { lab: "Steekproeven controleren", val: scc.total - scc.done, cls: scc.total - scc.done ? "warn" : "ok", go: "dash|steekproef" }
+        { lab: "Voltooide steekproeven", val: spSt.done + " / " + spSt.total, cls: spSt.done >= spSt.total ? "ok" : "warn", go: "schadecontrole|" },
+        { lab: "Bussen op dock", val: scDockDone + " / " + scDockTotal, cls: scDockTotal && scDockDone >= scDockTotal ? "ok" : "", go: "schadecontrole|" },
+        { lab: "Schades", val: scSchade, cls: scSchade ? "err" : "", go: "schadecontrole|" },
+        { lab: "Afwijkingen", val: scProbleem, cls: scProbleem ? "err" : "", go: "bussenbeheer|" }
       ]) +
       '<div class="dash-recent-title">Recent gecontroleerd</div>' + recentSchade;
 
@@ -3770,8 +3788,8 @@
       facts([
         { lab: "Vakken geteld", val: pc.done + " / " + pc.total, cls: pc.total && pc.done >= pc.total ? "ok" : "", go: "lc|tellen" },
         { lab: "Pendels getemperatuurd", val: tSt.klaar + " / " + tSt.total, cls: tSt.total && tSt.klaar >= tSt.total ? "ok" : "", go: "lc|pc" },
-        { lab: "Afwijkingen", val: tSt.afwijkingen, cls: tSt.afwijkingen ? "err" : "", go: "lc|pc" },
-        { lab: "Trolleys op de hub", val: (tr.stock4 || 0) + (tr.stock5 || 0), go: "dash|trolley" }
+        { lab: "Trolleys op de hub", val: (tr.stock4 || 0) + (tr.stock5 || 0), go: "dash|trolley" },
+        { lab: "Afwijkingen", val: tSt.afwijkingen, cls: tSt.afwijkingen ? "err" : "", go: "lc|pc" }
       ]) +
       '<div class="dash-recent-title">Volgende pendels</div>' + komendePendels +
       '<button class="btn btn-sm dash-view" data-viewpc>' + svg("arrowRight", "icon-sm") + "Bekijk Pendelcontrol</button>";
@@ -3780,11 +3798,13 @@
     var embVakken = S.VAK_NUMMERS.filter(function (i) { return S.vakSoort(c.h, c.d, c.dd, i) === "emb5"; });
     var embTot = 0, embGevuld = 0;
     var vakTotals = embVakken.map(function (i) { var n = S.emballageVakTotal(c.h, c.d, c.dd, i); embTot += n; if (n) embGevuld++; return '<div class="emb-vaktot"><span>Vak ' + i + ":</span> <b>" + n + "</b></div>"; }).join("");
+    var vbAll = S.vbList(c.h, c.d, c.dd);
+    var vbRetouren = vbAll.filter(function (m) { return S.vbOordeel(m).level === "retour"; }).length;
     var spK = S.spTrolleyGet(c.h, c.d, c.dd);
     var spTxt = !spK ? "Geen" : spK.status === "open" ? "Lopende" : spK.status === "ingediend" ? "Ingediend" : "Voltooid";
     var spCls = !spK ? "" : spK.status === "open" ? "info" : spK.status === "ingediend" ? "warn" : "ok";
     var kwalInner = facts([
-        { lab: "Kratten emballage totaal", val: embTot, go: "kwaliteit|" },
+        { lab: "Retouren", val: vbRetouren, go: "kwaliteit|" },
         { lab: "Trolley-steekproef", val: spTxt, cls: spCls, go: "dash|trolley" }
       ]) +
       '<div class="dash-recent-title">Emballage per vak</div>' +
