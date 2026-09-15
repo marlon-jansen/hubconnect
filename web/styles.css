@@ -1206,6 +1206,8 @@ details.prep[open] > summary { border-bottom: 1px solid var(--line); }
 .troll-body { padding: 14px 18px; }
 .troll-nums { display: flex; gap: 30px; margin-top: 8px; }
 .troll-num { display: flex; flex-direction: column; }
+.troll-num-input { width: 64px; padding: 0 0 2px; border: none; border-bottom: 2px solid var(--jumbo-yellow-dark); border-radius: 0; background: transparent; color: inherit; font-family: inherit; }
+.troll-num-input:focus { outline: none; border-color: var(--jumbo-yellow); }
 .troll-status { display: inline-flex; align-items: center; gap: 7px; font-weight: 800; font-size: 13.5px; margin-top: 12px; color: var(--ink-soft); }
 .troll-status.ok { color: var(--green-bright); }
 .troll-status.err { color: var(--red); }

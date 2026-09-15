@@ -3629,7 +3629,7 @@
     });
     var hb = el("app").querySelector("[data-heropen]"); if (hb) hb.addEventListener("click", function () { try { S.shiftAfronden(c.h, c.d, c.dd, true); toast("Shift heropend.", "ok"); renderDashboard(); } catch (e) { toast(e.message, "err"); } });
     bindModuleHeader(renderDashboard);
-    document.querySelectorAll("[data-dashtab]").forEach(function (b) { b.addEventListener("click", function () { state.dashTab = b.getAttribute("data-dashtab"); if (state.dashTab === "voorbereiding") state.prepOpen = {}; renderDashboard(); }); });
+    document.querySelectorAll("[data-dashtab]").forEach(function (b) { b.addEventListener("click", function () { state.dashTab = b.getAttribute("data-dashtab"); if (state.dashTab === "voorbereiding") state.prepOpen = {}; if (state.dashTab !== "trolley") state.trlEdit = false; renderDashboard(); }); });
     if (state.dashTab === "trolley") bindDashTrolley(c);
     else if (state.dashTab === "voorbereiding") {
       bindDashKlaarzetten(c); bindDashDiensten(c); bindSpControle(c);
@@ -3840,11 +3840,19 @@
   // Trolleyvoorraad-tab: alleen de systeemvoorraad (alleen-lezen). De kwaliteitstelling is verwijderd (v=102).
   function dashTrolley(c) {
     var tr = S.getTrolley(c.h, c.d, c.dd), sp = S.spTrolleyGet(c.h, c.d, c.dd);
+    var editing = S.isSetup(c.u) && !!state.trlEdit;
+    // Zelfde "Op de hub"-boxje als in Pendelcontrol (hub-stock*), zodat de voorraad er overal hetzelfde uitziet.
     function nums(v4, v5) {
-      return '<div class="troll-nums"><div class="troll-num"><span class="dash-big">' + (v4 || 0) + '</span><span class="cellsub">4-laags</span></div>' +
-        '<div class="troll-num"><span class="dash-big">' + (v5 || 0) + '</span><span class="cellsub">5-laags</span></div></div>';
+      function item(icon, id, val, label) {
+        var n = editing ? '<input type="number" min="0" inputmode="numeric" class="hub-stock-n troll-num-input" id="' + id + '" value="' + (val || 0) + '">' : '<div class="hub-stock-n">' + (val || 0) + "</div>";
+        return '<div class="hub-stock-item">' + svg(icon, "icon-sm") + "<div>" + n + '<div class="hub-stock-l">' + label + "</div></div></div>";
+      }
+      return '<div class="hub-stock"><div class="hub-stock-grid">' + item("layers5", "trlS5", v5, "5-laags") + item("layers4", "trlS4", v4, "4-laags") + "</div></div>";
     }
-    var sys = panel("inbox", "Trolley-voorraad", '<div class="troll-body">' + nums(tr.stock4, tr.stock5) + "</div>");
+    var editBtn = !S.isSetup(c.u) ? "" : editing
+      ? '<button type="button" class="btn btn-primary btn-sm" data-trlopslaan style="margin-left:auto">' + svg("check", "icon-sm") + "Opslaan</button>"
+      : '<button type="button" class="btn btn-ghost btn-sm" data-trledit style="margin-left:auto">' + svg("pencil", "icon-sm") + "Trolleyvoorraad aanpassen</button>";
+    var sys = panel("inbox", "Trolley-voorraad", '<div class="troll-body">' + nums(tr.stock4, tr.stock5) + "</div>", editBtn);
     var mag = S.spTrolleyMogelijk(c.d, c.dd) && !S.isFutureDay(c.d);
     var spBody;
     if (!sp || sp.status === "gecontroleerd") {
@@ -3878,6 +3886,13 @@
     if ((b = q("[data-spaanpassen]"))) b.addEventListener("click", function () { var a = el("spAdjust"); a.hidden = !a.hidden; });
     if ((b = q("[data-spopslaan]"))) b.addEventListener("click", function () { try { S.spTrolleyAfsluiten(c.h, c.d, c.dd, "aanpassen", el("spS4").value, el("spS5").value); toast("Voorraad aangepast.", "ok"); renderDashboard(); } catch (e) { toast(e.message, "err"); } });
     if ((b = q("[data-spklopt]"))) b.addEventListener("click", function () { try { S.spTrolleyAfsluiten(c.h, c.d, c.dd, "klopt"); toast("Steekproef afgesloten.", "ok"); renderDashboard(); } catch (e) { toast(e.message, "err"); } });
+    if ((b = q("[data-trledit]"))) b.addEventListener("click", function () { state.trlEdit = true; renderDashboard(); });
+    function trlOpslaan() {
+      try { S.trolleySetStock(c.h, c.d, c.dd, "stock4", el("trlS4").value); S.trolleySetStock(c.h, c.d, c.dd, "stock5", el("trlS5").value); state.trlEdit = false; toast("Trolleyvoorraad aangepast.", "ok"); renderDashboard(); }
+      catch (e) { toast(e.message, "err"); }
+    }
+    if ((b = q("[data-trlopslaan]"))) b.addEventListener("click", trlOpslaan);
+    document.querySelectorAll(".troll-num-input").forEach(function (inp) { inp.addEventListener("keydown", function (e) { if (e.key === "Enter") trlOpslaan(); }); });
   }
 
   // Steekproeven-tab: controleren tegen het Jumbo-systeem (vorige shift) + overzicht deze shift.
