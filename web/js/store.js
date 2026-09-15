@@ -1855,9 +1855,12 @@
       // schade alleen voor regels met een echte bus; een bus met twee ritten staat er één keer in
       if (bus && doSchade) {
         if (!seen[bus]) {
+          // Naam en ritnummer (Trip Nr) komen al uit de sheet mee — alvast in de steekproef klaarzetten
+          // zodat de controleur straks alleen nog hr-nummer en kratten hoeft in te vullen.
+          var preSteekproef = { naam: naam, hr: "", rit: rit, kratten: "" };
           var dockBus = schade.buses.filter(function (b) { return b.dockOnly && String(b.bus).trim() === bus; })[0];
-          if (dockBus) { dockBus.dockOnly = false; dockBus.naam = naam; dockBus.kenteken = kent; } // stond al klaar voor een dock → wordt gewone bus
-          else schade.buses.push(applyGebreken(hubId, newBus(naam, bus, kent)));
+          if (dockBus) { dockBus.dockOnly = false; dockBus.naam = naam; dockBus.kenteken = kent; dockBus.steekproef = preSteekproef; } // stond al klaar voor een dock → wordt gewone bus
+          else { var nieuweBus = applyGebreken(hubId, newBus(naam, bus, kent)); nieuweBus.steekproef = preSteekproef; schade.buses.push(nieuweBus); }
           seen[bus] = true;
         }
         // bus rijdt een 2e rit: markeren op de (ene) busregel in de schadecontrole
