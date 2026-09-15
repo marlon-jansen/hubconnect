@@ -972,13 +972,13 @@
     if (!isSetup(currentUser())) throw new Error("Alleen binnendienst (senior+) mag steekproeven controleren.");
     var b = getSchade(hubId, datum, dagdeel).buses.filter(function (x) { return x.id === busId; })[0];
     if (!b || !b.steekproef) return;
-    if (data.systeemKratten !== undefined) b.steekproef.systeemKratten = data.systeemKratten;
-    if (data.controleGedaan !== undefined) { b.steekproef.controleGedaan = !!data.controleGedaan; b.steekproef.controleAt = data.controleGedaan ? now() : null; }
+    if (data.systeemKratten !== undefined) { b.steekproef.systeemKratten = data.systeemKratten; b.steekproef.controleAt = data.systeemKratten !== "" ? now() : null; }
     save();
   }
+  // "Gecontroleerd" is met v=152 geen apart vinkje meer: het systeemaantal invullen is genoeg.
   function steekproefControleStats(hubId, datum, dagdeel) {
     var list = getSchade(hubId, datum, dagdeel).buses.filter(steekproefDone);
-    var done = list.filter(function (b) { return b.steekproef && b.steekproef.controleGedaan; }).length;
+    var done = list.filter(function (b) { return b.steekproef && b.steekproef.systeemKratten !== "" && b.steekproef.systeemKratten != null; }).length;
     return { total: list.length, done: done };
   }
   function newBus(naam, bus, kenteken) { return { id: uid("bus"), naam: (naam || "").trim(), bus: (bus || "").trim(), kenteken: (kenteken || "").trim(), dock: "", opDock: false, opmerking: "", gecontroleerd: false, mist_tolkrol: false, mist_doekjes: false, schade: false, steekproef: null }; }

@@ -3656,11 +3656,10 @@
     }
     animateTab(el("app").querySelector("main"), "dash:" + state.dashTab);
   }
-  // Steekproeven controleren (vorige shift) — binnendienst vult systeem-kratten in en vinkt af.
+  // Steekproeven controleren (vorige shift) — binnendienst vult het systeemaantal in; dat is meteen "gecontroleerd".
   function bindSpControle(c) {
     var prevS = S.vorigeShift(c.d, c.dd);
     document.querySelectorAll("[data-spsys]").forEach(function (inp) { inp.addEventListener("change", function () { try { S.steekproefControleer(c.h, prevS.datum, prevS.dagdeel, inp.getAttribute("data-spsys"), { systeemKratten: inp.value }); renderDashboard(); } catch (e) { toast(e.message, "err"); } }); });
-    document.querySelectorAll("[data-spctrl]").forEach(function (cb) { cb.addEventListener("change", function () { try { S.steekproefControleer(c.h, prevS.datum, prevS.dagdeel, cb.getAttribute("data-spctrl"), { controleGedaan: cb.checked }); renderDashboard(); } catch (e) { toast(e.message, "err"); } }); });
   }
 
   // Aantal voorbereidingsonderdelen dat nog open staat (zelfde criteria als de checklist).
@@ -3912,18 +3911,17 @@
     var spCtrlItems = S.steekproevenList(c.h, prevSc.datum, prevSc.dagdeel);
     var spCtrlRows = spCtrlItems.length ? spCtrlItems.map(function (b) {
       var sp = b.steekproef, sys = (sp.systeemKratten == null ? "" : sp.systeemKratten);
-      var mismatch = sys !== "" && Number(sys) !== Number(sp.kratten), done = sp.controleGedaan;
+      var mismatch = sys !== "" && Number(sys) !== Number(sp.kratten), done = sys !== "";
       var sysCls = sys === "" ? "" : (mismatch ? " sys-err" : " sys-ok");
       var status = !done ? '<span class="cellsub">—</span>' : (mismatch ? '<span class="badge st-afgekeurd">' + svg("alertTri", "icon-sm") + "Afwijking</span>" : '<span class="badge st-goedgekeurd">' + svg("check", "icon-sm") + "Klopt</span>");
       return "<tr class=\"" + (done && !mismatch ? "sc-done" : "") + "\"><td><div class=\"cellname\">Bus " + esc(b.bus || "?") + "</div><div class=\"cellsub\">" + esc(sp.naam || "") + (sp.rit ? " · rit " + esc(sp.rit) : "") + "</div></td>" +
         '<td data-th="Geteld in bus" class="cellname" style="text-align:center">' + esc(sp.kratten) + "</td>" +
-        '<td data-th="Systeem (Jumbo)"><input class="lc-in' + sysCls + '" style="max-width:90px" type="number" inputmode="numeric" min="0" data-spsys="' + b.id + '" value="' + esc(sys) + '"></td>' +
-        '<td class="sc-chk" data-th="Gecontroleerd"><label class="chk-box ' + (done ? "on" : "") + '"><input type="checkbox" ' + (done ? "checked" : "") + ' data-spctrl="' + b.id + '">' + svg("check", "icon-sm") + "</label></td>" +
+        '<td data-th="Systeem"><input class="lc-in' + sysCls + '" style="max-width:90px" type="number" inputmode="numeric" min="0" data-spsys="' + b.id + '" value="' + esc(sys) + '"></td>' +
         '<td data-th="Status">' + status + "</td></tr>";
-    }).join("") : '<tr><td colspan="5"><div class="cellsub" style="padding:12px">Geen steekproeven om te controleren voor ' + esc(prevLabel) + ".</div></td></tr>";
+    }).join("") : '<tr><td colspan="4"><div class="cellsub" style="padding:12px">Geen steekproeven om te controleren voor ' + esc(prevLabel) + ".</div></td></tr>";
     return '<div class="kz-section"><div class="kz-h">' + svg("clipboard", "icon-sm") + "Vorige shift: " + esc(prevLabel) + "</div>" +
       opProgress(scc.done, scc.total, "steekproeven gecontroleerd") +
-      '<div class="panel" style="padding:0"><div class="table-scroll"><table class="table sc-table"><thead><tr><th>Bus</th><th>Geteld in bus</th><th>Systeem (Jumbo)</th><th>Gecontroleerd</th><th>Status</th></tr></thead><tbody>' + spCtrlRows + "</tbody></table></div></div></div>";
+      '<div class="panel" style="padding:0"><div class="table-scroll"><table class="table sc-table"><thead><tr><th>Bus</th><th>Geteld in bus</th><th>Systeem</th><th>Status</th></tr></thead><tbody>' + spCtrlRows + "</tbody></table></div></div></div>";
   }
 
   function prepBlocks(c) {
