@@ -82,7 +82,7 @@
       taskTypes: JSON.parse(JSON.stringify(DEFAULT_TASK_TYPES)),
       users: users, shifts: [], taskOffers: [], backups: [], callouts: [], logs: [],
       plannings: [], schade: {}, kwaliteit: {}, lc: {}, trolley: {}, trolleyStock: {}, diensten: {},
-      inviteCodes: [], session: { userId: null }
+      inviteCodes: [], feedback: [], session: { userId: null }
     };
   }
 
@@ -942,6 +942,35 @@
     return m >= s ? "PM" : "AM";
   }
 
+  /* ----- Gebruikersfeedback -----
+     Iedereen mag feedback achterlaten (via het profiel); teamleider+ ziet en beheert 'm, hub-gescoped
+     zoals Personeelsbeheer (de beheerder ziet alle hubs). Lift mee op de gedeelde staat → geen serverwijziging. */
+  function getFeedbackList() { if (!Array.isArray(db.feedback)) db.feedback = []; return db.feedback; }
+  function submitFeedback(tekst) {
+    var u = currentUser();
+    if (!u) throw new Error("Je moet ingelogd zijn om feedback te geven.");
+    var t = (tekst || "").trim();
+    if (!t) throw new Error("Vul je feedback in.");
+    if (t.length > 1000) throw new Error("Maximaal 1000 tekens.");
+    getFeedbackList().push({ id: uid("fb"), userId: u.id, userNaam: u.voornaam + " " + u.achternaam, hubId: u.hubId, tekst: t, at: now(), gelezen: false, gelezenAt: null });
+    save();
+  }
+  // Hub-gescoped zoals manageableUsers: iedereen t/m locatie-manager ziet alleen de eigen hub,
+  // de beheerder (en manager thuisbezorging) ziet de hub die op de menupagina gekozen is.
+  function feedbackForUser(u) {
+    if (!can.seeBeheer(u)) return [];
+    return getFeedbackList().filter(function (f) { return f.hubId === u.hubId; }).sort(function (a, b) { return b.at.localeCompare(a.at); });
+  }
+  function feedbackMarkGelezen(id, val) {
+    if (!can.seeBeheer(currentUser())) throw new Error("Geen rechten.");
+    var f = getFeedbackList().filter(function (x) { return x.id === id; })[0]; if (!f) return;
+    f.gelezen = !!val; f.gelezenAt = val ? now() : null; save();
+  }
+  function feedbackRemove(id) {
+    if (!can.seeBeheer(currentUser())) throw new Error("Geen rechten.");
+    db.feedback = getFeedbackList().filter(function (x) { return x.id !== id; }); save();
+  }
+
   /* ----- Schadecontrole ----- */
   function getSchade(hubId, datum, dagdeel) { if (!db.schade) db.schade = {}; var k = opKey(hubId, datum, dagdeel); if (!db.schade[k]) db.schade[k] = { buses: [], steekproeven: [] }; if (!db.schade[k].steekproeven) db.schade[k].steekproeven = []; return db.schade[k]; }
   // Steekproef per bus: gele knop op de busregel opent naam/hr/rit/kratten (standaard 5 steekproeven).
@@ -1730,7 +1759,7 @@
   var MODULES = [
     { id: "ruilhub", naam: "RuilHub" }, { id: "dashboard", naam: "Senior Dashboard" }, { id: "lc", naam: "Laadproces" },
     { id: "schadecontrole", naam: "Schadecontrole" }, { id: "kwaliteit", naam: "Kwaliteit" }, { id: "buswassing", naam: "Buswassing" },
-    { id: "personeelsbeheer", naam: "Personeelsbeheer" }, { id: "bussenbeheer", naam: "Bussenbeheer" }, { id: "temparchief", naam: "Temperatuurarchief" }, { id: "modulebeheer", naam: "Modulebeheer" }
+    { id: "personeelsbeheer", naam: "Personeelsbeheer" }, { id: "bussenbeheer", naam: "Bussenbeheer" }, { id: "temparchief", naam: "Temperatuurarchief" }, { id: "feedback", naam: "Feedback" }, { id: "modulebeheer", naam: "Modulebeheer" }
   ];
   function moduleStatus(id) { return (db.moduleStatus && db.moduleStatus[id]) || "actief"; }
   function setModuleStatus(id, status) {
@@ -1931,6 +1960,7 @@
     isSunday: isSunday, dagdelenVoor: dagdelenVoor, isFutureDay: isFutureDay, todayYmd: todayYmd, isSetup: isSetup, canOpShift: canOpShift,
     defaultDagdeelFor: defaultDagdeelFor,
     getDiensten: getDiensten, setDienst: setDienst, importSheet: importSheet,
+    submitFeedback: submitFeedback, feedbackForUser: feedbackForUser, feedbackMarkGelezen: feedbackMarkGelezen, feedbackRemove: feedbackRemove,
     getSchade: getSchade, schadeImportColumns: schadeImportColumns, schadeAddBus: schadeAddBus, schadeToggle: schadeToggle, schadeSetDock: schadeSetDock, schadeSetDockBus: schadeSetDockBus, busOpDock: busOpDock, schadeSetOpmerkingBus: schadeSetOpmerkingBus, schadeSetOpmerking: schadeSetOpmerking, schadeRemove: schadeRemove, schadeReset: schadeReset, schadeStats: schadeStats,
     setBusSteekproef: setBusSteekproef, steekproefDone: steekproefDone, steekproefStats: steekproefStats, steekproevenList: steekproevenList, recentGecontroleerdeBussen: recentGecontroleerdeBussen, busHeeftProbleem: busHeeftProbleem,
     setBusWassen: setBusWassen, wasLijst: wasLijst, wasStats: wasStats, wasCanEdit: wasCanEdit, setWasStatus: setWasStatus,

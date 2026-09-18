@@ -155,7 +155,8 @@
     layers4: '<rect x="4" y="5" width="16" height="14" rx="2"/><path d="M4 9.5h16M4 14h16"/>',
     layers5: '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 8h16M4 12h16M4 16h16"/>',
     exchange: '<path d="M4 8h13l-3.5-3.5M20 16H7l3.5 3.5"/>',
-    alertTri: '<path d="M10.3 3.3 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.3a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/>'
+    alertTri: '<path d="M10.3 3.3 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.3a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/>',
+    message: '<path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>'
   };
   function svg(name, cls) { return '<svg class="icon ' + (cls || "") + '" viewBox="0 0 24 24" aria-hidden="true">' + P[name] + "</svg>"; }
 
@@ -1690,7 +1691,12 @@
 
   // Personeelsbeheer als los menu-item (onder "Planning"). Hergebruikt de beheer-view.
   // Functies die deze gebruiker mag toekennen: nooit boven het eigen niveau (beheerder: alles).
-  function assignableRoles(u) { return S.ROLES.filter(function (r) { return S.isAdmin(u) || r.level <= S.level(u); }); }
+  // Alleen de beheerder zelf mag ook nog "Beheerder" toekennen (bv. aan een ICT'er) — geen eigen rol in S.ROLES,
+  // dus als losse optie erbij; store.js (setUserRole) staat dit al alleen aan isAdmin toe.
+  function assignableRoles(u) {
+    var list = S.ROLES.filter(function (r) { return S.isAdmin(u) || r.level <= S.level(u); });
+    return S.isAdmin(u) ? [{ id: "admin", label: "Beheerder", level: 99 }].concat(list) : list;
+  }
   function renderPersoneelsbeheer() {
     reRender = renderPersoneelsbeheer;
     el("app").innerHTML = moduleShell("Personeelsbeheer", viewBeheer(true), { noShift: true });
@@ -2104,6 +2110,14 @@
         '<button data-set-theme="light"' + (userTheme(u) === "light" ? ' class="active"' : "") + ">" + sunIcon() + " Licht</button>" +
         '<button data-set-theme="dark"' + (userTheme(u) === "dark" ? ' class="active"' : "") + ">" + moonIcon() + " Donker</button>" +
       "</div>" +
+      '<div class="prof-divider">Feedback geven</div>' +
+      '<p class="cellsub" style="margin:0 0 10px">Heb je een idee, opmerking of loop je ergens tegenaan? Laat het weten aan je leidinggevende.</p>' +
+      '<form id="fbForm">' +
+        '<div class="field"><textarea name="tekst" rows="3" maxlength="1000" placeholder="Typ hier je feedback…"></textarea></div>' +
+        '<div id="fbMsg"></div>' +
+      "</form>" +
+      '<div style="display:flex;justify-content:flex-end;margin:-6px 0 16px">' +
+        '<button class="btn btn-dark btn-sm" id="fbSend">' + svg("message", "icon-sm") + "Feedback versturen</button></div>" +
       '<div class="prof-divider">Wachtwoord wijzigen</div>' +
       '<form id="cpForm">' +
         '<div class="field"><label>Huidig wachtwoord</label>' + pwInput("old", "", " required") + "</div>" +
@@ -2122,6 +2136,11 @@
             S.updateUserInfo(u.id, { voornaam: f.voornaam.value, achternaam: f.achternaam.value, email: f.email.value });
             toast("Gegevens opgeslagen.", "ok"); close(); render();
           } catch (e) { msg.innerHTML = '<div class="alert alert-error">' + esc(e.message) + "</div>"; }
+        });
+        ov.querySelector("#fbSend").addEventListener("click", function () {
+          var f = ov.querySelector("#fbForm"), msg = ov.querySelector("#fbMsg");
+          try { S.submitFeedback(f.tekst.value); f.tekst.value = ""; msg.innerHTML = ""; toast("Bedankt voor je feedback!", "ok"); }
+          catch (e) { msg.innerHTML = '<div class="alert alert-error">' + esc(e.message) + "</div>"; }
         });
         bindPwChecklist(ov, "n1", "cpReqs");
         ov.querySelector("#cpSave").addEventListener("click", function () {
@@ -2169,6 +2188,7 @@
     if (S.can.seeBeheer(u)) m.push({ id: "personeelsbeheer", name: "Personeelsbeheer", icon: "userCog", color: "teal", group: "Beheer", desc: "Medewerkers, functies, taken en hubs." });
     if (S.can.seeBussenbeheer(u)) m.push({ id: "bussenbeheer", name: "Bussenbeheer", icon: "van", color: "gray", group: "Beheer", desc: "Bussen per shift, met focus op probleembussen." });
     if (S.tempCanArchive(u)) m.push({ id: "temparchief", name: "Temperatuurarchief", icon: "thermo", color: "red", group: "Beheer", desc: "Dagoverzicht van alle temperatuurcontroles (RF 11 HUB)." });
+    if (S.can.seeBeheer(u)) m.push({ id: "feedback", name: "Feedback", icon: "message", color: "blue", group: "Beheer", desc: "Feedback die medewerkers via hun profiel hebben achtergelaten." });
     if (S.isAdmin(u)) m.push({ id: "modulebeheer", name: "Modulebeheer", icon: "grid", color: "gray", group: "Beheer", desc: "Modules aan- of uitzetten." });
     // Proces-volgorde: Senior Dashboard, Laadproces, Schadecontrole, Kwaliteit.
     if (senior) m.push({ id: "dashboard", name: "Senior Dashboard", icon: "chart", color: "dark", group: "Leidinggevende", desc: "Realtime overzicht van de shift." });
@@ -2296,6 +2316,7 @@
     if (state.module === "bussenbeheer") return renderBussenbeheer();
     if (state.module === "buswassing") return renderBuswassing();
     if (state.module === "temparchief") return renderTempArchief();
+    if (state.module === "feedback") return renderFeedback();
     if (state.module === "modulebeheer") return renderModulebeheer();
     var u = S.currentUser();
     var info = {
@@ -2759,6 +2780,25 @@
     el("app").innerHTML = moduleShell("Bussenbeheer", toggle + table);
     bindModuleHeader(renderBussenbeheer);
     var t = el("bbAllToggle"); if (t) t.addEventListener("change", function () { state.bbAll = t.checked; renderBussenbeheer(); });
+  }
+
+  /* ---------- Feedback (medewerkers laten feedback achter via hun profiel; teamleider+ ziet 'm hier) ---------- */
+  function renderFeedback() {
+    reRender = renderFeedback;
+    var list = S.feedbackForUser(S.currentUser());
+    var ongelezen = list.filter(function (f) { return !f.gelezen; }).length;
+    var rows = list.length ? list.map(function (f) {
+      return '<tr class="' + (f.gelezen ? "sc-done" : "") + '"><td><div class="cellname">' + esc(f.userNaam) + '</div><div class="cellsub">' + esc(fmtDateTime(f.at)) + "</div></td>" +
+        '<td data-th="Feedback" style="white-space:pre-wrap">' + esc(f.tekst) + "</td>" +
+        '<td class="sc-chk" data-th="Gelezen"><label class="chk-box' + (f.gelezen ? " on" : "") + '"><input type="checkbox" ' + (f.gelezen ? "checked" : "") + ' data-fblezen="' + f.id + '">' + svg("check", "icon-sm") + "</label></td>" +
+        '<td data-th=""><button class="btn btn-icon btn-ghost btn-sm" data-fbdel="' + f.id + '" title="Verwijderen">' + svg("trash", "icon-sm") + "</button></td></tr>";
+    }).join("") : '<tr><td colspan="4"><div class="cellsub" style="padding:14px">Nog geen feedback ontvangen.</div></td></tr>';
+    var table = '<div class="panel" style="padding:0"><div class="table-scroll"><table class="table">' +
+      "<thead><tr><th>Van</th><th>Feedback</th><th>Gelezen</th><th></th></tr></thead><tbody>" + rows + "</tbody></table></div></div>";
+    el("app").innerHTML = moduleShell("Feedback", (list.length ? opProgress(list.length - ongelezen, list.length, "gelezen") : "") + table, { noShift: true });
+    bindModuleHeader(renderFeedback);
+    document.querySelectorAll("[data-fblezen]").forEach(function (cb) { cb.addEventListener("change", function () { try { S.feedbackMarkGelezen(cb.getAttribute("data-fblezen"), cb.checked); renderFeedback(); } catch (e) { toast(e.message, "err"); } }); });
+    document.querySelectorAll("[data-fbdel]").forEach(function (b) { b.addEventListener("click", function () { try { S.feedbackRemove(b.getAttribute("data-fbdel")); toast("Feedback verwijderd.", "ok"); renderFeedback(); } catch (e) { toast(e.message, "err"); } }); });
   }
 
   /* ---------- Kwaliteit (vak-soort + emballage per vak) ---------- */
