@@ -293,7 +293,7 @@
       '<div class="mk-grid">' + card("o", 68) + card("g", 82) + card("b", 45) + card("p", null) + "</div></div>";
   }
   function mkMenu(mobile) {
-    var mods = [["exchange", "y"], ["chart", "d"], ["inbox", "o"], ["shield", "g"], ["award", "p"], ["van", "b"]];
+    var mods = [["chart", "d"], ["inbox", "o"], ["shield", "g"], ["award", "p"], ["droplet", "b"], ["van", "b"]];
     var tiles = mods.map(function (m) { return '<div class="mk-tile mk-' + m[1] + '"><span class="mk-ic">' + svg(m[0], "icon-sm") + "</span><b></b><i></i></div>"; }).join("");
     return '<div class="mk mk-menu' + (mobile ? " mk-mob" : "") + '">' +
       '<div class="mk-bar"><span class="mk-jumbo">JUMBO</span><span class="mk-sub">HubConnect</span><span class="mk-ava"></span></div>' +
@@ -345,7 +345,7 @@
     var vals = [
       { icon: "clock", title: "Realtime",           desc: "Wat er in de hub gebeurt, zie je meteen. Geen appjes meer heen en weer." },
       { icon: "devices", title: "Perfect voor mobiel en desktop", desc: "Voor de taken v&oacute;&oacute;r en na de rit — grote knoppen, snelle acties." },
-      { icon: "grid",  title: "Alles op &eacute;&eacute;n plek", desc: "Ruilen, plannen, laden en controleren. Alles bij elkaar." }
+      { icon: "grid",  title: "Alles op &eacute;&eacute;n plek", desc: "Plannen, laden en controleren. Alles bij elkaar." }
     ];
     var valCards = vals.map(function (v, i) {
       return '<div class="l3-val reveal" style="--d:' + (i * 90) + 'ms">' +
@@ -368,7 +368,7 @@
           '<div class="l3-mark rise">' + hubMark(104) + "</div>" +
           '<h1 class="rise d1">HubConnect.</h1>' +
           '<p class="l3-tag rise d2">Alles voor je hub. Op &eacute;&eacute;n plek.</p>' +
-          '<div class="l3-act rise d3"><button class="btn btn-dark btn-lg" data-go="login">' + svg("arrowRight") + cta + "</button></div>" +
+          '<div class="l3-act rise d3"><button class="btn btn-primary btn-lg" data-go="login">' + svg("arrowRight") + cta + "</button></div>" +
           '<p class="l3-kicker rise d4">Jumbo Bezorgservice</p>' +
           '<div class="l3-scroll" aria-hidden="true">' + chevron + "</div>" +
         "</section>" +
@@ -405,7 +405,7 @@
           '<div class="l3-sec-in">' +
             '<h2 class="l3-h2 reveal">Klaar voor je shift?</h2>' +
             '<p class="l3-cta-sub reveal" style="--d:60ms">Log in en ga aan de slag.</p>' +
-            '<div class="l3-cta-act reveal" style="--d:120ms"><button class="btn btn-dark btn-lg" data-go="login">' + svg("arrowRight") + cta + "</button></div>" +
+            '<div class="l3-cta-act reveal" style="--d:120ms"><button class="btn btn-primary btn-lg" data-go="login">' + svg("arrowRight") + cta + "</button></div>" +
           "</div>" +
         "</section>" +
 
@@ -700,7 +700,7 @@
             '<div class="u-meta">' + esc(S.roleMeta(u.rol).label) + " · HUB " + esc(hub ? hub.naam : "?") + "</div></div>" +
           '<button class="avatar-btn" data-profile title="Profiel"><span class="avatar">' + initials(u) + "</span>" +
             '<span class="avatar-gear">' + svg("settings", "icon-sm") + "</span></button>" +
-          '<button class="btn btn-icon btn-ghost" data-logout title="Uitloggen" style="background:rgba(255,255,255,.5)">' + svg("logout", "icon-sm") + "</button>" +
+          '<button class="btn btn-icon btn-ghost" data-logout title="Uitloggen">' + svg("logout", "icon-sm") + "</button>" +
         "</div>" +
       "</div></header>" +
       '<nav class="app-nav"><div class="app-nav-inner">' + nav + "</div></nav>" +
@@ -2055,13 +2055,11 @@
       var canTeam = S.can.editTeam(me);
       var isTopTier = t.rol === "admin" || t.rol === "eigenaar";
       var canRoles = S.can.editRoles(me) && t.id !== me.id && (!isTopTier || S.isEigenaar(me));
-      var seeStats = S.level(me) >= 4 || t.id === me.id;
       var hub = S.hubById(t.hubId);
       var head = '<div class="prof-head"><div class="avatar lg">' + initials(t) + '</div><div><div class="prof-name">' + fullName(t) +
         '</div><div class="cellsub">' + esc(S.roleMeta(t.rol).label) + " · HUB " + esc(hub ? hub.naam : "?") + "</div></div></div>";
-      var stats = seeStats ? '<div class="prof-divider">Statistieken</div><div class="stat-grid ud-stats">' +
-        udStat("up", t.stats.shiftsOvergenomen, "Shifts overgenomen") + udStat("down", t.stats.shiftsAangeboden, "Shifts weggegeven") +
-        udStat("up", t.stats.takenOvergenomen, "Taken overgenomen") + udStat("down", t.stats.takenAangeboden, "Taken weggegeven") + "</div>" : "";
+      // RuilHub is tijdelijk uit de app: de ruil-statistieken (overgenomen/weggegeven) tonen we daarom niet.
+      var stats = "";
       var edit = "";
       if (canTeam) {
         edit += '<div class="prof-divider">Beheer</div>';
@@ -2190,8 +2188,8 @@
   function portalModules(u) {
     var senior = S.level(u) >= 3;
     function hasTask(n) { return u.taken && u.taken.indexOf(n) !== -1; }
-    var m = [{ id: "ruilhub", name: "RuilHub", icon: "exchange", color: "yellow", group: "Planning", desc: "Shifts en taken ruilen binnen je hub." }];
-    // Takenplanning tijdelijk verborgen (op verzoek volledig eruit).
+    // RuilHub en Takenplanning tijdelijk verborgen (op verzoek volledig eruit; code blijft staan).
+    var m = [];
     if (S.can.seeBeheer(u)) m.push({ id: "personeelsbeheer", name: "Personeelsbeheer", icon: "userCog", color: "teal", group: "Beheer", desc: "Medewerkers, functies, taken en hubs." });
     if (S.can.seeBussenbeheer(u)) m.push({ id: "bussenbeheer", name: "Bussenbeheer", icon: "van", color: "gray", group: "Beheer", desc: "Bussen per shift, met focus op probleembussen." });
     if (S.tempCanArchive(u)) m.push({ id: "temparchief", name: "Temperatuurarchief", icon: "thermo", color: "red", group: "Beheer", desc: "Dagoverzicht van alle temperatuurcontroles (RF 11 HUB)." });
@@ -2219,7 +2217,7 @@
           '<div class="u-meta">' + esc(S.roleMeta(u.rol).label) + "</div></div>" +
         '<button class="avatar-btn" data-profile title="Profiel"><span class="avatar">' + initials(u) + "</span>" +
           '<span class="avatar-gear">' + svg("settings", "icon-sm") + "</span></button>" +
-        '<button class="btn btn-icon btn-ghost" data-logout title="Uitloggen" style="background:rgba(255,255,255,.5)">' + svg("logout", "icon-sm") + "</button>" +
+        '<button class="btn btn-icon btn-ghost" data-logout title="Uitloggen">' + svg("logout", "icon-sm") + "</button>" +
       "</div></div></header>";
   }
 
@@ -2818,7 +2816,7 @@
       var soort = S.vakSoort(c.h, c.d, c.dd, i), isEmb = soort === "emb5", tot = isEmb ? S.emballageVakTotal(c.h, c.d, c.dd, i) : 0;
       return '<tr class="' + (isEmb ? "vak-emb" : "") + '"><td class="lc-nr cellname">Vak ' + i + "</td>" +
         '<td data-th="Wat mag erin">' + (canEdit ? '<select class="lc-in vaksoort-sel" data-vaksoort="' + i + '">' + soortOpts(soort) + "</select>" : '<span class="badge ' + (soort ? "task" : "") + '">' + esc(S.vakSoortLabel(soort)) + "</span>") + "</td>" +
-        '<td data-th="Emballage">' + (isEmb ? '<button class="btn btn-primary btn-sm" data-embopen="' + i + '">' + svg("tag", "icon-sm") + "Tellen · " + tot + "</button>" : '<span class="cellsub">—</span>') + "</td></tr>";
+        '<td data-th="Emballage">' + (isEmb ? '<button class="btn btn-sm" data-embopen="' + i + '">' + svg("tag", "icon-sm") + "Tellen · " + tot + "</button>" : '<span class="cellsub">—</span>') + "</td></tr>";
     }).join("");
     var table = '<div class="panel" style="padding:0"><div class="table-scroll"><table class="table"><thead><tr><th>Vak</th><th>Wat mag erin</th><th>Emballage</th></tr></thead><tbody>' + rows + "</tbody></table></div></div>";
 
@@ -3575,7 +3573,7 @@
     var statiegeldBody = embVakken.length
       ? '<div class="panel" style="padding:0"><div class="table-scroll"><table class="table"><thead><tr><th>Vak</th><th>Statiegeld</th></tr></thead><tbody>' +
         embVakken.map(function (i) {
-          return '<tr><td class="lc-nr cellname">Vak ' + i + '</td><td data-th="Statiegeld"><button class="btn btn-primary btn-sm" data-embopen="' + i + '">' +
+          return '<tr><td class="lc-nr cellname">Vak ' + i + '</td><td data-th="Statiegeld"><button class="btn btn-sm" data-embopen="' + i + '">' +
             svg("tag", "icon-sm") + "Bekijken · " + S.emballageVakTotal(c.h, c.d, c.dd, i) + " kratjes</button></td></tr>";
         }).join("") + "</tbody></table></div></div>"
       : '<div class="cellsub" style="padding:12px">Er zijn nog geen vakken ingesteld op statiegeld (dat regelt Kwaliteit).</div>';

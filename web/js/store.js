@@ -1773,7 +1773,8 @@
 
   /* ----- Modulestatus (beheerder): "onderhoud" = zichtbaar maar dicht, "verborgen" = voor iedereen weg ----- */
   var MODULES = [
-    { id: "ruilhub", naam: "RuilHub" }, { id: "dashboard", naam: "Senior Dashboard" }, { id: "lc", naam: "Laadproces" },
+    // RuilHub tijdelijk uit de app (zie ui.js portalModules); daarom ook niet in Modulebeheer.
+    { id: "dashboard", naam: "Senior Dashboard" }, { id: "lc", naam: "Laadproces" },
     { id: "schadecontrole", naam: "Schadecontrole" }, { id: "kwaliteit", naam: "Kwaliteit" }, { id: "buswassing", naam: "Buswassing" },
     { id: "personeelsbeheer", naam: "Personeelsbeheer" }, { id: "bussenbeheer", naam: "Bussenbeheer" }, { id: "temparchief", naam: "Temperatuurarchief" }, { id: "feedback", naam: "Feedback" }, { id: "modulebeheer", naam: "Modulebeheer" }
   ];
