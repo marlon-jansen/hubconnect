@@ -2782,7 +2782,6 @@
   function feedbackFormHTML(id) {
     return '<div class="panel"><div class="panel-head">' + svg("message", "icon-sm") + "<h3>Feedback geven</h3></div>" +
       '<div class="panel-body" style="padding:14px 18px 16px">' +
-        '<p class="cellsub" style="margin:0 0 10px">Heb je een idee, een opmerking of loop je ergens tegenaan? Je leidinggevende leest dit.</p>' +
         '<form id="' + id + '"><div class="field" style="margin-bottom:10px"><textarea name="tekst" rows="4" maxlength="1000" placeholder="Typ hier je feedback…"></textarea></div>' +
         '<div id="' + id + 'Msg"></div>' +
         '<div style="display:flex;justify-content:flex-end"><button class="btn btn-primary btn-sm" type="submit">' + svg("message", "icon-sm") + "Feedback versturen</button></div></form></div></div>";
