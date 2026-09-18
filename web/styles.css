@@ -195,7 +195,7 @@ svg { display: block; }
   background: var(--jumbo-yellow);
   border-bottom: 1px solid var(--jumbo-yellow-dark);
 }
-.app-header-inner { max-width: 1100px; margin: 0 auto; padding: 10px 18px; display: flex; align-items: center; gap: 14px; }
+.app-header-inner { padding: 10px 18px; display: flex; align-items: center; gap: 14px; }
 .brand { display: flex; align-items: center; gap: 10px; }
 .brand[data-home] { cursor: pointer; }
 .brand .app-name { font-weight: 900; font-size: 16px; line-height: 1; }
@@ -215,7 +215,7 @@ svg { display: block; }
 
 /* Nav */
 .app-nav { background: var(--card); border-bottom: 1px solid var(--line); position: sticky; top: 55px; z-index: 20; }
-.app-nav-inner { max-width: 1100px; margin: 0 auto; padding: 0 10px; display: flex; gap: 2px; overflow-x: auto; }
+.app-nav-inner { padding: 0 10px; display: flex; gap: 2px; overflow-x: auto; }
 .nav-btn {
   border: 0; background: transparent; padding: 14px 14px; font-size: 14px; font-weight: 800;
   color: var(--muted); cursor: pointer; border-bottom: 3px solid transparent; display: flex; align-items: center; gap: 8px; white-space: nowrap;
@@ -224,7 +224,7 @@ svg { display: block; }
 .nav-btn.active { color: var(--ink); border-bottom-color: var(--jumbo-yellow); }
 .nav-btn .badge-count { background: var(--red); color: #fff; font-size: 11px; font-weight: 800; border-radius: 999px; padding: 1px 7px; }
 
-main { max-width: 1100px; margin: 0 auto; padding: 22px 18px 80px; }
+main { padding: 22px 18px 80px; }
 
 /* Zachte overgang bij het wisselen van tabblad — alleen op de inhoud die verandert,
    niet op de header/nav (die blijven staan). Wordt via JS alleen toegevoegd wanneer
@@ -1402,7 +1402,7 @@ td.sc-chk .chk-time { position: absolute; right: calc(100% + 10px); top: 50%; tr
 .portal-btn { background: rgba(255,255,255,.5); margin-right: 2px; }
 .portal-btn:hover { background: var(--card); }
 .back-portal { margin-bottom: 4px; }
-.portal-main { max-width: 1000px; margin: 0 auto; padding: 28px 18px 80px; }
+.portal-main { padding: 28px 18px 80px; }
 /* Menupagina: zakelijke kop (hub · Modules · datum/naam) en rustige, horizontale tegels */
 .portal-welcome { margin-bottom: 24px; }
 .portal-welcome h2 { margin: 0 0 4px; font-size: 26px; font-weight: 900; }
