@@ -80,6 +80,8 @@ svg { display: block; }
 .icon { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: 0 0 auto; }
 .icon-sm { width: 16px; height: 16px; }
 .icon-lg { width: 26px; height: 26px; }
+/* Icoon met eigen viewBox dat als vlak (geen lijntekening) is opgebouwd, bv. het busje. */
+.icon-solid { stroke: none; fill: currentColor; }
 
 /* ===== Buttons ===== */
 .btn {
@@ -410,7 +412,7 @@ main { padding: 22px 18px 80px; }
 .chip.on { background: var(--jumbo-yellow); color: var(--ink-fixed); border-color: var(--jumbo-yellow); }
 .mist-chip { cursor: pointer; }
 .mist-chip.on { background: var(--red-soft); color: var(--red); border-color: var(--red); }
-/* Buswassing: de -soft tokens houden zichzelf goed in licht én donker,
+/* Buswassen: de -soft tokens houden zichzelf goed in licht én donker,
    dus geen vaste hexes hier (die vallen in dark mode uit de toon). */
 .was-chip.on { background: var(--blue-soft); color: var(--blue); border-color: var(--blue); }
 .badge.was { background: var(--blue-soft); color: var(--blue); }
@@ -1241,7 +1243,7 @@ details.prep[open] > summary { border-bottom: 1px solid var(--line); }
 .dash-fact.warn b { color: var(--orange); }
 .dash-fact.err b { color: var(--red); }
 .dash-fact.info b { color: var(--blue); }
-/* Buswassing: brede balk onder het raster, alleen op dagen met een waslijst */
+/* Buswassen: brede balk onder het raster, alleen op dagen met een waslijst */
 .dash-wasbar { position: relative; overflow: hidden; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; box-shadow: var(--shadow); margin-bottom: 18px; }
 .dash-wasbar-h { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 14px; font-weight: 600; margin-bottom: 10px; }
 .dash-wasbar-h .icon { color: var(--accent); }
@@ -1599,7 +1601,7 @@ tr.sc-dockonly .cellname { color: var(--ink-soft); }
   .shiftbar { gap: 8px; }
   .shiftbar .seg, .toolbar .seg { width: 100%; }
   .shiftbar .seg:last-child button { flex: 1; }               /* AM en PM even breed */
-  /* datumbalk: pijltjes vast, datumknop groeit en breekt nooit af (ook als de seg de enige is, bv. Buswassing/Temperatuurarchief) */
+  /* datumbalk: pijltjes vast, datumknop groeit en breekt nooit af (ook als de seg de enige is, bv. Buswassen/Temperatuurarchief) */
   .shiftbar .seg.opdate-seg button[data-opday] { flex: 0 0 auto; }
   .shiftbar .seg.opdate-seg button[data-opdate] { flex: 1; justify-content: center; white-space: nowrap; }
   .seg { flex-wrap: wrap; }

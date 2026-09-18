@@ -102,9 +102,8 @@
     droplet: '<path d="M12 2.5s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/>',
     thermo: '<path d="M14 14.9V5a2 2 0 1 0-4 0v9.9a4 4 0 1 0 4 0z"/><path d="M12 9.5v5"/>',
     scan: '<path d="M3 8V5a2 2 0 0 1 2-2h3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M8 21H5a2 2 0 0 1-2-2v-3"/><path d="M3 12h18"/>',
-    van: '<path d="M3 7h11v9H3z"/><path d="M14 10h4l3 3v3h-7z"/><circle cx="7" cy="18" r="1.6"/><circle cx="17" cy="18" r="1.6"/>',
+    van: '<path d="M112 0C85.5 0 64 21.5 64 48v48H16c-8.8 0-16 7.2-16 16s7.2 16 16 16h256c8.8 0 16 7.2 16 16s-7.2 16-16 16H48c-8.8 0-16 7.2-16 16s7.2 16 16 16h192c8.8 0 16 7.2 16 16s-7.2 16-16 16H16c-8.8 0-16 7.2-16 16s7.2 16 16 16h192c8.8 0 16 7.2 16 16s-7.2 16-16 16H64v128c0 53 43 96 96 96s96-43 96-96h128c0 53 43 96 96 96s96-43 96-96h32c17.7 0 32-14.3 32-32s-14.3-32-32-32V237.3c0-17-6.7-33.3-18.7-45.3L512 114.7c-12-12-28.3-18.7-45.3-18.7H416V48c0-26.5-21.5-48-48-48zm432 237.3V256H416v-96h50.7zM160 368a48 48 0 1 1 0 96a48 48 0 1 1 0-96m272 48a48 48 0 1 1 96 0a48 48 0 1 1-96 0"/>',
     truck: '<path d="M2 6h13v10H2z"/><path d="M15 9h3.5l3.5 3.5V16h-7z"/><circle cx="5" cy="18" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="18.5" cy="18" r="1.6"/>',
-    vanFast: '<path d="M8 7h9v9H8z"/><path d="M17 10h2.5l2.5 3v3h-5z"/><circle cx="11.5" cy="18" r="1.6"/><circle cx="19" cy="18" r="1.6"/><path d="M2 9h4M1 12h5M2 15h4"/>',
     devices: '<rect x="2" y="4.5" width="13" height="9.5" rx="1.5"/><path d="M5 18h6M8 14v4"/><rect x="15.5" y="9" width="6.5" height="12" rx="1.5"/><path d="M17.8 18.5h1.9"/>',
     bolt: '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
     tag: '<path d="M20.6 13.4 12 22l-9-9V4a1 1 0 0 1 1-1h9z"/><circle cx="7.5" cy="7.5" r="1.5"/>',
@@ -158,7 +157,11 @@
     alertTri: '<path d="M10.3 3.3 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.3a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/>',
     message: '<path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>'
   };
-  function svg(name, cls) { return '<svg class="icon ' + (cls || "") + '" viewBox="0 0 24 24" aria-hidden="true">' + P[name] + "</svg>"; }
+  // Iconen met een eigen (niet-24x24) viewBox — vullen ipv strepen tekenen (echt icoon, geen zelfgetekend lijntje).
+  var ICON_VB = { van: "0 0 640 512" };
+  function svg(name, cls) {
+    return '<svg class="icon' + (ICON_VB[name] ? " icon-solid" : "") + ' ' + (cls || "") + '" viewBox="' + (ICON_VB[name] || "0 0 24 24") + '" aria-hidden="true">' + P[name] + "</svg>";
+  }
 
   /* ---------- Jumbo logo (huisstijl wordmark) ---------- */
   function logo(h) {
@@ -1736,7 +1739,7 @@
         ? '<span class="chip jbt-chip ' + (x.jbtTrainer ? "on" : "") + '" data-jbt="' + x.id + '">' + svg("cap", "icon-sm") + "JBT-trainer</span>"
         : (x.jbtTrainer ? '<span class="badge jbt">' + svg("cap", "icon-sm") + "JBT-trainer</span>" : '<span class="cellsub">—</span>');
       // Vaste procesvolgorde (laden → LC → schade → kwaliteit → wassen → …); onbekende taken alfabetisch erachter.
-      var TAAK_VOLGORDE = ["Binnendienst", "Proces", "Inname", "PC", "LC", "Laden", "Schadecontrole", "Kwaliteit", "Buswassing"];
+      var TAAK_VOLGORDE = ["Binnendienst", "Proces", "Inname", "PC", "LC", "Laden", "Schadecontrole", "Kwaliteit", "Buswassen"];
       var takenGesorteerd = S.assignableTasks(x).slice().sort(function (a, b) {
         var ia = TAAK_VOLGORDE.indexOf(a), ib = TAAK_VOLGORDE.indexOf(b);
         if (ia === -1 && ib === -1) return a.localeCompare(b);
@@ -2187,7 +2190,7 @@
     if (senior || hasTask("LC") || hasTask("Laden")) m.push({ id: "lc", name: "Laadproces", icon: "inbox", color: "orange", group: "Proces", desc: "Ritten koppelen aan bussen & trolleys." });
     if (senior || hasTask("Schadecontrole")) m.push({ id: "schadecontrole", name: "Schadecontrole", icon: "shield", color: "green", group: "Proces", desc: "Bussen controleren & afvinken." });
     if (senior || hasTask("Kwaliteit")) m.push({ id: "kwaliteit", name: "Kwaliteit", icon: "award", color: "purple", group: "Proces", desc: "Emballage tellen per vak." });
-    if (senior || hasTask("Buswassing")) m.push({ id: "buswassing", name: "Buswassing", icon: "droplet", color: "blue", group: "Proces", desc: "Bussen afvinken die gewassen moeten worden." });
+    if (senior || hasTask("Buswassen")) m.push({ id: "buswassing", name: "Buswassen", icon: "droplet", color: "blue", group: "Proces", desc: "Bussen afvinken die gewassen moeten worden." });
     // Feedback: iedereen kan 'm geven (eigen tegel, niet meer via het profiel); teamleider+ ziet daar ook de ontvangen feedback.
     m.push({ id: "feedback", name: "Feedback", icon: "message", color: "blue", group: "Overig", desc: "Laat weten wat beter kan." });
     return m;
@@ -2683,7 +2686,7 @@
     });
   }
 
-  /* ---------- Buswassing ----------
+  /* ---------- Buswassen ----------
      Werkt per DAG, niet per shift: de lijst bundelt de bussen die de senior in de AM- én
      PM-lijst heeft aangemerkt. Daarom een datumbalk zonder AM/PM-schakelaar. */
   function dayBar() {
@@ -2728,11 +2731,11 @@
     }).join("") : '<tr><td colspan="3"><div class="cellsub" style="padding:14px">Er zijn nog geen bussen aangewezen voor de wasstraat.</div></td></tr>';
 
     var rechtNote = (!canEdit && !state.viewOnly)
-      ? '<div class="alert" style="margin-bottom:12px">' + svg("lock", "icon-sm") + " Je bent vandaag niet aangewezen voor de buswassing — je kunt de lijst wel bekijken.</div>" : "";
+      ? '<div class="alert" style="margin-bottom:12px">' + svg("lock", "icon-sm") + " Je bent vandaag niet aangewezen voor het buswassen — je kunt de lijst wel bekijken.</div>" : "";
     var nietNote = st.niet
       ? '<div class="alert alert-error">' + svg("alertTri", "icon-sm") + " " + st.niet + (st.niet === 1 ? " bus is" : " bussen zijn") + " niet langs de wasstraat geweest.</div>" : "";
 
-    el("app").innerHTML = moduleShell("Buswassing",
+    el("app").innerHTML = moduleShell("Buswassen",
       dayBar() + rechtNote +
       (lijst.length ? opProgress(st.gewassen, st.total, "bussen gewassen") + nietNote : "") +
       '<div class="panel" style="padding:0"><div class="table-scroll"><table class="table">' +
@@ -3521,7 +3524,7 @@
         '<td data-th="ZE" style="text-align:center">' + (v.ze ? '<span class="badge dock">ZE</span>' : "") + "</td>" +
         '<td class="sc-chk" data-th="Geladen"><span class="chk-wrap">' + timeCell + chkCell + "</span></td></tr>";
     }).join("") : '<tr><td colspan="7"><div class="cellsub" style="padding:14px">' + (state.lcOnlyOpen && lc.vakken.length ? "Alle bussen zijn geladen. 🎉" : "Er is nog geen laadlijst klaargezet.") + "</div></td></tr>";
-    var table = panel("vanFast", "1e ritten", '<div class="table-scroll"><table class="table lc-table">' +
+    var table = panel("van", "1e ritten", '<div class="table-scroll"><table class="table lc-table">' +
       "<thead><tr><th>Vak</th><th>Vertrek</th><th>Bus</th><th>Rit</th><th>Type</th><th>ZE</th><th>Geladen</th></tr></thead><tbody>" + rows + "</tbody></table></div>");
     var lcFilter = lc.vakken.length ? '<label class="chk lc-filter"><input type="checkbox" id="lcOnlyOpen"' + (state.lcOnlyOpen ? " checked" : "") + "> Alleen nog te laden</label>" : "";
     // 2e ritten apart: hoeven niet geladen te worden, alleen ter info (vertrektijd, bus, rit)
@@ -3685,7 +3688,7 @@
       if (tp.total > 0 && tp.klaar < tp.total) p.push("Pendelcontrol: " + tp.klaar + " van " + tp.total + " pendels volledig getemperatuurd");
       if (sc.total > 0 && sc.done < sc.total) p.push("Schadecontrole: " + sc.done + " van " + sc.total + " bussen gecontroleerd");
       if (sc.total > 0 && sp.done < sp.total) p.push("Steekproeven: " + sp.done + " van " + sp.total + " gedaan");
-      if (ws.total > 0 && ws.open > 0) p.push("Buswassing: " + ws.open + " van " + ws.total + " bussen nog open");
+      if (ws.total > 0 && ws.open > 0) p.push("Buswassen: " + ws.open + " van " + ws.total + " bussen nog open");
       return p;
     }
     function afrondBevestiging() {
@@ -3899,11 +3902,11 @@
       tile("Kwaliteit", "award", "purple", "kwaliteit", kwalInner, "kwaliteit") +
       "</div>";
 
-    // ----- Buswassing: brede balk onderaan, alleen op dagen waarop bussen zijn aangewezen -----
+    // ----- Buswassen: brede balk onderaan, alleen op dagen waarop bussen zijn aangewezen -----
     var ws = S.wasStats(c.h, c.d), wasBar = "";
     if (ws.total) {
       wasBar = '<div class="dash-wasbar">' +
-        '<div class="dash-wasbar-h">' + svg("droplet", "icon-sm") + "<b>Buswassing</b>" + dienstNamen("buswassing") +
+        '<div class="dash-wasbar-h">' + svg("droplet", "icon-sm") + "<b>Buswassen</b>" + dienstNamen("buswassing") +
           '<span class="dash-wasbar-n">' + ws.gewassen + " / " + ws.total + " gewassen</span></div>" +
         '<div class="dash-wasbar-track">' +
           '<span class="ok" style="width:' + ws.pct + '%"></span>' +
@@ -3912,7 +3915,7 @@
           '<span class="ok">' + svg("check", "icon-sm") + ws.gewassen + " gewassen</span>" +
           '<span class="niet">' + svg("x", "icon-sm") + ws.niet + " niet geweest</span>" +
           '<span class="open">' + svg("clock", "icon-sm") + ws.open + " open</span></div>" +
-        '<button class="btn btn-sm dash-view dash-wasbar-btn" data-viewmod="buswassing">' + svg("arrowRight", "icon-sm") + "Bekijk Buswassing</button>" +
+        '<button class="btn btn-sm dash-view dash-wasbar-btn" data-viewmod="buswassing">' + svg("arrowRight", "icon-sm") + "Bekijk Buswassen</button>" +
         "</div>";
     }
     return todoBanner + grid + wasBar;
@@ -4077,7 +4080,7 @@
     }).join("") + "</ul>" : "";
     var opmBlock = '<div class="kz-section"><div class="kz-h">' + svg("alertTri", "icon-sm") + "Opmerkingen voor de controleur</div>" + opmList +
       '<button type="button" class="btn btn-ghost btn-sm" id="scOpmAdd">' + svg("plus", "icon-sm") + "Opmerking aan bus toevoegen</button></div>";
-    // Compacte lijst van de klaargezette bussen: alleen buswassing markeren en verwijderen (rest zit hierboven).
+    // Compacte lijst van de klaargezette bussen: alleen buswassen markeren en verwijderen (rest zit hierboven).
     var busChips = s.buses.slice().sort(byBusNr).map(function (b) {
       return '<div class="kz-bus' + (b.dockOnly ? " dockonly" : "") + '"><span class="kz-bus-nr">Bus ' + esc(b.bus || "?") + "</span>" +
         (b.dockOnly ? '<span class="cellsub">alleen dock ' + esc(b.dock) + "</span>" : '<span class="cellsub">' + esc(b.naam || "") + (b.kenteken ? " · " + esc(b.kenteken) : "") + "</span>") +
@@ -4085,7 +4088,7 @@
         '<button type="button" class="pl-x" data-schadedel="' + b.id + '" title="Bus verwijderen">' + svg("trash", "icon-sm") + "</button></div>";
     }).join("");
     var busBlock = '<details class="kz-section kz-bussen"><summary>' + svg("van", "icon-sm") + "Klaargezette bussen (" + s.buses.length + ")" +
-      '<span class="cellsub" style="margin-left:8px">buswassing markeren · verwijderen</span></summary>' +
+      '<span class="cellsub" style="margin-left:8px">buswassen markeren · verwijderen</span></summary>' +
       '<div class="add-inline" style="margin-top:10px"><input id="scBus" placeholder="Busnr"><input id="scKent" placeholder="Kenteken"><input id="scNaam" placeholder="Bezorger"><button class="btn btn-dark btn-sm" id="scAdd">' + svg("plus", "icon-sm") + "Bus</button></div>" +
       (busChips ? '<div class="kz-buslijst">' + busChips + "</div>" : '<div class="cellsub" style="padding:10px 0">Er is nog geen schadecontrolelijst klaargezet. Importeer de planning of voeg bussen toe.</div>') + "</details>";
     var schadeBlock = schadeImport + dockBlock + opmBlock + busBlock;
@@ -4165,7 +4168,7 @@
           '<div class="pick-list">' + items + "</div></div>" +
         "</div></div>";
     }
-    return '<div class="kz-section dienst-grid">' + block("lc", "Laadproces", "LC") + block("schadecontrole", "Schadecontrole", "Schadecontrole") + block("kwaliteit", "Kwaliteit", "Kwaliteit") + block("buswassing", "Buswassing", "Buswassing") + "</div>";
+    return '<div class="kz-section dienst-grid">' + block("lc", "Laadproces", "LC") + block("schadecontrole", "Schadecontrole", "Schadecontrole") + block("kwaliteit", "Kwaliteit", "Kwaliteit") + block("buswassing", "Buswassen", "Buswassen") + "</div>";
   }
   function bindDashDiensten(c) {
     function rerender(focusKey) {

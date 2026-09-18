@@ -30,7 +30,7 @@
   ];
 
   // Per medewerker toewijsbare taken (catalogus). Elke taak is een bezorger- of senior-taak.
-  var DEFAULT_TASKS = ["LC", "Schadecontrole", "Kwaliteit", "Buswassing", "Inname", "Laden", "Binnendienst"];
+  var DEFAULT_TASKS = ["LC", "Schadecontrole", "Kwaliteit", "Buswassen", "Inname", "Laden", "Binnendienst"];
   var DEFAULT_TASK_TYPES = { "Binnendienst": "senior" }; // overige = "bezorger"
 
   var TASK_BINNENDIENST = "Binnendienst";
@@ -104,6 +104,16 @@
     // Taken die later zijn toegevoegd ontbreken in een DB die eerder is geseed.
     DEFAULT_TASKS.forEach(function (t) {
       if (db.taskCatalog && db.taskCatalog.indexOf(t) === -1) { db.taskCatalog.push(t); changed = true; }
+    });
+    // "Buswassing" hernoemd naar "Buswassen" — bestaande taakcatalogus en toewijzingen meenemen.
+    if (db.taskCatalog) {
+      var bwIdx = db.taskCatalog.indexOf("Buswassing");
+      if (bwIdx !== -1) { db.taskCatalog.splice(bwIdx, 1); if (db.taskCatalog.indexOf("Buswassen") === -1) db.taskCatalog.push("Buswassen"); changed = true; }
+    }
+    db.users.forEach(function (u) {
+      if (!u.taken) return;
+      var i = u.taken.indexOf("Buswassing");
+      if (i !== -1) { u.taken.splice(i, 1); if (u.taken.indexOf("Buswassen") === -1) u.taken.push("Buswassen"); changed = true; }
     });
     return changed;
   }
@@ -930,7 +940,7 @@
   }
   /* Toegang tot een taakmodule voor een uitvoerder (bezorger/senior zonder toewijzing): alleen de shift van
      NU (vandaag + dagdeel volgens de klok) en alleen als hij daarvoor is aangewezen en de shift niet is afgerond. */
-  var TAAK_MODULES = { lc: "LC", schadecontrole: "Schadecontrole", kwaliteit: "Kwaliteit", buswassing: "Buswassing" };
+  var TAAK_MODULES = { lc: "LC", schadecontrole: "Schadecontrole", kwaliteit: "Kwaliteit", buswassing: "Buswassen" };
   function taskAccess(u, moduleKey) {
     var datum = todayYmd(), dagdeel = defaultDagdeelFor(moduleKey);
     if (isSetup(u)) return { free: true, allowed: true, datum: datum, dagdeel: dagdeel };
@@ -1155,10 +1165,10 @@
     return { total: b.length, done: done, pct: b.length ? Math.round(done / b.length * 100) : 0 };
   }
 
-  /* ----- Buswassing -----
+  /* ----- Buswassen -----
      De senior merkt bij het klaarzetten bussen aan die naar de wasstraat moeten. Dat is een vlag
      op de bus zelf (`b.wassen`), dus het lift mee op de bestaande schade-JSONB — geen serverwijziging.
-     Buswassing werkt per DAG: de lijst bundelt de aangemerkte bussen uit beide dagdelen.
+     Buswassen werkt per DAG: de lijst bundelt de aangemerkte bussen uit beide dagdelen.
      Status per bus: "" = nog niet langs geweest, "gewassen", "niet" = niet komen opdagen. */
   function busWasBaar(hubId, datum, dagdeel, busId) {
     return getSchade(hubId, datum, dagdeel).buses.filter(function (x) { return x.id === busId; })[0] || null;
@@ -1187,7 +1197,7 @@
   }
   function setWasStatus(hubId, datum, dagdeel, busId, status) {
     var u = currentUser();
-    if (!wasCanEdit(u, hubId, datum)) throw new Error("Je bent vandaag niet aangewezen voor de buswassing.");
+    if (!wasCanEdit(u, hubId, datum)) throw new Error("Je bent vandaag niet aangewezen voor het buswassen.");
     if (["", "gewassen", "niet"].indexOf(status) === -1) return;
     var b = busWasBaar(hubId, datum, dagdeel, busId); if (!b) return;
     if (!b.wassen) throw new Error("Deze bus staat niet op de waslijst.");
@@ -1777,7 +1787,7 @@
   var MODULES = [
     // RuilHub tijdelijk uit de app (zie ui.js portalModules); daarom ook niet in Modulebeheer.
     { id: "dashboard", naam: "Senior Dashboard" }, { id: "lc", naam: "Laadproces" },
-    { id: "schadecontrole", naam: "Schadecontrole" }, { id: "kwaliteit", naam: "Kwaliteit" }, { id: "buswassing", naam: "Buswassing" },
+    { id: "schadecontrole", naam: "Schadecontrole" }, { id: "kwaliteit", naam: "Kwaliteit" }, { id: "buswassing", naam: "Buswassen" },
     { id: "personeelsbeheer", naam: "Personeelsbeheer" }, { id: "bussenbeheer", naam: "Bussenbeheer" }, { id: "temparchief", naam: "Temperatuurarchief" }, { id: "feedback", naam: "Feedback" }, { id: "modulebeheer", naam: "Modulebeheer" }
   ];
   function moduleStatus(id) { return (db.moduleStatus && db.moduleStatus[id]) || "actief"; }
