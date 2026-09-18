@@ -2115,14 +2115,6 @@
         '<button data-set-theme="light"' + (userTheme(u) === "light" ? ' class="active"' : "") + ">" + sunIcon() + " Licht</button>" +
         '<button data-set-theme="dark"' + (userTheme(u) === "dark" ? ' class="active"' : "") + ">" + moonIcon() + " Donker</button>" +
       "</div>" +
-      '<div class="prof-divider">Feedback geven</div>' +
-      '<p class="cellsub" style="margin:0 0 10px">Heb je een idee, opmerking of loop je ergens tegenaan? Laat het weten aan je leidinggevende.</p>' +
-      '<form id="fbForm">' +
-        '<div class="field"><textarea name="tekst" rows="3" maxlength="1000" placeholder="Typ hier je feedback…"></textarea></div>' +
-        '<div id="fbMsg"></div>' +
-      "</form>" +
-      '<div style="display:flex;justify-content:flex-end;margin:-6px 0 16px">' +
-        '<button class="btn btn-dark btn-sm" id="fbSend">' + svg("message", "icon-sm") + "Feedback versturen</button></div>" +
       '<div class="prof-divider">Wachtwoord wijzigen</div>' +
       '<form id="cpForm">' +
         '<div class="field"><label>Huidig wachtwoord</label>' + pwInput("old", "", " required") + "</div>" +
@@ -2141,11 +2133,6 @@
             S.updateUserInfo(u.id, { voornaam: f.voornaam.value, achternaam: f.achternaam.value, email: f.email.value });
             toast("Gegevens opgeslagen.", "ok"); close(); render();
           } catch (e) { msg.innerHTML = '<div class="alert alert-error">' + esc(e.message) + "</div>"; }
-        });
-        ov.querySelector("#fbSend").addEventListener("click", function () {
-          var f = ov.querySelector("#fbForm"), msg = ov.querySelector("#fbMsg");
-          try { S.submitFeedback(f.tekst.value); f.tekst.value = ""; msg.innerHTML = ""; toast("Bedankt voor je feedback!", "ok"); }
-          catch (e) { msg.innerHTML = '<div class="alert alert-error">' + esc(e.message) + "</div>"; }
         });
         bindPwChecklist(ov, "n1", "cpReqs");
         ov.querySelector("#cpSave").addEventListener("click", function () {
@@ -2193,7 +2180,6 @@
     if (S.can.seeBeheer(u)) m.push({ id: "personeelsbeheer", name: "Personeelsbeheer", icon: "userCog", color: "teal", group: "Beheer", desc: "Medewerkers, functies, taken en hubs." });
     if (S.can.seeBussenbeheer(u)) m.push({ id: "bussenbeheer", name: "Bussenbeheer", icon: "van", color: "gray", group: "Beheer", desc: "Bussen per shift, met focus op probleembussen." });
     if (S.tempCanArchive(u)) m.push({ id: "temparchief", name: "Temperatuurarchief", icon: "thermo", color: "red", group: "Beheer", desc: "Dagoverzicht van alle temperatuurcontroles (RF 11 HUB)." });
-    if (S.can.seeBeheer(u)) m.push({ id: "feedback", name: "Feedback", icon: "message", color: "blue", group: "Beheer", desc: "Feedback die medewerkers via hun profiel hebben achtergelaten." });
     if (S.isAdmin(u)) m.push({ id: "modulebeheer", name: "Modulebeheer", icon: "grid", color: "gray", group: "Beheer", desc: "Modules aan- of uitzetten." });
     // Proces-volgorde: Senior Dashboard, Laadproces, Schadecontrole, Kwaliteit.
     if (senior) m.push({ id: "dashboard", name: "Senior Dashboard", icon: "chart", color: "dark", group: "Leidinggevende", desc: "Realtime overzicht van de shift." });
@@ -2202,6 +2188,8 @@
     if (senior || hasTask("Schadecontrole")) m.push({ id: "schadecontrole", name: "Schadecontrole", icon: "shield", color: "green", group: "Proces", desc: "Bussen controleren & afvinken." });
     if (senior || hasTask("Kwaliteit")) m.push({ id: "kwaliteit", name: "Kwaliteit", icon: "award", color: "purple", group: "Proces", desc: "Emballage tellen per vak." });
     if (senior || hasTask("Buswassing")) m.push({ id: "buswassing", name: "Buswassing", icon: "droplet", color: "blue", group: "Proces", desc: "Bussen afvinken die gewassen moeten worden." });
+    // Feedback: iedereen kan 'm geven (eigen tegel, niet meer via het profiel); teamleider+ ziet daar ook de ontvangen feedback.
+    m.push({ id: "feedback", name: "Feedback", icon: "message", color: "blue", group: "Overig", desc: "Laat weten wat beter kan." });
     return m;
   }
 
@@ -2242,7 +2230,7 @@
     }
     // Verborgen modules: voor iedereen weg (de beheerder ziet ze grijs, zodat hij weet dat ze uit staan).
     mods = mods.filter(function (m) { return S.moduleStatus(m.id) !== "verborgen" || S.isAdmin(u); });
-    var sections = ["Planning", "Leidinggevende", "Proces", "Beheer"].map(function (g) {
+    var sections = ["Planning", "Leidinggevende", "Proces", "Beheer", "Overig"].map(function (g) {
       var gm = mods.filter(function (m) { return (m.group || "Proces") === g; });
       if (!gm.length) return "";
       return '<section class="portal-group"><h3 class="portal-group-title">' + esc(g) + "</h3>" +
@@ -2787,21 +2775,67 @@
     var t = el("bbAllToggle"); if (t) t.addEventListener("change", function () { state.bbAll = t.checked; renderBussenbeheer(); });
   }
 
-  /* ---------- Feedback (medewerkers laten feedback achter via hun profiel; teamleider+ ziet 'm hier) ---------- */
+  /* ---------- Feedback ----------
+     Iedereen: formulier om feedback te geven (tegel in het menu). Teamleider+: daaronder de ontvangen
+     feedback van de eigen hub (gelezen markeren / verwijderen). Na "Shift afronden" vraagt het dashboard
+     dezelfde feedback verplicht via feedbackDialoog(). */
+  function feedbackFormHTML(id) {
+    return '<div class="panel"><div class="panel-head">' + svg("message", "icon-sm") + "<h3>Feedback geven</h3></div>" +
+      '<div class="panel-body" style="padding:14px 18px 16px">' +
+        '<p class="cellsub" style="margin:0 0 10px">Heb je een idee, een opmerking of loop je ergens tegenaan? Je leidinggevende leest dit.</p>' +
+        '<form id="' + id + '"><div class="field" style="margin-bottom:10px"><textarea name="tekst" rows="4" maxlength="1000" placeholder="Typ hier je feedback…"></textarea></div>' +
+        '<div id="' + id + 'Msg"></div>' +
+        '<div style="display:flex;justify-content:flex-end"><button class="btn btn-primary btn-sm" type="submit">' + svg("message", "icon-sm") + "Feedback versturen</button></div></form></div></div>";
+  }
+  function bindFeedbackForm(id, after) {
+    var f = el(id); if (!f) return;
+    f.addEventListener("submit", function (e) {
+      e.preventDefault(); var msg = el(id + "Msg");
+      try { S.submitFeedback(f.tekst.value); f.tekst.value = ""; msg.innerHTML = ""; toast("Bedankt voor je feedback!", "ok"); if (after) after(); }
+      catch (err) { msg.innerHTML = '<div class="alert alert-error">' + esc(err.message) + "</div>"; }
+    });
+  }
+  // Verplichte feedback na het afronden van een shift: geen sluitknop, pas weg als er iets is verstuurd.
+  function feedbackDialoog(shiftLabel, after) {
+    openModal({ title: "Hoe ging de shift?", icon: "message", noClose: true,
+      body: '<p class="cellsub" style="margin:0 0 10px">De shift <b>' + esc(shiftLabel) + "</b> is afgerond. Laat kort weten hoe het ging: wat liep goed, wat kan beter, waar liep je tegenaan?</p>" +
+        '<form id="afrondFb"><div class="field" style="margin-bottom:8px"><textarea name="tekst" rows="4" maxlength="1000" placeholder="Bijv. laadlijst klopte niet, wasstraat liep uit, alles ging soepel…"></textarea></div>' +
+        '<div id="afrondFbMsg"></div></form>',
+      foot: '<button class="btn btn-primary" id="afrondFbSend">' + svg("message", "icon-sm") + "Feedback versturen</button>",
+      onMount: function (ov, close) {
+        function send() {
+          var f = ov.querySelector("#afrondFb"), msg = ov.querySelector("#afrondFbMsg");
+          try { S.submitFeedback(f.tekst.value, shiftLabel); close(); toast("Bedankt voor je feedback!", "ok"); if (after) after(); }
+          catch (err) { msg.innerHTML = '<div class="alert alert-error">' + esc(err.message) + "</div>"; }
+        }
+        ov.querySelector("#afrondFbSend").addEventListener("click", send);
+        ov.querySelector("#afrondFb").addEventListener("submit", function (e) { e.preventDefault(); send(); });
+        var ta = ov.querySelector("textarea"); if (ta) setTimeout(function () { ta.focus(); }, 50);
+      } });
+  }
   function renderFeedback() {
     reRender = renderFeedback;
-    var list = S.feedbackForUser(S.currentUser());
+    var u = S.currentUser();
+    if (!S.can.seeBeheer(u)) {
+      el("app").innerHTML = moduleShell("Feedback", feedbackFormHTML("fbForm"), { noShift: true });
+      bindModuleHeader(renderFeedback);
+      bindFeedbackForm("fbForm");
+      return;
+    }
+    var list = S.feedbackForUser(u);
     var ongelezen = list.filter(function (f) { return !f.gelezen; }).length;
     var rows = list.length ? list.map(function (f) {
-      return '<tr class="' + (f.gelezen ? "sc-done" : "") + '"><td><div class="cellname">' + esc(f.userNaam) + '</div><div class="cellsub">' + esc(fmtDateTime(f.at)) + "</div></td>" +
+      return '<tr class="' + (f.gelezen ? "sc-done" : "") + '"><td><div class="cellname">' + esc(f.userNaam) + '</div><div class="cellsub">' + esc(fmtDateTime(f.at)) + (f.shift ? " · " + esc(f.shift) : "") + "</div></td>" +
         '<td data-th="Feedback" style="white-space:pre-wrap">' + esc(f.tekst) + "</td>" +
         '<td class="sc-chk" data-th="Gelezen"><label class="chk-box' + (f.gelezen ? " on" : "") + '"><input type="checkbox" ' + (f.gelezen ? "checked" : "") + ' data-fblezen="' + f.id + '">' + svg("check", "icon-sm") + "</label></td>" +
         '<td data-th=""><button class="btn btn-icon btn-ghost btn-sm" data-fbdel="' + f.id + '" title="Verwijderen">' + svg("trash", "icon-sm") + "</button></td></tr>";
     }).join("") : '<tr><td colspan="4"><div class="cellsub" style="padding:14px">Nog geen feedback ontvangen.</div></td></tr>';
     var table = '<div class="panel" style="padding:0"><div class="table-scroll"><table class="table">' +
       "<thead><tr><th>Van</th><th>Feedback</th><th>Gelezen</th><th></th></tr></thead><tbody>" + rows + "</tbody></table></div></div>";
-    el("app").innerHTML = moduleShell("Feedback", (list.length ? opProgress(list.length - ongelezen, list.length, "gelezen") : "") + table, { noShift: true });
+    var head = '<div class="panel-head" style="border:0;padding:4px 0 10px">' + svg("inbox", "icon-sm") + "<h3>Ontvangen feedback</h3></div>";
+    el("app").innerHTML = moduleShell("Feedback", feedbackFormHTML("fbForm") + head + (list.length ? opProgress(list.length - ongelezen, list.length, "gelezen") : "") + table, { noShift: true });
     bindModuleHeader(renderFeedback);
+    bindFeedbackForm("fbForm", renderFeedback);
     document.querySelectorAll("[data-fblezen]").forEach(function (cb) { cb.addEventListener("change", function () { try { S.feedbackMarkGelezen(cb.getAttribute("data-fblezen"), cb.checked); renderFeedback(); } catch (e) { toast(e.message, "err"); } }); });
     document.querySelectorAll("[data-fbdel]").forEach(function (b) { b.addEventListener("click", function () { try { S.feedbackRemove(b.getAttribute("data-fbdel")); toast("Feedback verwijderd.", "ok"); renderFeedback(); } catch (e) { toast(e.message, "err"); } }); });
   }
@@ -3659,7 +3693,11 @@
       openModal({ title: "Shift afronden", icon: "check",
         body: '<p style="margin:0">Je staat op het punt de shift <b>' + esc(fmtDate(c.d)) + " · " + esc(c.dd) + "</b> af te ronden. Iedereen met een dienst wordt uit z'n taakmodule gehaald en kan niets meer aanpassen.</p>",
         foot: '<button class="btn btn-ghost" data-close>Annuleren</button><button class="btn btn-primary" id="afrondOk">' + svg("check", "icon-sm") + "Shift afronden</button>",
-        onMount: function (ov, close) { ov.querySelector("#afrondOk").addEventListener("click", function () { try { S.shiftAfronden(c.h, c.d, c.dd); close(); toast("Shift afgerond.", "ok"); renderDashboard(); } catch (e) { toast(e.message, "err"); } }); } });
+        onMount: function (ov, close) { ov.querySelector("#afrondOk").addEventListener("click", function () {
+          try { S.shiftAfronden(c.h, c.d, c.dd); close(); toast("Shift afgerond.", "ok"); renderDashboard(); } catch (e) { toast(e.message, "err"); return; }
+          // Elke afgeronde shift levert feedback op (verplicht, zie feedbackDialoog).
+          setTimeout(function () { feedbackDialoog(fmtDate(c.d) + " · " + c.dd); }, 80);
+        }); } });
     }
     var ab = el("app").querySelector("[data-afronden]"); if (ab) ab.addEventListener("click", function () {
       var open = afrondOpenPunten(c);

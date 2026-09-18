@@ -119,7 +119,9 @@ public class Server {
       "CREATE TABLE IF NOT EXISTS trolley (hub_id TEXT, datum TEXT, dagdeel TEXT, stock4 INT, stock5 INT, pendels JSONB, PRIMARY KEY (hub_id, datum, dagdeel))",
       "CREATE TABLE IF NOT EXISTS trolley_stock (hub_id TEXT, datum TEXT, stock4 INT, stock5 INT, PRIMARY KEY (hub_id, datum))",
       "CREATE TABLE IF NOT EXISTS diensten (hub_id TEXT, datum TEXT, dagdeel TEXT, schadecontrole JSONB, lc JSONB, kwaliteit JSONB, PRIMARY KEY (hub_id, datum, dagdeel))",
-      "CREATE TABLE IF NOT EXISTS invite_codes (code TEXT PRIMARY KEY, hub_id TEXT, created_by TEXT, created_at TEXT, expires_at TEXT, used BOOLEAN, used_by_user_id TEXT)"
+      "CREATE TABLE IF NOT EXISTS invite_codes (code TEXT PRIMARY KEY, hub_id TEXT, created_by TEXT, created_at TEXT, expires_at TEXT, used BOOLEAN, used_by_user_id TEXT)",
+      // gebruikersfeedback (v159): eigen tabel — vóór v159 zat 'feedback' alleen in de client-staat en ging bij herladen verloren
+      "CREATE TABLE IF NOT EXISTS feedback (id TEXT PRIMARY KEY, user_id TEXT, user_naam TEXT, hub_id TEXT, tekst TEXT, at TEXT, gelezen BOOLEAN, gelezen_at TEXT, shift TEXT)"
     };
     // Migratie: oude trolley_stock (alleen hub_id, geen datum) verwijderen zodat de nieuwe schema-versie wordt aangemaakt.
     try (ResultSet rc = db().getMetaData().getColumns(null, null, "trolley_stock", "datum")) {
@@ -211,6 +213,19 @@ public class Server {
       }
     }
     root.add("logs", logs);
+
+    // feedback — nieuwste eerst
+    JsonArray feedback = new JsonArray();
+    try (ResultSet r = c.createStatement().executeQuery("SELECT * FROM feedback ORDER BY at DESC")) {
+      while (r.next()) {
+        JsonObject o = new JsonObject();
+        o.addProperty("id", r.getString("id")); addNullable(o, "userId", r.getString("user_id")); o.addProperty("userNaam", r.getString("user_naam"));
+        addNullable(o, "hubId", r.getString("hub_id")); o.addProperty("tekst", r.getString("tekst")); o.addProperty("at", r.getString("at"));
+        o.addProperty("gelezen", r.getBoolean("gelezen")); addNullable(o, "gelezenAt", r.getString("gelezen_at")); addNullable(o, "shift", r.getString("shift"));
+        feedback.add(o);
+      }
+    }
+    root.add("feedback", feedback);
 
     // plannings
     JsonArray plannings = new JsonArray();
@@ -370,7 +385,7 @@ public class Server {
     if (actor != null && (allowedHubs != null || !actorSetup)) {
       JsonObject cur = JsonParser.parseString(buildState()).getAsJsonObject();  // huidige DB-staat (vóór wissen)
       if (allowedHubs != null) {
-        for (String t : new String[]{"shifts","taskOffers","backups","callouts","logs","plannings"})
+        for (String t : new String[]{"shifts","taskOffers","backups","callouts","logs","plannings","feedback"})
           root.add(t, mergeHubList(arr(root, t), arr(cur, t), allowedHubs));
         for (String t : new String[]{"schade","kwaliteit","lc","trolley","trolleyStock","diensten"})
           root.add(t, mergeHubMap(obj(root, t), obj(cur, t), allowedHubs));
@@ -386,7 +401,7 @@ public class Server {
     boolean prevAuto = c.getAutoCommit();
     c.setAutoCommit(false);
     try (Statement s = c.createStatement()) {
-      for (String t : new String[]{"hubs","task_catalog","users","shifts","task_offers","backups","callouts","logs","plannings","schade","kwaliteit","lc","trolley","trolley_stock","diensten"}) s.execute("DELETE FROM " + t);
+      for (String t : new String[]{"hubs","task_catalog","users","shifts","task_offers","backups","callouts","logs","plannings","feedback","schade","kwaliteit","lc","trolley","trolley_stock","diensten"}) s.execute("DELETE FROM " + t);
 
       // hubs
       for (JsonElement e : arr(root, "hubs")) { JsonObject o = e.getAsJsonObject(); exec(c, "INSERT INTO hubs (id,naam) VALUES (?,?)", o.get("id").getAsString(), str(o,"naam")); }
@@ -421,6 +436,10 @@ public class Server {
       for (JsonElement e : arr(root, "plannings")) { JsonObject o = e.getAsJsonObject();
         exec(c, "INSERT INTO plannings (id,hub_id,week_start,created_at,rows,cells) VALUES (?,?,?,?,?::jsonb,?::jsonb)",
           str(o,"id"),str(o,"hubId"),str(o,"weekStart"),str(o,"createdAt"),jraw(o,"rows","[]"),jraw(o,"cells","{}")); }
+      // feedback
+      for (JsonElement e : arr(root, "feedback")) { JsonObject o = e.getAsJsonObject();
+        exec(c, "INSERT INTO feedback (id,user_id,user_naam,hub_id,tekst,at,gelezen,gelezen_at,shift) VALUES (?,?,?,?,?,?,?,?,?)",
+          str(o,"id"),str(o,"userId"),str(o,"userNaam"),str(o,"hubId"),str(o,"tekst"),str(o,"at"),bool(o,"gelezen"),str(o,"gelezenAt"),str(o,"shift")); }
       // per-shift
       for (Map.Entry<String,JsonElement> en : obj(root,"schade").entrySet()) { String[] k = en.getKey().split("\\|",3); JsonObject o = en.getValue().getAsJsonObject();
         exec(c, "INSERT INTO schade (hub_id,datum,dagdeel,buses,steekproeven) VALUES (?,?,?,?::jsonb,?::jsonb)", k[0],k[1],k[2],jraw(o,"buses","[]"),jraw(o,"steekproeven","[]")); }
@@ -1117,7 +1136,7 @@ public class Server {
         JsonObject me = loadUsers(db()).get(id);
         if (me == null || !isAdminRol(str(me, "rol"))) { sendJson(ex, 403, "{\"error\":\"forbidden\"}"); return; }
         Connection c = db();
-        for (String t : new String[]{"hubs","task_catalog","users","shifts","task_offers","backups","callouts","logs","plannings","schade","kwaliteit","lc","trolley","trolley_stock","diensten","invite_codes","meta"})
+        for (String t : new String[]{"hubs","task_catalog","users","shifts","task_offers","backups","callouts","logs","plannings","feedback","schade","kwaliteit","lc","trolley","trolley_stock","diensten","invite_codes","meta"})
           try (Statement s = c.createStatement()) { s.execute("DELETE FROM " + t); }
       }
       clearSessionCookie(ex);

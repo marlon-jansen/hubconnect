@@ -34,6 +34,9 @@
   --purple: #6d4fb3;
   --purple-soft: rgba(109,79,179,.12);
   --seg-active: #ffffff;          /* actieve knop in een segment */
+  --btn-strong: #171717;          /* .btn-dark: nadrukkelijke knop (net iets sterker dan neutraal) */
+  --btn-strong-fg: #ffffff;
+  --btn-strong-line: #171717;
   --surface-hover: #e6e6e6;       /* hover op een neutraal bedieningsvlak */
   --radius: 10px;
   --radius-sm: 8px;
@@ -93,9 +96,9 @@ svg { display: block; }
 /* Op vast geel hoort de tekst altijd donker: --ink-fixed, niet --ink (die wordt licht in dark mode). */
 .btn-primary { background: var(--jumbo-yellow); border-color: var(--jumbo-yellow); color: var(--ink-fixed); font-weight: 600; }
 .btn-primary:hover { background: var(--jumbo-yellow-dark); border-color: var(--jumbo-yellow-dark); }
-/* "Donkere" knop = inverse van het thema: wit op zwart in dark, zwart op wit in licht. */
-.btn-dark { background: var(--ink); border-color: var(--ink); color: var(--card); font-weight: 600; }
-.btn-dark:hover { background: var(--ink-soft); border-color: var(--ink-soft); }
+/* Nadrukkelijke knop: zwart in licht; in dark een tint lichter dan de neutrale knop (niet fel wit). */
+.btn-dark { background: var(--btn-strong); border-color: var(--btn-strong-line); color: var(--btn-strong-fg); font-weight: 600; }
+.btn-dark:hover { filter: brightness(1.15); }
 .btn-ghost { background: transparent; border-color: var(--line); }
 .btn-ghost:hover { background: var(--surface-2); }
 .btn-green { background: var(--green); border-color: var(--green); color: #fff; }
@@ -1742,6 +1745,9 @@ html { background: var(--bg); transition: background-color .25s var(--ease); }
   --track: #3a3a3a;
   --seg-active: #2a2a2a;
   --surface-hover: #262626;
+  --btn-strong: #2c2c2c;          /* geen fel wit in dark: een tint lichter dan de rest */
+  --btn-strong-fg: #f2f2f2;
+  --btn-strong-line: #3d3d3d;
   --ink-fixed: #141414;
   --overlay: rgba(0,0,0,.66);
 

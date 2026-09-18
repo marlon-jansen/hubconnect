@@ -959,16 +959,18 @@
   }
 
   /* ----- Gebruikersfeedback -----
-     Iedereen mag feedback achterlaten (via het profiel); teamleider+ ziet en beheert 'm, hub-gescoped
-     zoals Personeelsbeheer (de beheerder ziet alle hubs). Lift mee op de gedeelde staat → geen serverwijziging. */
+     Iedereen mag feedback achterlaten (module "Feedback" in het menu; verplicht na "Shift afronden");
+     teamleider+ ziet en beheert 'm, hub-gescoped zoals Personeelsbeheer. Server bewaart 'm sinds v159
+     in de tabel `feedback` (daarvoor ging hij bij herladen verloren). `shift` = optioneel label
+     "za 19-9-2026 · AM" als de feedback bij het afronden van een shift is gegeven. */
   function getFeedbackList() { if (!Array.isArray(db.feedback)) db.feedback = []; return db.feedback; }
-  function submitFeedback(tekst) {
+  function submitFeedback(tekst, shift) {
     var u = currentUser();
     if (!u) throw new Error("Je moet ingelogd zijn om feedback te geven.");
     var t = (tekst || "").trim();
     if (!t) throw new Error("Vul je feedback in.");
     if (t.length > 1000) throw new Error("Maximaal 1000 tekens.");
-    getFeedbackList().push({ id: uid("fb"), userId: u.id, userNaam: u.voornaam + " " + u.achternaam, hubId: u.hubId, tekst: t, at: now(), gelezen: false, gelezenAt: null });
+    getFeedbackList().push({ id: uid("fb"), userId: u.id, userNaam: u.voornaam + " " + u.achternaam, hubId: u.hubId, tekst: t, at: now(), gelezen: false, gelezenAt: null, shift: shift || null });
     save();
   }
   // Hub-gescoped zoals manageableUsers: iedereen t/m locatie-manager ziet alleen de eigen hub,
