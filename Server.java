@@ -439,7 +439,7 @@ public class Server {
       if (root.has("_seq") && !root.get("_seq").isJsonNull()) setMeta(c, "_seq", root.get("_seq").getAsString());
       if (root.has("version") && !root.get("version").isJsonNull()) setMeta(c, "appversion", root.get("version").getAsString());
       // modulestatus mag alleen de beheerder wijzigen; anderen sturen de bestaande waarde ongewijzigd mee
-      if (root.has("moduleStatus") && root.get("moduleStatus").isJsonObject() && actor != null && "admin".equals(str(actor, "rol"))) setMeta(c, "module_status", root.get("moduleStatus").toString());
+      if (root.has("moduleStatus") && root.get("moduleStatus").isJsonObject() && actor != null && isAdminRol(str(actor, "rol"))) setMeta(c, "module_status", root.get("moduleStatus").toString());
       c.commit();
       c.setAutoCommit(prevAuto);
     } catch (Exception ex) {
@@ -712,7 +712,7 @@ public class Server {
   // Hub waarvoor deze gebruiker werkt: eigen hub, tenzij een rol boven de hubs een andere hub kiest.
   static String scopedHub(JsonObject me, String wanted) {
     if (wanted == null || wanted.isEmpty()) return str(me, "hubId");
-    boolean overHubs = "admin".equals(str(me, "rol")) || roleLevel(str(me, "rol")) >= 6;
+    boolean overHubs = isAdminRol(str(me, "rol")) || roleLevel(str(me, "rol")) >= 6;
     if (overHubs) return wanted;
     // locatie-manager met meerdere hubs: alleen een hub uit de eigen lijst
     if (me.has("hubIds") && me.get("hubIds").isJsonArray())
@@ -720,6 +720,7 @@ public class Server {
     return str(me, "hubId");
   }
   static int roleLevel(String rol) {
+    if ("eigenaar".equals(rol)) return 100;
     if ("admin".equals(rol)) return 99;
     if ("manager-thuisbezorging".equals(rol)) return 6;
     if ("locatie-manager".equals(rol)) return 5;
@@ -728,6 +729,10 @@ public class Server {
     if ("bezorger".equals(rol)) return 2;
     return 0;
   }
+  // "admin" (Beheerder, door de eigenaar aan ICT'ers toe te kennen) én "eigenaar" (topniveau, uniek) zijn
+  // allebei "beheerder-of-hoger" voor alle bestaande admin-only checks; alleen het toekennen/intrekken van
+  // die twee rollen zelf is voorbehouden aan de eigenaar (zie mergeUser).
+  static boolean isAdminRol(String rol) { return "admin".equals(rol) || "eigenaar".equals(rol); }
   // Alle gebruikers als JsonObject (met pass/otp) — vorm zoals de INSERT verwacht.
   static Map<String,JsonObject> loadUsers(Connection c) throws SQLException {
     Map<String,JsonObject> m = new HashMap<>();
@@ -809,7 +814,8 @@ public class Server {
       return all;
     }
     int lvl = actor != null ? roleLevel(str(actor, "rol")) : 0;
-    boolean isAdmin = actor != null && "admin".equals(str(actor, "rol"));
+    boolean isAdmin = actor != null && isAdminRol(str(actor, "rol")); // admin (Beheerder) of eigenaar
+    boolean isEigenaarActor = actor != null && "eigenaar".equals(str(actor, "rol"));
     boolean canTeam = isAdmin || lvl >= 4;   // teamleider+ : n2/jbt/taken/naam/e-mail van anderen, aanmaken/verwijderen
     boolean canRoles = isAdmin || lvl >= 5;  // locatie-manager+ : functie en hub
     String actorId = actor != null ? str(actor, "id") : null;
@@ -835,7 +841,7 @@ public class Server {
         u.addProperty("hidden", false);
         out.put(id, u);
       } else {
-        out.put(id, mergeUser(ex, in, actorId, canTeam, canRoles, isAdmin, lvl));
+        out.put(id, mergeUser(ex, in, actorId, canTeam, canRoles, isAdmin, lvl, isEigenaarActor));
       }
     }
     // Bestaande gebruikers die ontbreken in de PUT = verwijderpoging: alleen teamleider+ mag verwijderen,
@@ -848,7 +854,7 @@ public class Server {
     }
     return new ArrayList<>(out.values());
   }
-  static JsonObject mergeUser(JsonObject ex, JsonObject in, String actorId, boolean canTeam, boolean canRoles, boolean isAdmin, int actorLevel) {
+  static JsonObject mergeUser(JsonObject ex, JsonObject in, String actorId, boolean canTeam, boolean canRoles, boolean isAdmin, int actorLevel, boolean isEigenaarActor) {
     JsonObject u = new JsonObject();
     u.addProperty("id", str(ex, "id"));
     // credentials: altijd uit de DB
@@ -863,8 +869,11 @@ public class Server {
     u.addProperty("email", (self || canTeam) ? str(in, "email") : str(ex, "email"));
     // HR-nummer: alleen de beheerder
     u.addProperty("personeelsnummer", isAdmin ? str(in, "personeelsnummer") : str(ex, "personeelsnummer"));
-    // functie + hub: locatie-manager+; nooit een functie boven je eigen niveau toekennen (behalve de beheerder)
-    boolean rolOk = canRoles && (isAdmin || roleLevel(str(in, "rol")) <= actorLevel);
+    // functie + hub: locatie-manager+; nooit een functie boven je eigen niveau toekennen (behalve de beheerder).
+    // "admin" (Beheerder) of "eigenaar" toekennen/intrekken mag uitsluitend de eigenaar zelf — ook een
+    // bestaande Beheerder mag geen andere Beheerder (of de eigenaar) een andere rol geven.
+    boolean targetTopTier = isAdminRol(str(in, "rol")) || isAdminRol(str(ex, "rol"));
+    boolean rolOk = canRoles && (targetTopTier ? isEigenaarActor : (isAdmin || roleLevel(str(in, "rol")) <= actorLevel));
     u.addProperty("rol", rolOk ? str(in, "rol") : str(ex, "rol"));
     u.addProperty("hubId", canRoles ? str(in, "hubId") : str(ex, "hubId"));
     // extra hubs van een locatie-manager: alleen rollen boven de hubs (manager thuisbezorging, beheerder)
@@ -1106,7 +1115,7 @@ public class Server {
       String id = currentUserId(ex); if (id == null) { sendJson(ex, 401, "{\"error\":\"auth\"}"); return; }
       synchronized (DBLOCK) {
         JsonObject me = loadUsers(db()).get(id);
-        if (me == null || !"admin".equals(str(me, "rol"))) { sendJson(ex, 403, "{\"error\":\"forbidden\"}"); return; }
+        if (me == null || !isAdminRol(str(me, "rol"))) { sendJson(ex, 403, "{\"error\":\"forbidden\"}"); return; }
         Connection c = db();
         for (String t : new String[]{"hubs","task_catalog","users","shifts","task_offers","backups","callouts","logs","plannings","schade","kwaliteit","lc","trolley","trolley_stock","diensten","invite_codes","meta"})
           try (Statement s = c.createStatement()) { s.execute("DELETE FROM " + t); }

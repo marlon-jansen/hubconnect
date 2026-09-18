@@ -1691,11 +1691,15 @@
 
   // Personeelsbeheer als los menu-item (onder "Planning"). Hergebruikt de beheer-view.
   // Functies die deze gebruiker mag toekennen: nooit boven het eigen niveau (beheerder: alles).
-  // Alleen de beheerder zelf mag ook nog "Beheerder" toekennen (bv. aan een ICT'er) — geen eigen rol in S.ROLES,
-  // dus als losse optie erbij; store.js (setUserRole) staat dit al alleen aan isAdmin toe.
+  // "Beheerder" en "Eigenaar" hebben geen eigen rol in S.ROLES, dus als losse opties erbij. Beide toekennen/
+  // intrekken mag store.js (setUserRole) al alleen aan de eigenaar zelf toe, dus "Beheerder" tonen we alleen
+  // aan de eigenaar. "Eigenaar" tonen we alléén als bootstrap-optie: zolang er nog geen eigenaar is, mag een
+  // Beheerder die éénmalige eerste eigenaar aanwijzen; is die er eenmaal, dan verdwijnt de optie weer.
   function assignableRoles(u) {
     var list = S.ROLES.filter(function (r) { return S.isAdmin(u) || r.level <= S.level(u); });
-    return S.isAdmin(u) ? [{ id: "admin", label: "Beheerder", level: 99 }].concat(list) : list;
+    if (S.isEigenaar(u)) list = [{ id: "admin", label: "Beheerder", level: 99 }].concat(list);
+    else if (S.isAdmin(u) && !S.anyEigenaarExists()) list = [{ id: "eigenaar", label: "Eigenaar", level: 100 }].concat(list);
+    return list;
   }
   function renderPersoneelsbeheer() {
     reRender = renderPersoneelsbeheer;
@@ -1719,8 +1723,9 @@
     var rows = users.map(function (x) {
       var hub = S.hubById(x.hubId);
       var isSelf = x.id === u.id;
-      // niemand wijzigt zijn eigen functie
-      var roleCell = (canRoles && !isSelf) ? '<select class="pill-select role-select" data-role="' + x.id + '">' + roleOpts(x.rol) + "</select>" : '<span class="badge role">' + esc(S.roleMeta(x.rol).label) + "</span>";
+      // niemand wijzigt zijn eigen functie; een bestaande Beheerder/Eigenaar mag alleen de eigenaar zelf aanpassen
+      var isTopTier = x.rol === "admin" || x.rol === "eigenaar";
+      var roleCell = (canRoles && !isSelf && (!isTopTier || S.isEigenaar(u))) ? '<select class="pill-select role-select" data-role="' + x.id + '">' + roleOpts(x.rol) + "</select>" : '<span class="badge role">' + esc(S.roleMeta(x.rol).label) + "</span>";
       // iedereen heeft diesel; N2 is een extra bevoegdheid
       // N2-bevoegdheid: bliksem groen+gevuld = mag N2 rijden, grijs+leeg = niet.
       var boltSvg = '<svg class="icon" viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>';
@@ -2047,7 +2052,9 @@
   function openUserDetail(uid) {
     function body() {
       var me = S.currentUser(); var t = S.userById(uid); if (!t) return "";
-      var canTeam = S.can.editTeam(me); var canRoles = S.can.editRoles(me) && t.id !== me.id;
+      var canTeam = S.can.editTeam(me);
+      var isTopTier = t.rol === "admin" || t.rol === "eigenaar";
+      var canRoles = S.can.editRoles(me) && t.id !== me.id && (!isTopTier || S.isEigenaar(me));
       var seeStats = S.level(me) >= 4 || t.id === me.id;
       var hub = S.hubById(t.hubId);
       var head = '<div class="prof-head"><div class="avatar lg">' + initials(t) + '</div><div><div class="prof-name">' + fullName(t) +

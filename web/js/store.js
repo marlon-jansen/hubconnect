@@ -190,8 +190,15 @@
   // Inloggen mag met e-mailadres óf HR-nummer (personeelsnummer).
   function findLoginUser(identifier) { return userByEmail(identifier) || userByPersoneelsnummer(identifier); }
   function hubById(id) { return db.hubs.filter(function (h) { return h.id === id; })[0] || null; }
-  function isAdmin(u) { return !!(u && u.rol === "admin"); }
+  // "admin" (Beheerder, door de eigenaar toe te kennen aan bv. ICT'ers) en "eigenaar" (topniveau, uniek)
+  // zijn allebei "beheerder-of-hoger": isAdmin dekt overal waar tot nu toe alleen de beheerder mocht.
+  // Alleen isEigenaar mag zelf iemand tot Beheerder/Eigenaar maken of terugzetten (zie setUserRole).
+  function isAdmin(u) { return !!(u && (u.rol === "admin" || u.rol === "eigenaar")); }
+  function isEigenaar(u) { return !!(u && u.rol === "eigenaar"); }
+  // Voor de bootstrap-uitzondering in setUserRole/de UI: bestaat er al een eigenaar?
+  function anyEigenaarExists() { return db.users.some(function (u) { return u.rol === "eigenaar"; }); }
   function roleMeta(id) {
+    if (id === "eigenaar") return { id: "eigenaar", label: "Eigenaar", level: 100 };
     if (id === "admin") return { id: "admin", label: "Beheerder", level: 99 };
     return ROLES.filter(function (r) { return r.id === id; })[0] || ROLES[ROLES.length - 1];
   }
@@ -715,9 +722,18 @@
 
   /* ---------- Beheer ---------- */
   function setUserRole(targetId, rol) {
-    if (!can.editRoles(currentUser())) throw new Error("Alleen een locatie-manager mag functies toewijzen.");
-    if (!isAdmin(currentUser()) && roleMeta(rol).level > level(currentUser())) throw new Error("Je kunt geen functie toekennen boven je eigen niveau.");
+    var me = currentUser();
+    if (!can.editRoles(me)) throw new Error("Alleen een locatie-manager mag functies toewijzen.");
     var t = userById(targetId); if (!t) throw new Error("Gebruiker niet gevonden.");
+    // Beheerder/Eigenaar toekennen of intrekken mag uitsluitend de eigenaar — ook een Beheerder mag geen
+    // andere Beheerder (of de eigenaar) een andere rol geven. Uitzondering: is er nog helemaal geen eigenaar
+    // (bootstrap), dan mag een Beheerder die éénmalige eerste eigenaar aanwijzen.
+    var anyEigenaar = db.users.some(function (u) { return u.rol === "eigenaar"; });
+    var bootstrapEigenaar = isAdmin(me) && !anyEigenaar && rol === "eigenaar";
+    if ((rol === "admin" || rol === "eigenaar" || t.rol === "admin" || t.rol === "eigenaar") && !isEigenaar(me) && !bootstrapEigenaar) {
+      throw new Error("Alleen de eigenaar mag Beheerder-rechten toekennen of intrekken.");
+    }
+    if (!isAdmin(me) && roleMeta(rol).level > level(me)) throw new Error("Je kunt geen functie toekennen boven je eigen niveau.");
     t.rol = rol; save();
   }
   function setUserN2(targetId, val) {
@@ -1941,7 +1957,7 @@
     TASK_BINNENDIENST: TASK_BINNENDIENST, TASK_JBT: TASK_JBT,
     boot: boot, refresh: refresh, save: save, resetDemo: resetDemo, setSaveErrorHandler: setSaveErrorHandler,
     get db() { return db; }, get clientId() { return clientId; }, get serverVersion() { return serverVersion; },
-    userById: userById, userByEmail: userByEmail, userByPersoneelsnummer: userByPersoneelsnummer, hubById: hubById, roleMeta: roleMeta, level: level, isAdmin: isAdmin, currentUser: currentUser,
+    userById: userById, userByEmail: userByEmail, userByPersoneelsnummer: userByPersoneelsnummer, hubById: hubById, roleMeta: roleMeta, level: level, isAdmin: isAdmin, isEigenaar: isEigenaar, anyEigenaarExists: anyEigenaarExists, currentUser: currentUser,
     can: can, canDoTask: canDoTask, visibleTask: visibleTask, availableTasks: availableTasks,
     taskType: taskType, assignableTasks: assignableTasks, setTaskType: setTaskType,
     login: login, logout: logout, setInitialPassword: setInitialPassword, changeOwnPassword: changeOwnPassword,
