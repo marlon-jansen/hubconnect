@@ -258,12 +258,10 @@
       "</svg>";
   }
 
-  /* ---- Licht/donker-thema — keuze staat per gebruiker in het profiel ----
-     Landing & login zijn altijd donker (zie render()). Standaard: donker. */
+  /* ---- Licht/donker-thema — licht staat tijdelijk uit (op verzoek); alleen donker, keuze in het
+     profiel is weg. Code blijft staan om licht later weer aan te kunnen zetten. */
   function userTheme(u) {
-    u = u || S.currentUser();
-    var t = null; try { t = localStorage.getItem("hc-theme:" + (u && u.id)); } catch (e) {}
-    return t === "light" ? "light" : "dark";
+    return "dark";
   }
   function applyUserTheme(u) { document.documentElement.setAttribute("data-theme", userTheme(u)); }
   function setUserTheme(t) {
@@ -2113,11 +2111,6 @@
         locked("Bus", u.n2 ? "Diesel + N2" : "Alleen diesel") +
         (u.jbtTrainer ? locked("JBT-trainer", "Ja") : "") +
       "</div>" +
-      '<div class="prof-divider">Weergave</div>' +
-      '<div class="seg theme-seg">' +
-        '<button data-set-theme="light"' + (userTheme(u) === "light" ? ' class="active"' : "") + ">" + sunIcon() + " Licht</button>" +
-        '<button data-set-theme="dark"' + (userTheme(u) === "dark" ? ' class="active"' : "") + ">" + moonIcon() + " Donker</button>" +
-      "</div>" +
       '<div class="prof-divider">Wachtwoord wijzigen</div>' +
       '<form id="cpForm">' +
         '<div class="field"><label>Huidig wachtwoord</label>' + pwInput("old", "", " required") + "</div>" +
@@ -2797,11 +2790,11 @@
       catch (err) { msg.innerHTML = '<div class="alert alert-error">' + esc(err.message) + "</div>"; }
     });
   }
-  // Verplichte feedback na het afronden van een shift: geen sluitknop, pas weg als er iets is verstuurd.
+  // Feedback na het afronden van een shift: optioneel, met een kruisje om 'm zonder invullen weg te klikken.
   function feedbackDialoog(shiftLabel, after) {
-    openModal({ title: "Hoe ging de shift?", icon: "message", noClose: true,
+    openModal({ title: "Hoe ging de shift?", icon: "message",
       body: '<p class="cellsub" style="margin:0 0 10px">De shift <b>' + esc(shiftLabel) + "</b> is afgerond. Laat kort weten hoe het ging: wat liep goed, wat kan beter, waar liep je tegenaan?</p>" +
-        '<form id="afrondFb"><div class="field" style="margin-bottom:8px"><textarea name="tekst" rows="4" maxlength="1000" placeholder="Bijv. laadlijst klopte niet, wasstraat liep uit, alles ging soepel…"></textarea></div>' +
+        '<form id="afrondFb"><div class="field" style="margin-bottom:8px"><textarea name="tekst" rows="4" maxlength="1000"></textarea></div>' +
         '<div id="afrondFbMsg"></div></form>',
       foot: '<button class="btn btn-primary" id="afrondFbSend">' + svg("message", "icon-sm") + "Feedback versturen</button>",
       onMount: function (ov, close) {
